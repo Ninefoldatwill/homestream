@@ -127,6 +127,23 @@ HomeStream V5
 
 ---
 
+## Loop Engineering 落地
+
+HomeStream 践行 **Loop Engineering**——任务在自主循环中运转，而非依赖一次性提示词。
+
+| 循环环节 | 能力 | 对应模块 |
+|:-----|:-----|:-----|
+| 🔄 **执行** | Agent 自主拆解任务，多步串行/并行执行 | `workflow_engine.py` |
+| ✅ **校验** | 每一步执行前自动检查前置条件 | `condition_verifier.py` |
+| 🔁 **重试** | 失败自动降级到替代方案，永不硬报错 | `failsafe_guardian.py` |
+| 📦 **归档** | 失败教训自动记录，下次自动避开 | `ratchet_loop.py` |
+| 🔍 **追踪** | 任何一步出问题，沿因果链追溯到根源 | `event_stream.py` |
+| 🧬 **学习** | 长期记忆演化，Agent 越用越聪明 | `memory_evolution.py` |
+
+> 不是写好提示词让 AI 一次答对，而是设计一个"执行→校验→重试→归档→学习"的闭环，让 AI **自己转到对为止**。
+
+---
+
 ## 核心概念
 
 ### ICP v1.1 协议
