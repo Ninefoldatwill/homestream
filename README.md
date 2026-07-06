@@ -1,0 +1,267 @@
+# HomeStream
+
+> **自进化AI生态操作系统** — 开源版 V5.0.0
+>
+> 融众之优，铸己之新。道法自然，由内而外。
+
+---
+
+<p align="center">
+  <strong>MIT Licensed</strong> · <strong>Python 3.9+</strong> · <strong>76 tests passing</strong> · <strong>69 API routes</strong>
+</p>
+
+---
+
+## 这是什么？
+
+HomeStream 是一个轻量级、可自托管的 **多Agent协作框架**。它提供：
+
+- 🏠 **事件中枢** — EventStream因果链，追踪每个Agent动作的来龙去脉
+- 💬 **Agent群聊** — 频道广播、点对点消息、@提及路由、Kanban任务回调
+- 🔐 **安全内置** — Token认证、注入防护、日志脱敏、速率限制、三层权限
+- 🧠 **三层模型路由** — L1本地/L2云端/L3备份，自动降级，永不掉线
+- 🎯 **零配置启动** — 一个命令即可运行，从solo到team渐进式升级
+- 🔌 **弹性模式** — Solo(单Agent) → Team(多Agent协作) → Ecosystem(插件扩展)
+
+HomeStream 是 [OpenBridge](https://github.com/Ninefoldatwill/openbridge) 生态的开源基石。我们相信：**芸芸众生成就三千世界**。
+
+---
+
+## 快速开始
+
+### 一键安装
+
+```bash
+# Linux/macOS
+curl -fsSL https://raw.githubusercontent.com/Ninefoldatwill/homestream/main/install.sh | bash
+
+# Windows PowerShell
+iwr -useb https://raw.githubusercontent.com/Ninefoldatwill/homestream/main/install.ps1 | iex
+```
+
+### 手动安装
+
+```bash
+# 1. 克隆仓库
+git clone https://github.com/Ninefoldatwill/homestream.git
+cd homestream
+
+# 2. 安装依赖
+pip install -r requirements.txt
+
+# 3. 配置环境
+cp .env.example .env
+# 编辑 .env 填入你的Agent Token
+
+# 4. 启动服务
+python bridge_v7_server.py
+```
+
+打开浏览器访问：
+- API文档：http://localhost:3458/docs
+- 会议室：http://localhost:3458/meeting
+- 健康检查：http://localhost:3458/health
+- 指标面板：http://localhost:3458/metrics
+
+### CLI 工具
+
+```bash
+homestream start          # 启动服务
+homestream stop           # 停止服务
+homestream status         # 查看状态
+homestream mode solo      # 切换为单Agent模式
+homestream mode team      # 切换为团队模式
+homestream doctor         # 全息诊断
+```
+
+---
+
+## 架构概览
+
+```
+HomeStream V5
+│
+├── bridge_v7_server.py       # FastAPI主服务 (API端点)
+├── event_stream.py            # EventStream引擎 (因果链)
+├── event_store.py             # SQLite持久化存储
+├── config.py                  # 环境变量配置 (.env)
+│
+├── 安全层
+│   ├── prompt_security.py     # Prompt注入防护
+│   ├── permission_guard.py    # 三层权限分治
+│   ├── rate_limiter.py        # 限流令牌桶
+│   └── log_sanitizer.py       # 日志脱敏
+│
+├── 模型路由
+│   ├── model_router.py        # 三层路由 (L1/L2/L3)
+│   └── providers/             # 模型提供者集成
+│
+├── 记忆系统
+│   ├── memory_evolution.py    # 记忆演化 (遗忘/合并/重构)
+│   └── soul_config.py         # Soul配置 (角色模板)
+│
+├── 协作工具
+│   ├── skill_router.py        # 技能路由器
+│   ├── worktree_manager.py    # Worktree隔离
+│   ├── workflow_engine.py     # 可视化工作流
+│   ├── messaging_gateway.py   # 多平台IM网关
+│   └── plugin_registry.py     # 插件市场注册
+│
+├── CLI工具
+│   └── openbridge/cli.py      # Typer+Rich CLI
+│
+└── 测试套件
+    ├── test_meeting_room.py   # 会议室闭环测试
+    ├── test_soul_config.py    # Soul配置测试
+    ├── test_security_injection.py # 安全注入测试
+    └── test_openbridge_cli.py # CLI测试
+```
+
+---
+
+## 核心概念
+
+### ICP v1.1 协议
+
+9种消息类型：`INFO` / `ASK` / `TASK` / `UPD` / `DONE` / `WARN` / `ACK` / `PING` / `LOG`
+
+- BLUF结论先行，单条 ≤ 500字符
+- SLA：WARN < 5min / ASK+TASK < 30min
+
+### EventStream因果链
+
+每个Event携带 `cause` 字段，指向触发它的上游Event，形成完整的因果追踪链。
+
+### 弹性模式三档渐进
+
+| 功能 | Solo | Team | Ecosystem |
+|:-----|:----:|:----:|:---------:|
+| EventStream | ✓ | ✓ | ✓ |
+| 群聊 | ✓ | ✓ | ✓ |
+| Prometheus监控 | ✓ | ✓ | ✓ |
+| structlog日志 | ✓ | ✓ | ✓ |
+| Kanban任务板 | — | ✓ | ✓ |
+| Worktree隔离 | — | ✓ | ✓ |
+| Ratchet Loop | — | ✓ | ✓ |
+| ICP v2 | — | ✓ | ✓ |
+| MCP Server | — | — | ✓ |
+| A2A协议 | — | — | ✓ |
+
+### 三层模型路由
+
+| 层级 | 模型 | 延迟 | 成本 | 用途 |
+|:----:|:-----|:----:|:----:|:-----|
+| L1 | Qwen2.5-7B (本地) | ~444ms | 免费 | 日常推理 |
+| L2 | GLM (云端) | ~1.4s | 免费 | 复杂任务 |
+| L3 | DeepSeek (备份) | ~1.5s | ~¥0.0001 | 自动降级 |
+
+双线路保障：主线路(L1+L2) + 复线(L3)，asyncio.wait_for超时自动切换。
+
+---
+
+## API端点
+
+### 事件系统
+
+| 方法 | 端点 | 功能 |
+|:-----|:-----|:-----|
+| POST | `/api/v7/events/send` | 发送事件 |
+| GET | `/api/v7/events` | 查询事件 |
+| GET | `/api/v7/events/chain/{id}` | 因果链追踪 |
+| GET | `/api/v7/stats` | 统计信息 |
+
+### 会议室闭环
+
+| 方法 | 端点 | 功能 |
+|:-----|:-----|:-----|
+| POST | `/api/v7/channels/send` | 频道发送 |
+| GET | `/api/v7/channels` | 频道列表 |
+| POST | `/api/v7/callback/kanban` | Kanban回调 |
+| GET | `/meeting` | 会议室前端 |
+
+### 任务 & Worktree
+
+| 方法 | 端点 | 功能 |
+|:-----|:-----|:-----|
+| POST | `/api/v7/tasks/lifecycle` | 任务生命周期 |
+| POST | `/api/v7/handoff` | Handoff交接 |
+| POST | `/api/v7/worktree/create` | 创建Worktree |
+| GET | `/api/v7/worktree/list` | Worktree列表 |
+
+完整API文档：http://localhost:3458/docs
+
+---
+
+## 安全
+
+HomeStream将安全作为第一优先级：
+
+- **Token认证** — hmac.compare_digest防时序攻击
+- **注入防护** — 13种危险模式检测 + ICP内容过滤
+- **日志脱敏** — 自动过滤token/key/password
+- **速率限制** — 令牌桶算法防滥用
+- **三层权限** — L1公开/L2插件/L3核心分级访问
+
+详见 [SECURITY.md](SECURITY.md)
+
+---
+
+## 测试
+
+```bash
+# 运行全部测试
+pytest -v
+
+# 覆盖率
+pytest --cov=. --cov-report=html
+
+# 安全扫描
+bandit -r .
+```
+
+当前测试状态：**76 tests, 0 failures**
+
+---
+
+## 贡献
+
+欢迎贡献！详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+快速流程：
+1. Fork → 2. 创建分支 → 3. 开发 → 4. 测试 → 5. PR
+
+---
+
+## 社区
+
+- 📖 [文档](https://github.com/Ninefoldatwill/homestream/wiki)
+- 💬 [讨论](https://github.com/Ninefoldatwill/homestream/discussions)
+- 🐛 [问题追踪](https://github.com/Ninefoldatwill/homestream/issues)
+- 📧 contribute@jiuchong.studio
+
+---
+
+## 许可证
+
+MIT License — 见 [LICENSE](LICENSE)
+
+"HomeStream" 是 九重工作室 的商标 — 见 [TRADEMARK.md](TRADEMARK.md)
+
+---
+
+## 致谢
+
+HomeStream 的诞生离不开开源社区的智慧：
+
+- **FastAPI** — 高性能Python Web框架
+- **pydantic** — 数据验证的黄金标准
+- **Typer + Rich** — 终端美学的巅峰组合
+- **structlog** — 结构化日志的最佳实践
+- **Qwen** — 本地运行的开源大模型
+- 以及所有为Agent生态做出贡献的开源项目
+
+融众之优，铸己之新。我们一起，让AI更有温度。
+
+---
+
+**九重工作室** · 2026

@@ -1,0 +1,69 @@
+{
+  "version": "1.0.0",
+  "updated": "2026-06-18",
+  "description": "九重生态 Skill Router 注册表 - 轻量级技能调度中枢",
+  "skills": [
+    {"id": "agent-browser", "name": "Agent Browser", "category": "automation", "priority": 0, "role": "all", "triggers": ["browser", "网页", "截图", "自动化", "爬取", "click", "navigate"], "description": "Rust+Node浏览器自动化，导航/点击/截图/提取", "source": "user", "status": "active"},
+    {"id": "agent-team-orchestration", "name": "Agent Team Orchestration", "category": "collaboration", "priority": 0, "role": "澜澜", "triggers": ["团队", "orchestration", "多agent", "协作", "teammate", "任务分配"], "description": "多Agent团队编排，角色定义/任务生命周期/交接协议", "source": "user", "status": "active"},
+    {"id": "proactive-agent", "name": "Proactive Agent", "category": "meta", "priority": 0, "role": "all", "triggers": ["主动", "proactive", "WAL", "working buffer", "预判"], "description": "将AI从被动执行者转变为主动合作伙伴，WAL协议+工作缓冲区", "source": "user", "status": "active"},
+    {"id": "self-improving-agent", "name": "Self-Improving Agent", "category": "meta", "priority": 0, "role": "澜舟", "triggers": ["改进", "self-improving", "错误纠正", "学习", "踩坑", "reflection"], "description": "捕获学习/错误/纠正，实现持续改进", "source": "user", "status": "active"},
+    {"id": "skill_2053082035566706688", "name": "Deep Research", "category": "research", "priority": 0, "role": "灵犀", "triggers": ["调研", "research", "深度研究", "outline", "学术", "benchmark", "技术选型"], "description": "结构化深度研究工作流，生成大纲/并行搜索/汇总报告", "source": "market", "status": "active"},
+
+    {"id": "knowledge-graph", "name": "Knowledge Graph", "category": "knowledge", "priority": 1, "role": "千寻", "triggers": ["知识图谱", "knowledge graph", "实体关系", "networkx", "graph"], "description": "基于NetworkX的结构化实体关系知识图谱管理", "source": "user", "status": "active"},
+    {"id": "vector-memory", "name": "Vector Memory", "category": "knowledge", "priority": 1, "role": "千寻", "triggers": ["向量", "vector", "语义搜索", "chromadb", "embedding", "相似度"], "description": "ChromaDB本地嵌入+语义相似度搜索", "source": "user", "status": "active"},
+    {"id": "fusion-query", "name": "Fusion Query", "category": "knowledge", "priority": 1, "role": "灵犀", "triggers": ["融合查询", "fusion", "知识图谱+向量", "双引擎"], "description": "知识图谱(精确关系)+向量记忆(语义搜索)双引擎融合查询", "source": "user", "status": "active"},
+    {"id": "ontology", "name": "Ontology", "category": "knowledge", "priority": 1, "role": "千寻", "triggers": ["本体", "ontology", "实体类型", "Person", "Project", "Task"], "description": "类型化知识图谱，结构化Agent记忆+可组合技能", "source": "user", "status": "active"},
+    {"id": "precise-navigation-sop", "name": "Precise Navigation SOP", "category": "automation", "priority": 1, "role": "澜舟", "triggers": ["导航", "navigation", "SOP", "snapshot", "screenshot", "精准定位"], "description": "网页/桌面自动化精准导航标准流程，稳比快重要", "source": "user", "status": "active"},
+    {"id": "cua-auto-api", "name": "CUA Auto API", "category": "automation", "priority": 1, "role": "澜舟", "triggers": ["cua", "turiX", "screen", "mouse", "keyboard", "window", "桌面控制"], "description": "TuriX-CUA完整API参考，screen/mouse/keyboard/window四模块", "source": "user", "status": "active"},
+    {"id": "动手能力-engine", "name": "动手能力 Engine", "category": "automation", "priority": 1, "role": "澜舟", "triggers": ["动手", "llama-server", "qwen", "本地AI", "screen capture", "TuriX-CUA"], "description": "本地动手能力引擎，llama-server+Qwen2.5-7B+TuriX-CUA", "source": "user", "status": "active"},
+    {"id": "perplexity", "name": "Perplexity Search", "category": "research", "priority": 1, "role": "灵犀", "triggers": ["perplexity", "AI搜索", "引用", "batch query"], "description": "Perplexity API AI驱动搜索，带引用的grounded响应", "source": "market", "status": "active"},
+    {"id": "multi-search-engine", "name": "Multi Search Engine", "category": "research", "priority": 1, "role": "灵犀", "triggers": ["多搜索引擎", "multi search", "16引擎", "搜索操作符"], "description": "16引擎集成(7中国+9全球)，高级搜索操作符+时间过滤", "source": "market", "status": "active"},
+
+    {"id": "humanizer", "name": "Humanizer", "category": "content", "priority": 2, "role": "澜澜", "triggers": ["humanizer", "去AI味", "自然", "人味", "润色"], "description": "去除AI生成痕迹，使文本更自然、更像人类写作", "source": "user", "status": "active"},
+    {"id": "content-ops", "name": "Content Ops", "category": "content", "priority": 2, "role": "千寻", "triggers": ["内容评分", "content ops", "评估", "优化", "landing page", "copy"], "description": "用专家小组评分/评估/迭代优化内容和策略", "source": "market", "status": "active"},
+    {"id": "content-repurposer", "name": "Content Repurposer", "category": "content", "priority": 2, "role": "澜澜", "triggers": ["内容转换", "repurpose", "跨平台", "snippet", "长内容转短"], "description": "将长内容转化为平台优化的片段，一稿多发", "source": "market", "status": "active"},
+    {"id": "tencent-news", "name": "Tencent News", "category": "information", "priority": 2, "role": "灵犀", "triggers": ["新闻", "news", "热榜", "早报", "晚报", "天气"], "description": "7×24新闻资讯搜索，热点/早晚报/订阅推送/天气", "source": "market", "status": "active"},
+    {"id": "macro-monitor", "name": "Macro Monitor", "category": "information", "priority": 2, "role": "灵犀", "triggers": ["宏观", "macro", "经济数据", "FRED", "央行", "财联社", "每日推送"], "description": "每日宏观数据监控和推送，自动浏览免费数据源", "source": "user", "status": "active"},
+    {"id": "market-researcher", "name": "Market Researcher", "category": "research", "priority": 2, "role": "灵犀", "triggers": ["市场调研", "market research", "消费者行为", "市场机会"], "description": "市场研究专家，综合市场分析+消费者行为洞察", "source": "market", "status": "active"},
+    {"id": "skill-vetter", "name": "Skill Vetter", "category": "meta", "priority": 2, "role": "澜舟", "triggers": ["skill审查", "vetter", "安全检查", "red flag", "权限审计"], "description": "安全优先的Skill审查工具，安装前检查红旗/权限/风险", "source": "market", "status": "active"},
+    {"id": "capability-evolver", "name": "Capability Evolver", "category": "meta", "priority": 2, "role": "澜舟", "triggers": ["能力进化", "evolver", "GitHub issue", "auto-release"], "description": "GitHub API token自动issue报告和release发布", "source": "user", "status": "active"},
+    {"id": "find-skills", "name": "Find Skills", "category": "meta", "priority": 2, "role": "all", "triggers": ["找skill", "find skill", "安装技能", "discover", "搜索技能"], "description": "发现和安装Agent技能，从社区/GitHub/市场搜索", "source": "builtin", "status": "active"},
+
+    {"id": "nano-banana-pro", "name": "Nano Banana Pro", "category": "media", "priority": 3, "role": "all", "triggers": ["图片生成", "image gen", "nano banana", "Gemini", "文生图", "图生图"], "description": "Gemini 3 Pro Image图片生成/编辑", "source": "market", "status": "active"},
+    {"id": "openai-image-gen", "name": "OpenAI Image Gen", "category": "media", "priority": 3, "role": "all", "triggers": ["openai", "dall-e", "批量图片", "gallery"], "description": "OpenAI Images API批量生成图片+gallery展示", "source": "market", "status": "active"},
+    {"id": "openai-whisper-api", "name": "OpenAI Whisper", "category": "media", "priority": 3, "role": "all", "triggers": ["whisper", "转录", "transcribe", "音频转文字"], "description": "OpenAI Audio Transcriptions API语音转录", "source": "market", "status": "active"},
+    {"id": "sag", "name": "SAG TTS", "category": "media", "priority": 3, "role": "all", "triggers": ["tts", "语音合成", "elevenlabs", "say", "朗读"], "description": "ElevenLabs文本转语音，mac风格say UX", "source": "market", "status": "active"},
+    {"id": "video-frames", "name": "Video Frames", "category": "media", "priority": 3, "role": "all", "triggers": ["视频帧", "video frame", "ffmpeg", "截取", "clip"], "description": "用ffmpeg从视频提取帧或短片段", "source": "user", "status": "active"},
+    {"id": "summarize", "name": "Summarize", "category": "content", "priority": 3, "role": "all", "triggers": ["总结", "summarize", "URL摘要", "PDF摘要", "音频摘要", "YouTube"], "description": "用summarize CLI总结URL/文件(PDF/图片/音频/YouTube)", "source": "market", "status": "active"},
+    {"id": "deck-generator", "name": "Deck Generator", "category": "content", "priority": 3, "role": "all", "triggers": ["ppt", "deck", "presentation", "pitch", "幻灯片", "演示文稿"], "description": "AI生成专业演示文稿，支持风格预设", "source": "market", "status": "active"},
+    {"id": "remotion-video-toolkit", "name": "Remotion Video Toolkit", "category": "media", "priority": 3, "role": "all", "triggers": ["remotion", "视频制作", "programmatic video", "React video", "动画"], "description": "Remotion+React编程式视频创作完整工具包", "source": "market", "status": "active"},
+    {"id": "habit-tracker", "name": "Habit Tracker", "category": "productivity", "priority": 3, "role": "all", "triggers": ["习惯", "habit", "streak", "提醒", "习惯追踪"], "description": "建立习惯，含连续记录/提醒/进度可视化", "source": "market", "status": "active"},
+    {"id": "note-organizer", "name": "Note Organizer (Joplin)", "category": "productivity", "priority": 3, "role": "千寻", "triggers": ["joplin", "笔记", "note", "知识库", "个人组织"], "description": "Joplin笔记管理器，个人知识库/生产力工具", "source": "market", "status": "active"},
+    {"id": "academic-tutor", "name": "Academic Tutor", "category": "education", "priority": 3, "role": "all", "triggers": ["学术", "tutor", "题目", "苏格拉底", "论文指导", "大学生"], "description": "苏格拉底式引导教学，每轮三段式，数理化/编程/经管/文史哲", "source": "market", "status": "active"},
+    {"id": "impeccable", "name": "Impeccable Design", "category": "design", "priority": 3, "role": "all", "triggers": ["前端", "frontend", "UI", "设计", "interface", "组件", "网页设计"], "description": "创建独特的生产级前端界面，高设计质量", "source": "market", "status": "active"},
+    {"id": "fbs-bookwriter", "name": "FBS Book Writer", "category": "content", "priority": 3, "role": "all", "triggers": ["写书", "book", "手册", "白皮书", "行业指南", "长篇"], "description": "高质量长文档手稿工具链，书籍/手册/白皮书", "source": "market", "status": "active"},
+    {"id": "podcast-ops", "name": "Podcast Ops", "category": "content", "priority": 3, "role": "澜澜", "triggers": ["播客", "podcast", "RSS", "内容日历", "短视频"], "description": "播客转全平台内容，RSS/转录→社交帖/邮件/脚本", "source": "market", "status": "active"},
+    {"id": "colleague-skill", "name": "Colleague Skill", "category": "meta", "priority": 3, "role": "all", "triggers": ["同事", "colleague", "飞书", "钉钉", "Slack", "蒸馏同事"], "description": "将同事蒸馏为AI Skill，自动收集通讯数据生成Work Skill+Persona", "source": "market", "status": "active"},
+    {"id": "autoresearch", "name": "AutoResearch", "category": "research", "priority": 3, "role": "all", "triggers": ["autoresearch", "karpathy", "优化", "50+变体", "5专家评分", "进化"], "description": "Karpathy风格autoresearch优化，50+变体生成/评分/进化", "source": "market", "status": "active"},
+    {"id": "api-gateway", "name": "API Gateway", "category": "automation", "priority": 3, "role": "all", "triggers": ["api", "gateway", "maton", "外部服务", "路由"], "description": "通过Maton管理的API路由连接外部服务", "source": "market", "status": "active"},
+    {"id": "apple-notes", "name": "Apple Notes", "category": "productivity", "priority": 3, "role": "all", "triggers": ["apple notes", "备忘录", "memo", "macOS笔记"], "description": "macOS备忘录管理via memo CLI", "source": "market", "status": "active"},
+
+    {"id": "skill-creator", "name": "Skill Creator", "category": "meta", "priority": 2, "role": "all", "triggers": ["创建skill", "skill creator", "新建技能", "SKILL.md"], "description": "创建有效Skill的指南，扩展WorkBuddy能力", "source": "builtin", "status": "active"},
+    {"id": "marketplace-skill-installer", "name": "Marketplace Skill Installer", "category": "meta", "priority": 2, "role": "all", "triggers": ["安装skill", "install skill", "市场", "marketplace", "推荐市场"], "description": "从WorkBuddy推荐市场搜索并安装Skill", "source": "builtin", "status": "active"},
+    {"id": "expert-manager", "name": "Expert Manager", "category": "meta", "priority": 2, "role": "all", "triggers": ["专家", "expert", "创建专家", "转化专家", "修改专家", "合规检查"], "description": "专家包全生命周期运营：转化/修改/合规/批量更新/质量审查", "source": "builtin", "status": "active"}
+  ],
+  "priority_levels": {
+    "0": {"label": "P0-核心", "description": "必选加载，每次会话自动激活", "max_active": 5},
+    "1": {"label": "P1-增强", "description": "常备技能，按角色自动加载", "max_active": 10},
+    "2": {"label": "P2-场景", "description": "按需加载，任务匹配时激活", "max_active": 15},
+    "3": {"label": "P3-工具", "description": "低频使用，显式调用时加载", "max_active": 20}
+  },
+  "role_mapping": {
+    "澜舟": ["automation", "meta"],
+    "灵犀": ["research", "information"],
+    "千寻": ["knowledge", "content"],
+    "澜澜": ["collaboration", "content"],
+    "九重": ["meta", "research"],
+    "all": ["*"]
+  }
+}

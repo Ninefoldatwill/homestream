@@ -1,0 +1,68 @@
+# === 敏感文件（绝对不能上传） ===
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+worktrees/
+open_knowledge/
+.openbridge_mode
+
+# === 临时文件 ===
+_*.py
+_*.html
+nul
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# === 测试 ===
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.coveragerc
+.pytest_cache/
+.mutmut-cache
+
+# === 数据库 ===
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# === 日志 ===
+*.log
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === 项目专属 ===
+data/

@@ -1,0 +1,20 @@
+# 桥v7 依赖清单（v7.2 生产级）
+
+## 核心框架
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+fastapi>=0.100.0
+uvicorn>=0.23.0
+
+## 可观测性
+structlog>=24.0.0
+prometheus-client>=0.18.0
+
+## HTTP客户端（Agent通信）
+requests>=2.31.0
+
+## 测试
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.0
+httpx>=0.24.0
