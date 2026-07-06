@@ -1,16 +1,16 @@
-# OpenBridge Windows 一键安装
-# irm https://raw.githubusercontent.com/Ninefoldatwill/OpenBridge/main/install.ps1 | iex
+# HomeStream Windows 一键安装
+# iwr -useb https://raw.githubusercontent.com/Ninefoldatwill/homestream/main/install.ps1 | iex
 param(
-    [string]$InstallDir = "$env:USERPROFILE\.openbridge",
-    [string]$Version = "8.0.0"
+    [string]$InstallDir = "$env:USERPROFILE\.homestream",
+    [string]$Version = "5.0.0"
 )
 
 $ErrorActionPreference = "Stop"
-$BR = "OpenBridge"
-$REPO = "https://github.com/Ninefoldatwill/OpenBridge"
+$BR = "HomeStream"
+$REPO = "https://github.com/Ninefoldatwill/homestream"
 
 Write-Host ""
-Write-Host "  ⚓  OpenBridge v$Version — 有温度的自进化AI生态" -ForegroundColor Cyan
+Write-Host "  ⚓  HomeStream v$Version — 有温度的自进化AI生态" -ForegroundColor Cyan
 Write-Host "  一条命令 · 零配置 · 30秒上手" -ForegroundColor Cyan
 Write-Host ""
 
@@ -57,7 +57,7 @@ $Py = Join-Path $VenvDir "Scripts" "python.exe"
 & $Pip install --upgrade pip -q
 
 # ── 安装 ──────────────────────────────────────────────────
-Write-Host "[4/5] 安装 OpenBridge v$Version..." -ForegroundColor Blue
+Write-Host "[4/5] 安装 HomeStream v$Version..." -ForegroundColor Blue
 $installed = $false
 try {
     & $Pip install "openbridge>=$Version" -q 2>$null
@@ -76,7 +76,7 @@ Write-Host "[5/5] 完成配置..." -ForegroundColor Blue
 $EnvFile = Join-Path $InstallDir ".env"
 if (-not (Test-Path $EnvFile)) {
 @"
-# OpenBridge 配置文件
+# HomeStream 配置文件
 # 详细文档: $REPO#配置
 
 # 模式
@@ -118,7 +118,7 @@ if ($userPath -notlike "*$BinDir*") {
 # ── 结果 ──────────────────────────────────────────────────
 Write-Host ""
 Write-Host "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
-Write-Host "  OpenBridge v$Version 安装完成！" -ForegroundColor Green
+Write-Host "  HomeStream v$Version 安装完成！" -ForegroundColor Green
 Write-Host "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
 Write-Host ""
 Write-Host "  启动命令:" -ForegroundColor White

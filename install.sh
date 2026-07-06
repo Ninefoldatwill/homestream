@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
-# OpenBridge — 一条命令安装
-# curl -fsSL https://raw.githubusercontent.com/Ninefoldatwill/OpenBridge/main/install.sh | bash
+# HomeStream — 一条命令安装
+# curl -fsSL https://raw.githubusercontent.com/Ninefoldatwill/homestream/main/install.sh | bash
 #
 # 参考：Hermes Agent 安装体验
 # 目标：零配置、一键启动、30秒上手
@@ -14,15 +14,15 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
 BOLD='\033[1m'
 
-BR="OpenBridge"
-VERSION="8.0.0"
-REPO="https://github.com/Ninefoldatwill/OpenBridge"
-VENV_DIR="${HOME}/.openbridge/venv"
-INSTALL_DIR="${HOME}/.openbridge"
+BR="HomeStream"
+VERSION="5.0.0"
+REPO="https://github.com/Ninefoldatwill/homestream"
+VENV_DIR="${HOME}/.homestream/venv"
+INSTALL_DIR="${HOME}/.homestream"
 
 # ── Banner ────────────────────────────────────────────────
 echo ""
-echo -e "${CYAN}  ⚓  ${BOLD}OpenBridge v${VERSION}${NC} — 有温度的自进化AI生态"
+echo -e "${CYAN}  ⚓  ${BOLD}HomeStream v${VERSION}${NC} — 有温度的自进化AI生态"
 echo -e "${CYAN}  一条命令 · 零配置 · 30秒上手${NC}"
 echo ""
 
@@ -66,8 +66,8 @@ PIP="$VENV_DIR/bin/pip"
 PY="$VENV_DIR/bin/python"
 "$PIP" install --upgrade pip -q
 
-# ── 安装 OpenBridge ───────────────────────────────────────
-echo -e "${BLUE}[4/5]${NC} 安装 OpenBridge v${VERSION}..."
+# ── 安装 HomeStream ───────────────────────────────────────
+echo -e "${BLUE}[4/5]${NC} 安装 HomeStream v${VERSION}..."
 
 # 尝试从 PyPI 安装，失败则从 GitHub 源码安装
 if "$PIP" install "openbridge>=$VERSION" -q 2>/dev/null; then
@@ -96,8 +96,8 @@ echo -e "${BLUE}[5/5]${NC} 完成配置..."
 ENV_FILE="$INSTALL_DIR/.env"
 if [ ! -f "$ENV_FILE" ]; then
     cat > "$ENV_FILE" << 'EOF'
-# OpenBridge 配置文件
-# 详细文档: https://github.com/Ninefoldatwill/OpenBridge#配置
+# HomeStream 配置文件
+# 详细文档: https://github.com/Ninefoldatwill/homestream#配置
 
 # 模式（solo/team/ecosystem）
 OPENBRIDGE_MODE=solo
@@ -124,7 +124,7 @@ LINK_PATH="$INSTALL_DIR/bin/openbridge"
 mkdir -p "$INSTALL_DIR/bin"
 cat > "$LINK_PATH" << 'SHEOF'
 #!/usr/bin/env bash
-exec "$HOME/.openbridge/venv/bin/python" -m openbridge "$@"
+exec "$HOME/.homestream/venv/bin/python" -m openbridge "$@"
 SHEOF
 chmod +x "$LINK_PATH"
 
@@ -137,7 +137,7 @@ fi
 if [ -n "$SHELL_RC" ]; then
     if ! grep -q "openbridge" "$SHELL_RC" 2>/dev/null; then
         echo "" >> "$SHELL_RC"
-        echo "# OpenBridge" >> "$SHELL_RC"
+        echo "# HomeStream" >> "$SHELL_RC"
         echo "export PATH=\"$INSTALL_DIR/bin:\$PATH\"" >> "$SHELL_RC"
     fi
 fi
@@ -145,7 +145,7 @@ fi
 # ── 结果 ──────────────────────────────────────────────────
 echo ""
 echo -e "  ${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "  ${BOLD}${GREEN}  OpenBridge v${VERSION} 安装完成！${NC}"
+echo -e "  ${BOLD}${GREEN}  HomeStream v${VERSION} 安装完成！${NC}"
 echo -e "  ${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "  ${BOLD}启动命令:${NC}"
