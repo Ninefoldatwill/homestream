@@ -690,6 +690,404 @@ def test(
 
 
 # ============================================================
+# skills 命令组 — npx风格一键技能管理
+# ============================================================
+
+skills_app = typer.Typer(
+    name="skills",
+    help="技能管理 — 一键安装/列表/移除/搜索/质量评分",
+    rich_markup_mode="rich",
+)
+
+app.add_typer(skills_app, name="skills")
+
+
+@skills_app.command("list")
+def skills_list():
+    """列出所有已安装技能（Rich表格）"""
+    console.print("[cyan]已安装技能列表[/cyan]\n")
+
+    skills_dir = PROJECT_ROOT / "skills"
+    if not skills_dir.exists():
+        console.print("[yellow]  skills/ 目录不存在，使用 [cyan]openbridge skills add[/cyan] 安装技能[/yellow]")
+        return
+
+    skill_dirs = [d for d in skills_dir.iterdir() if d.is_dir() and (d / "SKILL.md").exists()]
+
+    if not skill_dirs:
+        console.print("[yellow]  未安装任何技能[/yellow]")
+        console.print("\n[cyan]安装技能:[/cyan]")
+        console.print("  openbridge skills add <name>    从本地目录安装")
+        console.print("  openbridge skills add <url>     从URL安装")
+        return
+
+    table = Table(title="技能列表", box=box.ROUNDED, show_header=True, header_style="bold")
+    table.add_column("#", style="dim", width=4)
+    table.add_column("名称", style="cyan", width=20)
+    table.add_column("版本", width=10)
+    table.add_column("描述", width=40)
+    table.add_column("类型", width=12)
+
+    for i, d in enumerate(sorted(skill_dirs), 1):
+        skill_md = d / "SKILL.md"
+        name, version, desc, stype = _parse_skill_md(skill_md)
+        table.add_row(str(i), name, version, desc[:38], stype)
+
+    console.print(table)
+    console.print(f"\n[dim]共 {len(skill_dirs)} 个技能 | 安装更多: openbridge skills add <name>[/dim]")
+
+
+@skills_app.command("add")
+def skills_add(
+    name_or_path: str = typer.Argument(..., help="技能名称或路径/URL"),
+    shared: bool = typer.Option(False, "--shared", "-s", help="安装为全员共享技能"),
+    agent: Optional[str] = typer.Option(None, "--agent", "-a", help="授权给指定Agent"),
+):
+    """安装技能（npx风格一键安装）
+
+    用法:
+      [cyan]openbridge skills add code-reviewer[/]           从 skills/ 目录安装
+      [cyan]openbridge skills add ./my-skill[/]              从本地路径安装
+      [cyan]openbridge skills add --shared code-reviewer[/]  安装为共享技能
+      [cyan]openbridge skills add -a agent1 code-reviewer[/] 安装并授权给指定Agent
+    """
+    console.print(f"[cyan]安装技能: {name_or_path}[/cyan]")
+
+    # 解析技能源
+    skill_path = _resolve_skill_path(name_or_path)
+    if not skill_path or not skill_path.exists():
+        console.print(f"[red]  技能源未找到: {name_or_path}[/red]")
+        console.print("[dim]  提示: 将技能放入 skills/ 目录，或提供完整路径[/dim]")
+        raise typer.Exit(code=1)
+
+    skill_md = skill_path / "SKILL.md"
+    if not skill_md.exists():
+        console.print(f"[red]  SKILL.md 不存在: {skill_md}[/red]")
+        raise typer.Exit(code=1)
+
+    # 解析SKILL.md
+    skill_data = _parse_skill_md_raw(skill_md)
+    if not skill_data:
+        console.print("[red]  SKILL.md 解析失败[/red]")
+        raise typer.Exit(code=1)
+
+    name = skill_data.get("name", skill_path.name)
+    version = skill_data.get("version", "1.0.0")
+
+    # 如果是 skills/ 目录外的技能，复制进来
+    target_dir = PROJECT_ROOT / "skills" / name
+    if skill_path.resolve() != target_dir.resolve():
+        if target_dir.exists():
+            console.print(f"[yellow]  技能已存在: {target_dir}（使用 --force 覆盖）[/yellow]")
+            raise typer.Exit(code=1)
+        import shutil as _shutil
+        _shutil.copytree(skill_path, target_dir)
+        console.print(f"[green]  ✓ 已复制到 skills/{name}/[/green]")
+
+    # 注册到共享注册表
+    if shared or agent:
+        try:
+            sys.path.insert(0, str(PROJECT_ROOT))
+            from plugin_registry import get_shared_registry
+            registry = get_shared_registry(PROJECT_ROOT / "skills")
+
+            if shared:
+                ok, msg = registry.install_from_skill_md(skill_data)
+                status = "[bold green]共享安装[/bold green]" if ok else "[red]失败[/red]"
+                console.print(f"  {status}: {msg}")
+            elif agent:
+                # 先注册Agent（如果未注册）
+                registry.register_agent(agent)
+                ok, msg = registry.install_from_skill_md(skill_data)
+                if ok:
+                    ok2, msg2 = registry.grant_to_agent(name, agent)
+                    console.print(f"  [green]✓ {msg2}[/green]")
+                else:
+                    console.print(f"  [red]{msg}[/red]")
+        except ImportError:
+            console.print("[yellow]  共享注册表不可用，仅本地安装[/yellow]")
+
+    console.print(Panel(
+        f"[bold green]✓ 技能安装成功[/bold green]\n\n"
+        f"  名称: [cyan]{name}[/cyan]\n"
+        f"  版本: {version}\n"
+        f"  路径: skills/{name}/\n"
+        f"  {'共享: 全员可用' if shared else '授权: 仅本地'}\n\n"
+        f"[dim]使用 [cyan]openbridge skills list[/cyan] 查看所有技能[/dim]",
+        border_style="green",
+    ))
+
+
+@skills_app.command("remove")
+def skills_remove(
+    name: str = typer.Argument(..., help="技能名称"),
+    force: bool = typer.Option(False, "--force", "-f", help="跳过确认"),
+):
+    """移除已安装技能"""
+    skill_dir = PROJECT_ROOT / "skills" / name
+    if not skill_dir.exists():
+        console.print(f"[red]  技能未安装: {name}[/red]")
+        raise typer.Exit(code=1)
+
+    if not force:
+        confirm = typer.confirm(f"确认移除技能 '{name}'?")
+        if not confirm:
+            console.print("[yellow]已取消[/yellow]")
+            return
+
+    import shutil as _shutil
+    _shutil.rmtree(skill_dir)
+    console.print(f"[green]✓ 已移除技能: {name}[/green]")
+
+    # 从共享注册表移除
+    try:
+        sys.path.insert(0, str(PROJECT_ROOT))
+        from plugin_registry import get_shared_registry
+        registry = get_shared_registry(PROJECT_ROOT / "skills")
+        if name in registry._shared_skills:
+            registry.unshare(name)
+            console.print(f"[dim]  已从共享注册表移除[/dim]")
+    except (ImportError, Exception):
+        pass
+
+
+@skills_app.command("search")
+def skills_search(
+    query: str = typer.Argument(..., help="搜索关键词"),
+):
+    """搜索已安装技能"""
+    console.print(f"[cyan]搜索技能: '{query}'[/cyan]\n")
+
+    skills_dir = PROJECT_ROOT / "skills"
+    if not skills_dir.exists():
+        console.print("[yellow]  skills/ 目录不存在[/yellow]")
+        return
+
+    results = []
+    query_lower = query.lower()
+    for d in skills_dir.iterdir():
+        if not d.is_dir() or not (d / "SKILL.md").exists():
+            continue
+        name, version, desc, stype = _parse_skill_md(d / "SKILL.md")
+        if query_lower in name.lower() or query_lower in desc.lower():
+            results.append((name, version, desc, stype))
+
+    if not results:
+        console.print(f"[yellow]  未找到匹配 '{query}' 的技能[/yellow]")
+        return
+
+    table = Table(title=f"搜索结果 ({len(results)}个)", box=box.ROUNDED, show_header=True)
+    table.add_column("名称", style="cyan", width=20)
+    table.add_column("版本", width=10)
+    table.add_column("描述", width=40)
+    table.add_column("类型", width=12)
+
+    for name, version, desc, stype in results:
+        table.add_row(name, version, desc[:38], stype)
+
+    console.print(table)
+
+
+@skills_app.command("info")
+def skills_info(
+    name: str = typer.Argument(..., help="技能名称"),
+):
+    """查看技能详情"""
+    skill_dir = PROJECT_ROOT / "skills" / name
+    skill_md = skill_dir / "SKILL.md"
+
+    if not skill_md.exists():
+        console.print(f"[red]  技能未安装: {name}[/red]")
+        raise typer.Exit(code=1)
+
+    skill_data = _parse_skill_md_raw(skill_md)
+    if not skill_data:
+        console.print("[red]  SKILL.md 解析失败[/red]")
+        raise typer.Exit(code=1)
+
+    info_table = Table(title=f"技能详情: {name}", box=box.ROUNDED, show_header=False)
+    info_table.add_column("字段", style="cyan", width=16)
+    info_table.add_column("值", width=50)
+
+    for key in ("name", "version", "description", "license", "compatibility"):
+        if key in skill_data:
+            info_table.add_row(key, str(skill_data[key]))
+
+    if "metadata" in skill_data:
+        for k, v in skill_data["metadata"].items():
+            info_table.add_row(f"meta.{k}", str(v))
+
+    if "allowed-tools" in skill_data:
+        info_table.add_row("allowed-tools", skill_data["allowed-tools"])
+
+    console.print(info_table)
+
+    # 显示SKILL.md大小和行数
+    content = skill_md.read_text(encoding="utf-8")
+    size_kb = len(content.encode("utf-8")) / 1024
+    lines = content.count("\n") + 1
+    console.print(f"\n[dim]SKILL.md: {size_kb:.1f} KB | {lines} 行 | {skill_dir}[/dim]")
+
+
+@skills_app.command("quality")
+def skills_quality(
+    target: str = typer.Argument(..., help="SKILL.md路径或skills/目录"),
+    strict: bool = typer.Option(False, "--strict", help="严格模式（低于4.0分退出码非零）"),
+):
+    """SkillsBench 12维质量评分
+
+    对SKILL.md或整个skills/目录进行12维度质量评估。
+    来源：Stanford+CMU+Berkeley SkillsBench框架。
+
+    评分维度：
+      清晰度·完整性·正确性·效率·健壮性·可维护性
+      可用性·模块化·文档·兼容性·可测试性·安全审计
+
+    用法:
+      [cyan]openbridge skills quality skills/code-reviewer/SKILL.md[/]
+      [cyan]openbridge skills quality skills/[/]              批量评分
+      [cyan]openbridge skills quality skills/ --strict[/]     严格模式
+    """
+    console.print("[cyan]SkillsBench 12维质量评分[/cyan]\n")
+
+    try:
+        sys.path.insert(0, str(PROJECT_ROOT))
+        from skill_quality import SkillsBenchScorer, format_report_rich, format_summary_rich
+    except ImportError:
+        console.print("[red]  skill_quality 模块未安装[/red]")
+        raise typer.Exit(code=1)
+
+    target_path = Path(target)
+    if not target_path.exists():
+        # 尝试在 skills/ 目录下查找
+        alt = PROJECT_ROOT / "skills" / target
+        if alt.exists():
+            target_path = alt
+        else:
+            console.print(f"[red]  路径不存在: {target}[/red]")
+            raise typer.Exit(code=1)
+
+    scorer = SkillsBenchScorer()
+
+    # 单文件评分
+    if target_path.is_file() and target_path.name == "SKILL.md":
+        report = scorer.score_file(target_path)
+        console.print(format_report_rich(report))
+
+        if strict and report.total_score < 4.0:
+            raise typer.Exit(code=1)
+        return
+
+    # 目录批量评分
+    if target_path.is_dir():
+        reports = scorer.score_directory(target_path)
+        if not reports:
+            console.print(f"[yellow]  目录中未找到SKILL.md: {target_path}[/yellow]")
+            return
+
+        summary = scorer.summary(reports)
+        console.print(format_summary_rich(summary))
+
+        # 逐个显示详细报告
+        for report in reports:
+            console.print()
+            console.print(format_report_rich(report))
+
+        if strict:
+            failed = [r for r in reports if r.total_score < 4.0]
+            if failed:
+                console.print(f"\n[red]严格模式: {len(failed)} 个技能低于4.0分[/red]")
+                raise typer.Exit(code=1)
+        return
+
+    console.print(f"[red]  请指定SKILL.md文件或skills/目录[/red]")
+    raise typer.Exit(code=1)
+
+
+@skills_app.command("agents")
+def skills_agents(
+    agent_id: Optional[str] = typer.Option(None, "--agent", "-a", help="查看指定Agent的技能"),
+):
+    """查看多Agent共享技能状态"""
+    console.print("[cyan]多Agent共享技能注册表[/cyan]\n")
+
+    try:
+        sys.path.insert(0, str(PROJECT_ROOT))
+        from plugin_registry import get_shared_registry
+        registry = get_shared_registry(PROJECT_ROOT / "skills")
+    except ImportError:
+        console.print("[red]  共享注册表不可用[/red]")
+        raise typer.Exit(code=1)
+
+    if agent_id:
+        # 查看指定Agent的技能
+        skills = registry.list_agent_skills(agent_id)
+        if not skills:
+            console.print(f"[yellow]  Agent '{agent_id}' 未注册或无技能[/yellow]")
+            return
+
+        table = Table(title=f"Agent技能: {agent_id}", box=box.ROUNDED, show_header=True)
+        table.add_column("名称", style="cyan", width=20)
+        table.add_column("版本", width=10)
+        table.add_column("描述", width=30)
+        table.add_column("类型", width=12)
+        table.add_column("共享", width=6)
+
+        for s in skills:
+            shared_mark = "✓" if s["shared"] else "—"
+            table.add_row(s["name"], s["version"], s["description"][:28], s["type"], shared_mark)
+
+        console.print(table)
+        return
+
+    # 总览
+    agents = registry.list_agents()
+    shared = registry.list_shared_skills()
+    stats = registry.shared_stats()
+
+    # Agent列表
+    if agents:
+        agent_table = Table(title="已注册Agent", box=box.ROUNDED, show_header=True)
+        agent_table.add_column("Agent ID", style="cyan", width=20)
+        agent_table.add_column("技能数", width=8)
+        agent_table.add_column("能力标签", width=30)
+
+        for a in agents:
+            caps = ", ".join(a["capabilities"]) if a["capabilities"] else "—"
+            agent_table.add_row(a["agent_id"], str(a["skill_count"]), caps)
+
+        console.print(agent_table)
+    else:
+        console.print("[yellow]  尚无注册Agent（使用 openbridge skills add --agent <id> 注册）[/yellow]")
+
+    # 共享技能列表
+    if shared:
+        console.print()
+        shared_table = Table(title="共享技能", box=box.ROUNDED, show_header=True)
+        shared_table.add_column("名称", style="cyan", width=20)
+        shared_table.add_column("版本", width=10)
+        shared_table.add_column("使用Agent数", width=12)
+        shared_table.add_column("描述", width=30)
+
+        for s in shared:
+            agent_count = f"{s['agents_using']}/{s['total_agents']}"
+            shared_table.add_row(s["name"], s["version"], agent_count, s["description"][:28])
+
+        console.print(shared_table)
+    else:
+        console.print("\n[yellow]  尚无共享技能（使用 openbridge skills add --shared <name> 安装）[/yellow]")
+
+    # 统计
+    console.print(Panel(
+        f"Agent: {stats['registered_agents']}  |  "
+        f"共享技能: {stats['shared_skills']}  |  "
+        f"总授权: {stats['total_grants']}  |  "
+        f"Agent均技能: {stats['avg_skills_per_agent']:.1f}",
+        border_style="cyan",
+    ))
+
+
+# ============================================================
 # 辅助函数
 # ============================================================
 
@@ -855,6 +1253,125 @@ def _get_health(port: int) -> dict:
             return _json.loads(resp.read())
     except Exception:
         return None
+
+
+# ============================================================
+# skills 命令组辅助函数
+# ============================================================
+
+def _resolve_skill_path(name_or_path: str) -> Optional[Path]:
+    """解析技能名称或路径为目录Path。"""
+    # 1. 绝对/相对路径
+    p = Path(name_or_path)
+    if p.exists():
+        return p
+
+    # 2. skills/ 目录下查找
+    skills_dir = PROJECT_ROOT / "skills" / name_or_path
+    if skills_dir.exists():
+        return skills_dir
+
+    # 3. URL形式（简化：暂不支持远程下载，提示用户）
+    if name_or_path.startswith("http"):
+        console.print("[yellow]  远程URL安装暂未实现，请手动下载后用本地路径安装[/yellow]")
+        return None
+
+    return None
+
+
+def _parse_skill_md(skill_md_path: Path) -> tuple:
+    """解析SKILL.md，返回(name, version, description, type)元组。"""
+    data = _parse_skill_md_raw(skill_md_path)
+    if not data:
+        return ("unknown", "0.0.0", "解析失败", "unknown")
+    return (
+        data.get("name", "unknown"),
+        data.get("version", "0.0.0"),
+        data.get("description", ""),
+        data.get("metadata", {}).get("type", "skill"),
+    )
+
+
+def _parse_skill_md_raw(skill_md_path: Path) -> Optional[dict]:
+    """解析SKILL.md的YAML frontmatter，返回字典。"""
+    try:
+        content = skill_md_path.read_text(encoding="utf-8")
+    except Exception:
+        return None
+
+    # 提取YAML frontmatter (--- ... ---)
+    if not content.startswith("---"):
+        return None
+
+    end = content.find("---", 3)
+    if end == -1:
+        return None
+
+    yaml_text = content[3:end].strip()
+    lines = yaml_text.splitlines()
+
+    # 简单YAML解析（避免依赖PyYAML）
+    data = {}
+    i = 0
+    current_dict = None
+
+    while i < len(lines):
+        line = lines[i].rstrip()
+        i += 1
+
+        if not line or line.startswith("#"):
+            continue
+
+        # 嵌套字典（如 metadata: 下面的缩进行）
+        if line.startswith("  ") and current_dict is not None:
+            stripped = line.strip()
+            if ":" in stripped:
+                k, v = stripped.split(":", 1)
+                k = k.strip()
+                v = v.strip()
+                # 处理内联数组 [a, b, c]
+                if v.startswith("[") and v.endswith("]"):
+                    v = [x.strip().strip('"').strip("'") for x in v[1:-1].split(",") if x.strip()]
+                else:
+                    v = v.strip('"').strip("'")
+                current_dict[k] = v
+            continue
+
+        if ":" not in line:
+            continue
+
+        key, value = line.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+
+        # 块标量 | 或 >
+        if value in ("|", ">"):
+            # 收集后续缩进行作为值
+            block_lines = []
+            while i < len(lines) and (lines[i].startswith("  ") or lines[i].strip() == ""):
+                if lines[i].strip():
+                    block_lines.append(lines[i].strip())
+                i += 1
+            data[key] = " ".join(block_lines)
+            current_dict = None
+            continue
+
+        # 嵌套字典开始
+        if value == "" and key in ("metadata",):
+            current_dict = {}
+            data[key] = current_dict
+            continue
+
+        # 内联数组 [a, b, c]
+        if value.startswith("[") and value.endswith("]"):
+            data[key] = [x.strip().strip('"').strip("'") for x in value[1:-1].split(",") if x.strip()]
+            current_dict = None
+            continue
+
+        data[key] = value.strip('"').strip("'")
+        current_dict = None
+
+    return data
 
 
 # Typer CLI入口（直接运行python cli.py时使用）

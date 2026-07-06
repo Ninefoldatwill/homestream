@@ -443,12 +443,306 @@ class PluginRegistry:
 
 
 # ============================================================
+# SharedSkillRegistry — 多Agent共享技能注册中心
+# ============================================================
+
+class SharedSkillRegistry(PluginRegistry):
+    """多Agent统一技能管理 — 一次安装，全员共享。
+
+    融优来源：agent-skills-hub SharedSkillRegistry
+    设计理念：
+      单Agent安装 → 广播通知 → 多Agent共享
+      避免重复安装 · 统一版本管理 · 按需授权
+
+    核心能力：
+      1. register_agent() — 注册Agent到技能生态
+      2. install_shared() — 安装技能并广播给所有Agent
+      3. grant_to_agent() / revoke_from_agent() — 精细授权
+      4. list_agent_skills() — 查看Agent可用技能
+      5. list_shared_skills() — 查看全员共享技能
+      6. sync_all_agents() — 同步技能到所有Agent目录
+    """
+
+    def __init__(self, skills_dir: Optional[Path] = None):
+        super().__init__()
+        self._agents: Dict[str, Dict[str, Any]] = {}  # agent_id → {capabilities, registered_at}
+        self._agent_skills: Dict[str, Set[str]] = {}  # agent_id → {skill_name, ...}
+        self._shared_skills: Set[str] = set()          # 全员共享的技能名集合
+        self._skills_dir = skills_dir or Path.cwd() / "skills"
+        self._mapper = SkillToManifestMapper()
+
+    # --- Agent 管理 ---
+
+    def register_agent(self, agent_id: str, capabilities: Optional[List[str]] = None) -> Tuple[bool, str]:
+        """注册Agent到技能生态。"""
+        if agent_id in self._agents:
+            return False, f"Agent已注册: {agent_id}"
+
+        self._agents[agent_id] = {
+            "capabilities": capabilities or [],
+            "registered_at": time.time(),
+        }
+        self._agent_skills[agent_id] = set()
+
+        # 已有的共享技能自动授予新Agent
+        self._agent_skills[agent_id].update(self._shared_skills)
+
+        logger.info("shared_registry.agent_registered",
+                    agent_id=agent_id,
+                    shared_count=len(self._shared_skills))
+        return True, f"Agent注册成功: {agent_id}（自动获得{len(self._shared_skills)}个共享技能）"
+
+    def unregister_agent(self, agent_id: str) -> Tuple[bool, str]:
+        """注销Agent。"""
+        if agent_id not in self._agents:
+            return False, f"Agent未注册: {agent_id}"
+
+        del self._agents[agent_id]
+        del self._agent_skills[agent_id]
+
+        logger.info("shared_registry.agent_unregistered", agent_id=agent_id)
+        return True, f"Agent已注销: {agent_id}"
+
+    def list_agents(self) -> List[Dict[str, Any]]:
+        """列出所有已注册Agent。"""
+        result = []
+        for agent_id, info in self._agents.items():
+            skill_count = len(self._agent_skills.get(agent_id, set()))
+            result.append({
+                "agent_id": agent_id,
+                "capabilities": info["capabilities"],
+                "registered_at": info["registered_at"],
+                "skill_count": skill_count,
+            })
+        return result
+
+    # --- 共享安装 ---
+
+    def install_shared(self, manifest: PluginManifest) -> Tuple[bool, str]:
+        """安装技能并广播给所有已注册Agent。
+
+        这是"一次安装，全员共享"的核心入口。
+        """
+        # 先在父类注册
+        ok, msg = self.register(manifest)
+        if not ok:
+            return False, msg
+
+        ok, msg = self.verify_and_install(manifest.name, manifest.version)
+        if not ok:
+            return False, msg
+
+        # 标记为共享
+        self._shared_skills.add(manifest.name)
+
+        # 授予所有已注册Agent
+        granted_count = 0
+        for agent_id in self._agents:
+            if manifest.name not in self._agent_skills[agent_id]:
+                self._agent_skills[agent_id].add(manifest.name)
+                granted_count += 1
+
+        logger.info("shared_registry.installed_shared",
+                    name=manifest.name,
+                    version=manifest.version,
+                    agents_granted=granted_count)
+
+        return True, (
+            f"共享安装成功: {manifest.name}@{manifest.version}\n"
+            f"  已广播给 {granted_count} 个Agent\n"
+            f"  后续注册的Agent将自动获得此技能"
+        )
+
+    def install_from_skill_md(self, skill_data: Dict[str, Any]) -> Tuple[bool, str]:
+        """从SKILL.md数据安装共享技能。"""
+        manifest = self._mapper.map_skill_to_manifest(skill_data)
+        return self.install_shared(manifest)
+
+    # --- 精细授权 ---
+
+    def grant_to_agent(self, skill_name: str, agent_id: str) -> Tuple[bool, str]:
+        """授予特定Agent访问某技能的权限。"""
+        if agent_id not in self._agents:
+            return False, f"Agent未注册: {agent_id}"
+
+        manifest = self._get_manifest(skill_name)
+        if not manifest:
+            return False, f"技能未安装: {skill_name}"
+
+        if skill_name in self._agent_skills[agent_id]:
+            return False, f"Agent已有此技能: {skill_name}"
+
+        self._agent_skills[agent_id].add(skill_name)
+        logger.info("shared_registry.granted",
+                    skill=skill_name, agent=agent_id)
+        return True, f"已授权: {skill_name} → {agent_id}"
+
+    def revoke_from_agent(self, skill_name: str, agent_id: str) -> Tuple[bool, str]:
+        """撤销Agent对某技能的访问权限。"""
+        if agent_id not in self._agents:
+            return False, f"Agent未注册: {agent_id}"
+
+        if skill_name not in self._agent_skills.get(agent_id, set()):
+            return False, f"Agent未拥有此技能: {skill_name}"
+
+        # 共享技能不可单独撤销（需先取消共享）
+        if skill_name in self._shared_skills:
+            return False, f"{skill_name}是共享技能，不可单独撤销（先取消共享）"
+
+        self._agent_skills[agent_id].discard(skill_name)
+        logger.info("shared_registry.revoked",
+                    skill=skill_name, agent=agent_id)
+        return True, f"已撤销: {skill_name} ← {agent_id}"
+
+    def unshare(self, skill_name: str) -> Tuple[bool, str]:
+        """取消技能的共享状态（所有Agent失去访问权限）。"""
+        if skill_name not in self._shared_skills:
+            return False, f"非共享技能: {skill_name}"
+
+        self._shared_skills.discard(skill_name)
+
+        # 从所有Agent移除
+        removed = 0
+        for agent_id in self._agent_skills:
+            if skill_name in self._agent_skills[agent_id]:
+                self._agent_skills[agent_id].discard(skill_name)
+                removed += 1
+
+        logger.info("shared_registry.unshared",
+                    skill=skill_name, agents_affected=removed)
+        return True, f"已取消共享: {skill_name}（{removed}个Agent受影响）"
+
+    # --- 查询 ---
+
+    def list_agent_skills(self, agent_id: str) -> List[Dict[str, Any]]:
+        """列出Agent可用的所有技能。"""
+        if agent_id not in self._agents:
+            return []
+
+        skills = self._agent_skills.get(agent_id, set())
+        result = []
+        for name in sorted(skills):
+            manifest = self._get_manifest(name)
+            if manifest:
+                is_shared = name in self._shared_skills
+                result.append({
+                    "name": manifest.name,
+                    "version": manifest.version,
+                    "description": manifest.description,
+                    "type": manifest.plugin_type.value,
+                    "shared": is_shared,
+                })
+        return result
+
+    def list_shared_skills(self) -> List[Dict[str, Any]]:
+        """列出所有共享技能。"""
+        result = []
+        for name in sorted(self._shared_skills):
+            manifest = self._get_manifest(name)
+            if manifest:
+                agent_count = sum(
+                    1 for skills in self._agent_skills.values()
+                    if name in skills
+                )
+                result.append({
+                    "name": manifest.name,
+                    "version": manifest.version,
+                    "description": manifest.description,
+                    "type": manifest.plugin_type.value,
+                    "agents_using": agent_count,
+                    "total_agents": len(self._agents),
+                })
+        return result
+
+    def list_agents_for_skill(self, skill_name: str) -> List[str]:
+        """列出拥有某技能访问权限的所有Agent。"""
+        return sorted(
+            agent_id for agent_id, skills in self._agent_skills.items()
+            if skill_name in skills
+        )
+
+    # --- 统计 ---
+
+    def shared_stats(self) -> Dict[str, Any]:
+        """共享注册表统计。"""
+        base_stats = self.stats()
+        base_stats.update({
+            "registered_agents": len(self._agents),
+            "shared_skills": len(self._shared_skills),
+            "total_grants": sum(len(s) for s in self._agent_skills.values()),
+            "avg_skills_per_agent": (
+                sum(len(s) for s in self._agent_skills.values()) / len(self._agents)
+                if self._agents else 0.0
+            ),
+        })
+        return base_stats
+
+    # --- 目录同步 ---
+
+    def sync_to_directory(self, agent_id: str, target_dir: Path) -> Tuple[bool, str]:
+        """将Agent可用技能同步到目标目录（如Agent的工作目录）。
+
+        在目标目录下创建 skills/ 子目录，写入每个技能的SKILL.md摘要。
+        """
+        if agent_id not in self._agents:
+            return False, f"Agent未注册: {agent_id}"
+
+        skills = self._agent_skills.get(agent_id, set())
+        if not skills:
+            return True, f"Agent {agent_id} 无可同步技能"
+
+        target_skills_dir = target_dir / "skills"
+        target_skills_dir.mkdir(parents=True, exist_ok=True)
+
+        synced = 0
+        for name in skills:
+            manifest = self._get_manifest(name)
+            if not manifest:
+                continue
+
+            skill_dir = target_skills_dir / name
+            skill_dir.mkdir(parents=True, exist_ok=True)
+
+            # 写入技能摘要文件
+            summary = {
+                "name": manifest.name,
+                "version": manifest.version,
+                "description": manifest.description,
+                "type": manifest.plugin_type.value,
+                "permissions": manifest.permissions,
+                "capabilities": manifest.capabilities,
+                "shared": name in self._shared_skills,
+                "synced_at": time.time(),
+                "synced_from": agent_id,
+            }
+            summary_file = skill_dir / "skill.json"
+            summary_file.write_text(
+                json.dumps(summary, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            synced += 1
+
+        logger.info("shared_registry.synced",
+                    agent=agent_id, target=str(target_dir), count=synced)
+        return True, f"已同步 {synced} 个技能到 {target_skills_dir}"
+
+
+# ============================================================
 # 全局注册中心实例
 # ============================================================
 
 _global_registry = PluginRegistry()
+_global_shared_registry: Optional[SharedSkillRegistry] = None
 
 
 def get_registry() -> PluginRegistry:
     """获取全局注册中心实例。"""
     return _global_registry
+
+
+def get_shared_registry(skills_dir: Optional[Path] = None) -> SharedSkillRegistry:
+    """获取或创建全局共享技能注册中心实例。"""
+    global _global_shared_registry
+    if _global_shared_registry is None:
+        _global_shared_registry = SharedSkillRegistry(skills_dir=skills_dir)
+    return _global_shared_registry

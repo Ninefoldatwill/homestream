@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import List, Optional, Dict, Tuple, Set
+from typing import List, Optional, Dict, Tuple, Set, Any
 from collections import OrderedDict
 
 import structlog
@@ -720,4 +720,349 @@ class MemoryEvolutionOrchestra:
             "dedup_removed": removed,
             "insights": insights,
             "relations_count": len(relations),
+        }
+
+
+# ===========================================================================
+# ReMe Compression Engine (融优自 CoPaw/阿里)
+# ===========================================================================
+
+class ReMeCompressor:
+    """ReMe 记忆压缩引擎 — 对话自动压缩 + 结构化摘要 + 持久化召回。
+
+    融优来源：阿里 CoPaw ReMe (Recursive Memory compression)
+    核心思想：长对话自动压缩为 key:value 摘要，下次自动想起，省 token。
+
+    工作流：
+      1. remember(key, value)  → 存储一条结构化记忆
+      2. recall(query)         → 召回相关记忆（混合检索）
+      3. auto_compress(msgs)   → 自动压缩超阈值对话
+      4. forget(key)           → 主动遗忘
+
+    特点：
+      - 无需 LLM，纯启发式压缩（关键词提取 + 主题聚类）
+      - 与 MemoryEvolutionOrchestra 联动，压缩后自动入库
+      - 支持 TTL（生存时间），过期自动遗忘
+    """
+
+    # 压缩触发阈值
+    COMPRESS_TOKEN_THRESHOLD = 3000    # token 估算超过此值触发压缩
+    COMPRESS_MSG_THRESHOLD = 15        # 消息条数超过此值触发压缩
+    MAX_SUMMARY_ITEMS = 20             # 单次压缩最多保留20条 key:value
+
+    # 关键信息提取模式
+    DECISION_PATTERN = re.compile(
+        r"(决定|decision|chose|选择|确定|adopted|采用|方案[ABCA])[:：]\s*(.+)",
+        re.IGNORECASE,
+    )
+    PREFERENCE_PATTERN = re.compile(
+        r"(偏好|prefer|喜欢|like|习惯|habit)[:：]\s*(.+)",
+        re.IGNORECASE,
+    )
+    COMMIT_PATTERN = re.compile(
+        r"(承诺|commit|必须|must|需要|need|todo|待办)[:：]\s*(.+)",
+        re.IGNORECASE,
+    )
+    FACT_PATTERN = re.compile(
+        r"(事实|fact|注意|note|注意点|关键点)[:：]\s*(.+)",
+        re.IGNORECASE,
+    )
+
+    def __init__(self, orchestra: Optional["MemoryEvolutionOrchestra"] = None,
+                 db_path: str = ":memory:"):
+        self.orchestra = orchestra
+        self._db_path = db_path
+        # 持久连接：:memory: 模式下必须复用同一连接
+        self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
+        self._init_reme_schema()
+        self._buffer: List[Dict[str, str]] = []  # 未压缩消息缓冲
+        self._buffer_tokens: int = 0
+
+    def _init_reme_schema(self):
+        """初始化 ReMe 专用表。"""
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS reme_memories (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                category TEXT DEFAULT 'general',
+                importance REAL DEFAULT 0.7,
+                created_at REAL,
+                last_recalled REAL DEFAULT 0,
+                recall_count INTEGER DEFAULT 0,
+                ttl_seconds REAL DEFAULT 0,
+                source TEXT DEFAULT 'auto'
+            )
+        """)
+        self._conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_reme_category
+            ON reme_memories(category)
+        """)
+        self._conn.commit()
+
+    # ── 核心 API ───────────────────────────────────────────────
+
+    def remember(self, key: str, value: str, category: str = "general",
+                 importance: float = 0.7, ttl_seconds: float = 0,
+                 source: str = "manual") -> bool:
+        """存储一条结构化记忆。
+
+        Args:
+            key: 记忆键（如 "user_prefers_dark_mode"）
+            value: 记忆值（如 "用户偏好暗色主题"）
+            category: 分类（decision/preference/commit/fact/general）
+            importance: 重要性 0.0-1.0
+            ttl_seconds: 生存时间（秒），0=永不过期
+            source: 来源（manual/auto_compress/conversation）
+
+        Returns:
+            True=存储成功
+        """
+        if not key or not value:
+            return False
+
+        self._conn.execute(
+            """INSERT OR REPLACE INTO reme_memories
+               (key, value, category, importance, created_at, ttl_seconds, source)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (key, value, category, importance, time.time(), ttl_seconds, source),
+        )
+        self._conn.commit()
+
+        # 同步到 MemoryEvolutionOrchestra
+        if self.orchestra:
+            self.orchestra.ingest(
+                content=f"[{category}] {key}: {value}",
+                mtype=MemoryType.SEMANTIC,
+                importance=importance,
+                source=f"reme:{source}",
+                tags=[category, key],
+            )
+
+        logger.info("reme.remembered",
+                    key=key, category=category, importance=importance)
+        return True
+
+    def recall(self, query: str, top_k: int = 5,
+               include_expired: bool = False) -> List[Dict[str, Any]]:
+        """召回相关记忆（混合检索）。
+
+        Args:
+            query: 查询文本
+            top_k: 返回前K条
+            include_expired: 是否包含过期记忆
+
+        Returns:
+            记忆列表，每条含 key/value/category/importance/score
+        """
+        # 获取所有有效记忆
+        now = time.time()
+        if include_expired:
+            rows = self._conn.execute(
+                "SELECT * FROM reme_memories ORDER BY importance DESC LIMIT 200"
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                """SELECT * FROM reme_memories
+                   WHERE ttl_seconds = 0 OR created_at + ttl_seconds > ?
+                   ORDER BY importance DESC LIMIT 200""",
+                (now,),
+            ).fetchall()
+
+        if not rows:
+            return []
+
+        # 混合评分：BM25 + tag匹配 + 时间衰减
+        scored = []
+        for row in rows:
+            key, value, category, importance, created, last_recalled, \
+                recall_count, ttl, source = row
+
+            content = f"{key} {value}"
+            bm25 = HybridRetriever.bm25_score(query, content)
+            tag_match = 1.0 if query.lower() in content.lower() else 0.0
+
+            # 时间衰减
+            days = (now - created) / 86400.0
+            decay = math.exp(-0.003 * days)
+
+            # 综合分
+            score = (0.5 * bm25 + 0.3 * tag_match + 0.2 * importance) * decay
+            scored.append((row, score))
+
+        scored.sort(key=lambda x: x[1], reverse=True)
+
+        results = []
+        for row, score in scored[:top_k]:
+            key, value, category, importance, created, last_recalled, \
+                recall_count, ttl, source = row
+
+            # 更新召回计数
+            self._conn.execute(
+                """UPDATE reme_memories
+                   SET recall_count = recall_count + 1, last_recalled = ?
+                   WHERE key = ?""",
+                (now, key),
+            )
+            self._conn.commit()
+
+            results.append({
+                "key": key,
+                "value": value,
+                "category": category,
+                "importance": importance,
+                "score": round(score, 4),
+                "recall_count": recall_count + 1,
+                "source": source,
+            })
+
+        return results
+
+    def forget(self, key: str) -> bool:
+        """主动遗忘一条记忆。"""
+        cursor = self._conn.execute("DELETE FROM reme_memories WHERE key = ?", (key,))
+        deleted = cursor.rowcount
+        self._conn.commit()
+
+        if deleted > 0:
+            logger.info("reme.forgotten", key=key)
+            return True
+        return False
+
+    def list_all(self, category: str = "") -> List[Dict[str, Any]]:
+        """列出所有记忆（可选按分类过滤）。"""
+        if category:
+            rows = self._conn.execute(
+                "SELECT key, value, category, importance, created_at, recall_count FROM reme_memories WHERE category = ? ORDER BY importance DESC",
+                (category,),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT key, value, category, importance, created_at, recall_count FROM reme_memories ORDER BY importance DESC"
+            ).fetchall()
+
+        return [
+            {
+                "key": r[0], "value": r[1], "category": r[2],
+                "importance": r[3], "created_at": r[4], "recall_count": r[5],
+            }
+            for r in rows
+        ]
+
+    # ── 自动压缩 ───────────────────────────────────────────────
+
+    def add_message(self, role: str, content: str):
+        """添加一条对话消息到缓冲区。"""
+        self._buffer.append({"role": role, "content": content})
+        self._buffer_tokens += len(content) * 3 // 2  # 估算 token
+
+        # 检查是否触发压缩
+        if (self._buffer_tokens >= self.COMPRESS_TOKEN_THRESHOLD or
+                len(self._buffer) >= self.COMPRESS_MSG_THRESHOLD):
+            self.auto_compress()
+
+    def auto_compress(self) -> List[Dict[str, str]]:
+        """自动压缩缓冲区中的对话，提取关键信息为 key:value。
+
+        无需 LLM，纯启发式：
+          1. 正则匹配决策/偏好/承诺/事实
+          2. 提取高频关键词作为 key
+          3. 上下文片段作为 value
+
+        Returns:
+            压缩后的 key:value 列表
+        """
+        if not self._buffer:
+            return []
+
+        compressed = []
+        all_text = "\n".join(m["content"] for m in self._buffer)
+
+        # 1. 正则提取结构化信息
+        patterns = [
+            (self.DECISION_PATTERN, "decision", 0.9),
+            (self.PREFERENCE_PATTERN, "preference", 0.8),
+            (self.COMMIT_PATTERN, "commit", 0.85),
+            (self.FACT_PATTERN, "fact", 0.7),
+        ]
+
+        for pattern, category, importance in patterns:
+            for match in pattern.finditer(all_text):
+                key_raw = match.group(1).strip().lower().replace(" ", "_")
+                value = match.group(2).strip()[:200]  # 截断长值
+                key = f"{category}_{key_raw}_{hash(value)%10000:04d}"
+
+                self.remember(key, value, category, importance,
+                              source="auto_compress")
+                compressed.append({"key": key, "value": value, "category": category})
+
+        # 2. 高频关键词提取（补充正则未覆盖的内容）
+        words = re.findall(r'[\u4e00-\u9fff]{2,6}|[a-zA-Z_]{3,20}', all_text)
+        word_freq: Dict[str, int] = {}
+        for w in words:
+            word_freq[w] = word_freq.get(w, 0) + 1
+
+        # 取 Top-5 高频词作为 general 记忆
+        top_words = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:5]
+        for word, freq in top_words:
+            if freq >= 2:  # 至少出现2次
+                key = f"topic_{word}"
+                # 找到包含该词的上下文
+                context = ""
+                for msg in self._buffer:
+                    if word in msg["content"]:
+                        idx = msg["content"].find(word)
+                        start = max(0, idx - 30)
+                        end = min(len(msg["content"]), idx + len(word) + 50)
+                        context = msg["content"][start:end]
+                        break
+
+                if context:
+                    self.remember(key, context, "topic", 0.5,
+                                  source="auto_compress")
+                    compressed.append({"key": key, "value": context, "category": "topic"})
+
+        # 3. 清空缓冲区
+        msg_count = len(self._buffer)
+        self._buffer.clear()
+        self._buffer_tokens = 0
+
+        logger.info("reme.auto_compressed",
+                    messages=msg_count,
+                    extracted=len(compressed))
+
+        return compressed[:self.MAX_SUMMARY_ITEMS]
+
+    # ── 维护 ───────────────────────────────────────────────────
+
+    def cleanup_expired(self) -> int:
+        """清理过期记忆，返回清理数量。"""
+        now = time.time()
+        cursor = self._conn.execute(
+            """DELETE FROM reme_memories
+               WHERE ttl_seconds > 0 AND created_at + ttl_seconds <= ?""",
+            (now,),
+        )
+        deleted = cursor.rowcount
+        self._conn.commit()
+
+        if deleted > 0:
+            logger.info("reme.cleanup_expired", deleted=deleted)
+        return deleted
+
+    def stats(self) -> Dict[str, Any]:
+        """返回 ReMe 统计信息。"""
+        total = self._conn.execute("SELECT COUNT(*) FROM reme_memories").fetchone()[0]
+        by_category = self._conn.execute(
+            "SELECT category, COUNT(*) FROM reme_memories GROUP BY category"
+        ).fetchall()
+        avg_importance = self._conn.execute(
+            "SELECT AVG(importance) FROM reme_memories"
+        ).fetchone()[0] or 0.0
+
+        return {
+            "total_memories": total,
+            "by_category": dict(by_category),
+            "avg_importance": round(avg_importance, 3),
+            "buffer_messages": len(self._buffer),
+            "buffer_tokens": self._buffer_tokens,
         }
