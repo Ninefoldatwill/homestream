@@ -451,11 +451,19 @@ class PluginRegistry:
             from theme_manager import ThemeManager
         except ImportError:
             return False, "ThemeManager 不可用"
-        tm = ThemeManager(themes_dir=theme_dir)
-        ok, msg = tm.install_theme(Path(theme_dir or (tm.themes_dir / theme_id)) / "theme.json") \
-            if theme_dir else (True, f"已登记: {theme_id}")
-        if theme_dir and not ok:
-            return ok, msg
+        if theme_dir:
+            tm = ThemeManager(themes_dir=theme_dir)
+            theme_json = Path(theme_dir) / theme_id / "theme.json"
+            if not theme_json.exists():
+                # 主题已在 themes_dir 中，无需安装文件，仅登记
+                ok, msg = True, f"主题已在目录中: {theme_id}"
+            else:
+                ok, msg = tm.install_theme(theme_json)
+            if not ok:
+                return ok, msg
+        else:
+            tm = ThemeManager()
+            ok, msg = True, f"已登记: {theme_id}"
         # 在统一注册表登记（THEME 类型）
         manifest = PluginManifest(
             name=theme_id, version="1.0.0", plugin_type=PluginType.THEME,
@@ -464,13 +472,15 @@ class PluginRegistry:
         self.register(manifest)
         return True, f"主题已安装并登记: {theme_id}"
 
-    def activate_theme(self, theme_id: str) -> Tuple[bool, str]:
+    def activate_theme(self, theme_id: str, themes_dir: Optional[Path] = None,
+                       registry_file: Optional[Path] = None) -> Tuple[bool, str]:
         """激活主题。"""
         try:
             from theme_manager import ThemeManager
         except ImportError:
             return False, "ThemeManager 不可用"
-        tm = ThemeManager()
+        tm = ThemeManager(themes_dir=themes_dir, registry_file=registry_file) \
+            if themes_dir else ThemeManager()
         ok, msg = tm.activate(theme_id)
         if not ok:
             return ok, msg
@@ -480,13 +490,15 @@ class PluginRegistry:
             self._set_status(theme_id, manifest.version, PluginStatus.INSTALLED)
         return True, f"主题已激活: {theme_id}"
 
-    def list_themes(self) -> List[Dict[str, Any]]:
+    def list_themes(self, themes_dir: Optional[Path] = None,
+                    registry_file: Optional[Path] = None) -> List[Dict[str, Any]]:
         """列出所有已安装主题。"""
         try:
             from theme_manager import ThemeManager
         except ImportError:
             return []
-        tm = ThemeManager()
+        tm = ThemeManager(themes_dir=themes_dir, registry_file=registry_file) \
+            if themes_dir else ThemeManager()
         return tm.list_themes()
 
 

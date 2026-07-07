@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!--
+    铸钥匠 Logo — HomeStream Brand Identity
+    设计理念：不造墙，只铸钥——通往AI世界的那把钥匙
+    三重意蕴：铸(锻造) / 钥(钥匙) / 匠(匠心)
+  -->
+
+  <!-- 背景圆 — 象征"AI世界"的入口 -->
+  <circle cx="100" cy="100" r="92" fill="none" stroke="#4A90D9" stroke-width="2" opacity="0.3"/>
+
+  <!-- 钥匙环 — 顶部圆环 -->
+  <circle cx="100" cy="55" r="28" fill="none" stroke="#4A90D9" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- 钥匙环内装饰 — 锻造火花 -->
+  <circle cx="100" cy="55" r="14" fill="none" stroke="#7C5CE0" stroke-width="2" opacity="0.5"/>
+  <circle cx="100" cy="55" r="5" fill="#4A90D9" opacity="0.8"/>
+
+  <!-- 钥匙杆 — 从环底延伸 -->
+  <line x1="100" y1="83" x2="100" y2="155" stroke="#4A90D9" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- 钥匙齿 — 左侧（代表"铸"——零成本本地模型锻造） -->
+  <path d="M 100 120 L 82 120 L 82 132 L 100 132" fill="none" stroke="#4A90D9" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- 钥匙齿 — 右侧（代表"钥"——ICP+Agent协作+记忆演化） -->
+  <path d="M 100 135 L 118 135 L 118 148 L 100 148" fill="none" stroke="#4A90D9" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- 匠心装饰 — 钥匙底部的小圆点（代表"匠"——匠人之心） -->
+  <circle cx="100" cy="160" r="4" fill="#7C5CE0"/>
+
+  <!-- 中文品牌名 -->
+  <text x="100" y="188" text-anchor="middle" font-family="'PingFang SC', 'Microsoft YaHei', sans-serif"
+        font-size="14" font-weight="600" fill="#4A90D9" letter-spacing="2">铸钥匠</text>
+</svg>

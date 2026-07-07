@@ -61,12 +61,13 @@ class TestPluginManifest:
         assert m.permissions == ["L1_PUBLIC"]
 
     def test_plugin_type_enum(self):
-        """插件类型枚举完整性。"""
-        assert len(PluginType) == 4
+        """插件类型枚举完整性（含THEME千面设计市场）。"""
+        assert len(PluginType) == 5
         assert PluginType.POLICY_TEMPLATE.value == "policy_template"
         assert PluginType.INTEGRATION.value == "integration"
         assert PluginType.AGENT.value == "agent"
         assert PluginType.VALIDATOR.value == "validator"
+        assert PluginType.THEME.value == "theme"
 
 
 # ============================================================

@@ -39,6 +39,7 @@ wheels/
 .tox/
 .coverage
 .coverage.*
+.cov_data
 htmlcov/
 .coveragerc
 .pytest_cache/
@@ -66,3 +67,4 @@ Thumbs.db
 
 # === 项目专属 ===
 data/
+.pytest_tmp/
