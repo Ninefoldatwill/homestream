@@ -7,7 +7,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 $BR = "HomeStream"
-$REPO = "https://github.com/Ninefoldatwill/homestream"
+$RepoGithub = "https://github.com/Ninefoldatwill/homestream"
+$RepoGitee = "https://gitee.com/ninefoldatwill/homestream"
+$REPO = $RepoGithub
 
 Write-Host ""
 Write-Host "  ⚓  HomeStream v$Version — 有温度的自进化AI生态" -ForegroundColor Cyan
@@ -66,6 +68,20 @@ try {
 } catch {}
 
 if (-not $installed) {
+    Write-Host "  ◦ PyPI 不可用，尝试从源码安装..." -ForegroundColor Yellow
+    $TmpDir = Join-Path $env:TEMP "homestream_$(Get-Random)"
+    # 双源回退：先 GitHub，失败则 Gitee（国内用户友好）
+    git clone --depth 1 $RepoGithub $TmpDir -q 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $TmpDir)) {
+        git clone --depth 1 $RepoGitee $TmpDir -q 2>$null
+    }
+    if ((Test-Path $TmpDir) -and (Test-Path (Join-Path $TmpDir "pyproject.toml"))) {
+        & $Pip install $TmpDir -q
+        Write-Host "  √ 从源码安装成功" -ForegroundColor Green
+        $installed = $true
+    }
+}
+if (-not $installed) {
     Write-Host "  ◦ 安装核心依赖..." -ForegroundColor Yellow
     & $Pip install fastapi uvicorn pydantic pydantic-settings structlog rich typer httpx -q
 }
@@ -78,6 +94,7 @@ if (-not (Test-Path $EnvFile)) {
 @"
 # HomeStream 配置文件
 # 详细文档: $REPO#配置
+# 国内镜像: $RepoGitee
 
 # 模式
 OPENBRIDGE_MODE=solo
@@ -129,4 +146,8 @@ Write-Host "  快速开始:" -ForegroundColor White
 Write-Host "    $EnvFile" -ForegroundColor Yellow
 Write-Host "    openbridge serve" -ForegroundColor Cyan
 Write-Host "    http://localhost:3458" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  加入社区:" -ForegroundColor White
+Write-Host "    GitHub: $RepoGithub" -ForegroundColor Cyan
+Write-Host "    Gitee:  $RepoGitee（国内推荐）" -ForegroundColor Cyan
 Write-Host ""

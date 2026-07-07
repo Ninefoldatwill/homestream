@@ -42,18 +42,27 @@ HomeStream is the open-source cornerstone of the [OpenBridge](https://github.com
 ### One-line Install
 
 ```bash
-# Linux/macOS
+# Linux/macOS (GitHub)
 curl -fsSL https://raw.githubusercontent.com/Ninefoldatwill/homestream/main/install.sh | bash
 
-# Windows PowerShell
+# Linux/macOS (Gitee mirror, recommended for China)
+curl -fsSL https://gitee.com/ninefoldatwill/homestream/raw/main/install.sh | bash
+
+# Windows PowerShell (GitHub)
 iwr -useb https://raw.githubusercontent.com/Ninefoldatwill/homestream/main/install.ps1 | iex
+
+# Windows PowerShell (Gitee mirror, recommended for China)
+iwr -useb https://gitee.com/ninefoldatwill/homestream/raw/main/install.ps1 | iex
 ```
 
 ### Manual Install
 
 ```bash
 # 1. Clone the repository
+# GitHub (international)
 git clone https://github.com/Ninefoldatwill/homestream.git
+# or Gitee (recommended for China, faster)
+git clone https://gitee.com/ninefoldatwill/homestream.git
 cd homestream
 
 # 2. Install dependencies
@@ -264,6 +273,7 @@ Quick flow:
 - 📖 [Documentation](https://github.com/Ninefoldatwill/homestream/wiki)
 - 💬 [Discussions](https://github.com/Ninefoldatwill/homestream/discussions)
 - 🐛 [Issue Tracker](https://github.com/Ninefoldatwill/homestream/issues)
+- 🇨🇳 [Gitee Mirror](https://gitee.com/ninefoldatwill/homestream) (for China access)
 - 📧 contribute@jiuchong.studio
 
 ---

@@ -42,18 +42,27 @@ HomeStream 是 [OpenBridge](https://github.com/Ninefoldatwill/openbridge) 生态
 ### 一键安装
 
 ```bash
-# Linux/macOS
+# Linux/macOS（GitHub 源）
 curl -fsSL https://raw.githubusercontent.com/Ninefoldatwill/homestream/main/install.sh | bash
 
-# Windows PowerShell
+# Linux/macOS（Gitee 镜像，国内推荐）
+curl -fsSL https://gitee.com/ninefoldatwill/homestream/raw/main/install.sh | bash
+
+# Windows PowerShell（GitHub 源）
 iwr -useb https://raw.githubusercontent.com/Ninefoldatwill/homestream/main/install.ps1 | iex
+
+# Windows PowerShell（Gitee 镜像，国内推荐）
+iwr -useb https://gitee.com/ninefoldatwill/homestream/raw/main/install.ps1 | iex
 ```
 
 ### 手动安装
 
 ```bash
 # 1. 克隆仓库
+# GitHub（国际）
 git clone https://github.com/Ninefoldatwill/homestream.git
+# 或 Gitee（国内推荐，速度快）
+git clone https://gitee.com/ninefoldatwill/homestream.git
 cd homestream
 
 # 2. 安装依赖
@@ -264,6 +273,7 @@ bandit -r .
 - 📖 [文档](https://github.com/Ninefoldatwill/homestream/wiki)
 - 💬 [讨论](https://github.com/Ninefoldatwill/homestream/discussions)
 - 🐛 [问题追踪](https://github.com/Ninefoldatwill/homestream/issues)
+- 🇨🇳 [Gitee 镜像](https://gitee.com/ninefoldatwill/homestream)（国内访问）
 - 📧 contribute@jiuchong.studio
 
 ---

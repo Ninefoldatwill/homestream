@@ -16,7 +16,9 @@ BOLD='\033[1m'
 
 BR="HomeStream"
 VERSION="5.0.0"
-REPO="https://github.com/Ninefoldatwill/homestream"
+REPO_GITHUB="https://github.com/Ninefoldatwill/homestream"
+REPO_GITEE="https://gitee.com/ninefoldatwill/homestream"
+REPO="$REPO_GITHUB"
 VENV_DIR="${HOME}/.homestream/venv"
 INSTALL_DIR="${HOME}/.homestream"
 
@@ -69,14 +71,17 @@ PY="$VENV_DIR/bin/python"
 # ── 安装 HomeStream ───────────────────────────────────────
 echo -e "${BLUE}[4/5]${NC} 安装 HomeStream v${VERSION}..."
 
-# 尝试从 PyPI 安装，失败则从 GitHub 源码安装
+# 尝试从 PyPI 安装，失败则从源码安装（双源回退：GitHub → Gitee）
 if "$PIP" install "openbridge>=$VERSION" -q 2>/dev/null; then
     echo -e "  ${GREEN}✓${NC} 从 PyPI 安装成功"
 else
-    echo -e "  ${YELLOW}○${NC} PyPI 不可用，从 GitHub 源码安装..."
+    echo -e "  ${YELLOW}○${NC} PyPI 不可用，从源码安装..."
     TMP_DIR=$(mktemp -d)
     if command -v git &>/dev/null; then
-        git clone --depth 1 "$REPO" "$TMP_DIR" -q 2>/dev/null || true
+        # 双源回退：先 GitHub，失败则 Gitee（国内用户友好）
+        git clone --depth 1 "$REPO_GITHUB" "$TMP_DIR" -q 2>/dev/null \
+            || git clone --depth 1 "$REPO_GITEE" "$TMP_DIR" -q 2>/dev/null \
+            || true
     fi
     if [ -f "$TMP_DIR/pyproject.toml" ]; then
         "$PIP" install "$TMP_DIR" -q
@@ -98,6 +103,7 @@ if [ ! -f "$ENV_FILE" ]; then
     cat > "$ENV_FILE" << 'EOF'
 # HomeStream 配置文件
 # 详细文档: https://github.com/Ninefoldatwill/homestream#配置
+# 国内镜像: https://gitee.com/ninefoldatwill/homestream
 
 # 模式（solo/team/ecosystem）
 OPENBRIDGE_MODE=solo
@@ -158,7 +164,8 @@ echo -e "    2. 启动服务: ${CYAN}openbridge serve${NC}"
 echo -e "    3. 打开仪表盘: ${CYAN}http://localhost:3458${NC}"
 echo ""
 echo -e "  ${BOLD}加入社区:${NC}"
-echo -e "    GitHub: ${CYAN}${REPO}${NC}"
+echo -e "    GitHub: ${CYAN}${REPO_GITHUB}${NC}"
+echo -e "    Gitee:  ${CYAN}${REPO_GITEE}${NC}（国内推荐）"
 echo ""
 echo -e "  ${YELLOW}提示:${NC} 重新打开终端或执行 ${CYAN}source ${SHELL_RC:-~/.bashrc}${NC} 启用 openbridge 命令"
 echo ""
