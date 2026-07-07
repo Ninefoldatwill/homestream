@@ -318,6 +318,8 @@ Full comparison and setup guide: [docs/ai-coding-resources.md](docs/ai-coding-re
 
 ### V5.0.0 (Current · July 2026)
 
+**Completed ✅**
+
 - ✅ Trinity model routing (L1 local / L2 cloud / L3 backup, **always free**)
 - ✅ EventStream causal chain + 700+ tests passing
 - ✅ Thousand Faces Design Market (9 themes, 6 user personas)
@@ -327,7 +329,7 @@ Full comparison and setup guide: [docs/ai-coding-resources.md](docs/ai-coding-re
 - ✅ Loop Engineering (execute → verify → retry → archive → learn)
 - ✅ Memory evolution engine (forget / merge / restructure — gets smarter over time)
 
-### V5.1 (Planned)
+**This release roadmap 🔮**
 
 - 🔮 **One Image, One World** (Photo to Theme) — Snap a photo, generate a unique frontend theme
 
@@ -339,11 +341,11 @@ Full comparison and setup guide: [docs/ai-coding-resources.md](docs/ai-coding-re
   | Texture | LBP + Gabor + GLCM tri-algorithm fusion | Background texture, border style, shadow feel |
   | Form | HOG edge gradients + contour roundness | Border radius, font choice, clip paths |
 
-  Use cases: Intangible heritage artisans (wagashi, paper-cutting, lacquerware, Miao silver, tie-dye...), designers, photographers — anyone who wants their work to "live" in an AI interface.
+  Use cases: designers, photographers, makers — anyone who wants their work to "live" in an AI interface.
 
   ```bash
   # Future usage preview
-  openbridge theme from-photo wagashi.jpg --name wagashi-spring
+  openbridge theme from-photo photo.jpg --name my-theme
   ```
 
 - 🔮 **Visual workflow orchestrator** — Drag-and-drop Agent workflow design
@@ -352,7 +354,6 @@ Full comparison and setup guide: [docs/ai-coding-resources.md](docs/ai-coding-re
 ### Future vision
 
 - 🌐 Multi-language ecosystem (i18n)
-- 🏛️ **Intangible Heritage Digital Preservation** — Bringing traditional crafts to life in the AI world; each artwork becomes a door
 - 📡 MCP + A2A dual-protocol ecosystem interconnection
 - 🎨 Theme marketplace community (sharing / rating / one-click install)
 
