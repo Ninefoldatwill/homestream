@@ -1,0 +1,44 @@
+/* 液态玻璃 · Liquid Glass — 千面设计市场示例主题
+ * 覆盖 HomeStream 四套历史页面变量（同时提供 --card 与 --panel 等价映射）
+ * 注入点：<head> 前由 ThemeManager.apply_theme() 自动插入
+ */
+:root {
+  --bg: linear-gradient(135deg, #e8eef7 0%, #f3eefb 50%, #eaf4fb 100%);
+  --card: rgba(255, 255, 255, 0.55);
+  --panel: rgba(255, 255, 255, 0.45);
+  --text: #1c2333;
+  --text2: #5a6a86;
+  --text3: #92a0b8;
+  --border: rgba(255, 255, 255, 0.7);
+  --accent: #5b8def;
+  --accent2: #9b7be0;
+  --self-bg: linear-gradient(135deg, #5b8def, #7c6ce0);
+  --other-bg: rgba(255, 255, 255, 0.6);
+  --user-bg: linear-gradient(135deg, #5b8def, #7c6ce0);
+  --ai-bg: rgba(255, 255, 255, 0.5);
+  --meeting-bg: rgba(255, 247, 225, 0.55);
+  --meeting-border: rgba(255, 213, 79, 0.6);
+  --green: #2bb673;
+  --red: #ef5350;
+  --yellow: #f5a623;
+  --cyan: #2bc4d4;
+  --pink: #ec6aa0;
+  --shadow: 0 8px 32px rgba(90, 120, 180, 0.18);
+  --shadow-lg: 0 20px 60px rgba(90, 120, 180, 0.25);
+  --radius: 18px;
+  --radius-sm: 12px;
+}
+
+/* 玻璃拟态：让 .card / .panel 透出背景 */
+.card, .panel {
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+}
+
+/* 顶栏也做玻璃化 */
+.topbar {
+  background: linear-gradient(135deg, rgba(28, 35, 51, 0.82), rgba(22, 33, 62, 0.7), rgba(15, 52, 96, 0.72));
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+}

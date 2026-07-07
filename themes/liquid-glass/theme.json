@@ -1,0 +1,20 @@
+{
+  "id": "liquid-glass",
+  "name": "液态玻璃 · Liquid Glass",
+  "version": "1.0.0",
+  "author": "九重工作室",
+  "description": "半透明毛玻璃质感，柔和光晕与景深模糊。让仪表盘像一块浮在光里的冰。",
+  "category": "glass",
+  "preview": "preview.svg",
+  "entry": "theme.css",
+  "tokens": [
+    "--bg", "--card", "--panel", "--text", "--text2", "--text3", "--border",
+    "--accent", "--accent2", "--self-bg", "--other-bg", "--user-bg", "--ai-bg",
+    "--shadow", "--shadow-lg", "--radius", "--radius-sm"
+  ],
+  "dependencies": [],
+  "homestream": ">=5.0.0",
+  "signature": "",
+  "source": "https://github.com/Ninefoldatwill/homestream/themes/liquid-glass",
+  "license": "MIT"
+}

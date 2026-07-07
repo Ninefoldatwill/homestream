@@ -702,6 +702,133 @@ skills_app = typer.Typer(
 app.add_typer(skills_app, name="skills")
 
 
+# ============================================================
+# 千面设计市场 — themes 命令组
+# ============================================================
+
+themes_app = typer.Typer(
+    name="themes",
+    help="千面设计市场 — 主题安装/列表/激活/预览（铸钥匠🔑：不造墙，只铸钥）",
+    rich_markup_mode="rich",
+)
+
+app.add_typer(themes_app, name="themes")
+
+
+def _get_theme_manager():
+    """获取主题管理器（延迟导入，避免无依赖时报错）。"""
+    sys.path.insert(0, str(PROJECT_ROOT))
+    from theme_manager import ThemeManager
+    return ThemeManager()
+
+
+@themes_app.command("list")
+def themes_list():
+    """列出所有已安装主题（Rich表格）"""
+    console.print("[cyan]千面设计市场 — 已安装主题[/cyan]\n")
+    try:
+        tm = _get_theme_manager()
+    except Exception as e:
+        console.print(f"[red]  ThemeManager 初始化失败: {e}[/red]")
+        raise typer.Exit(code=1)
+
+    themes = tm.list_themes()
+    if not themes:
+        console.print("[yellow]  未安装任何主题[/yellow]")
+        console.print("\n[cyan]安装主题:[/cyan]")
+        console.print("  openbridge themes install <theme_dir>    从本地目录安装")
+        return
+
+    table = Table(title="主题列表", box=box.ROUNDED, show_header=True, header_style="bold")
+    table.add_column("#", style="dim", width=4)
+    table.add_column("ID", style="cyan", width=18)
+    table.add_column("名称", width=22)
+    table.add_column("分类", width=10)
+    table.add_column("作者", width=14)
+    table.add_column("状态", width=10)
+
+    for i, t in enumerate(themes, 1):
+        status = "[green]激活[/green]" if t.get("active") else "[dim]未激活[/dim]"
+        table.add_row(str(i), t["id"], t["name"][:20], t.get("category", ""),
+                      t.get("author", "")[:12], status)
+
+    console.print(table)
+    console.print(f"\n[dim]共 {len(themes)} 个主题 | 激活: openbridge themes activate <id>[/dim]")
+
+
+@themes_app.command("install")
+def themes_install(
+    theme_dir: str = typer.Argument(..., help="主题目录路径（含 theme.json）"),
+    activate: bool = typer.Option(False, "--activate", "-a", help="安装后立即激活"),
+):
+    """安装主题（从本地目录）"""
+    console.print(f"[cyan]安装主题: {theme_dir}[/cyan]")
+    src = Path(theme_dir)
+    if not src.exists() or not (src / "theme.json").exists():
+        console.print(f"[red]  主题包无效: 未找到 {src / 'theme.json'}[/red]")
+        raise typer.Exit(code=1)
+    try:
+        tm = _get_theme_manager()
+    except Exception as e:
+        console.print(f"[red]  ThemeManager 初始化失败: {e}[/red]")
+        raise typer.Exit(code=1)
+
+    ok, msg = tm.install_theme(src / "theme.json")
+    if not ok:
+        console.print(f"[red]  {msg}[/red]")
+        raise typer.Exit(code=1)
+    console.print(f"[green]  √ {msg}[/green]")
+
+    if activate:
+        ok, msg = tm.activate(src.name)
+        if ok:
+            console.print(f"[green]  √ 已激活: {src.name}[/green]")
+        else:
+            console.print(f"[yellow]  {msg}[/yellow]")
+
+
+@themes_app.command("activate")
+def themes_activate(
+    theme_id: str = typer.Argument(..., help="主题 ID"),
+):
+    """激活主题（对所有页面生效）"""
+    console.print(f"[cyan]激活主题: {theme_id}[/cyan]")
+    try:
+        tm = _get_theme_manager()
+    except Exception as e:
+        console.print(f"[red]  ThemeManager 初始化失败: {e}[/red]")
+        raise typer.Exit(code=1)
+
+    ok, msg = tm.activate(theme_id)
+    if not ok:
+        console.print(f"[red]  {msg}[/red]")
+        raise typer.Exit(code=1)
+    console.print(f"[green]  √ {msg}[/green]")
+    console.print(f"[dim]访问任意页面将自动应用此主题（或 ?theme={theme_id} 预览）[/dim]")
+
+
+@themes_app.command("preview")
+def themes_preview(
+    theme_id: str = typer.Argument(..., help="主题 ID"),
+    open_browser: bool = typer.Option(False, "--open", "-o", help="在浏览器打开预览"),
+):
+    """预览主题（生成整页预览 HTML）"""
+    console.print(f"[cyan]预览主题: {theme_id}[/cyan]")
+    try:
+        tm = _get_theme_manager()
+    except Exception as e:
+        console.print(f"[red]  ThemeManager 初始化失败: {e}[/red]")
+        raise typer.Exit(code=1)
+
+    html = tm.preview_html(theme_id)
+    out = PROJECT_ROOT / f"theme-preview-{theme_id}.html"
+    out.write_text(html, encoding="utf-8")
+    console.print(f"[green]  √ 预览已生成: {out}[/green]")
+    if open_browser:
+        import webbrowser
+        webbrowser.open(out.as_uri())
+
+
 @skills_app.command("list")
 def skills_list():
     """列出所有已安装技能（Rich表格）"""

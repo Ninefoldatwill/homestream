@@ -1,0 +1,9 @@
+{
+  "version": "1.0",
+  "active": "liquid-glass",
+  "installed": [
+    "liquid-glass"
+  ],
+  "note": "千面设计市场本地注册表。active 为当前激活主题，installed 为已安装主题列表。",
+  "spec": "详见 docs/theme-manifest-spec.md"
+}

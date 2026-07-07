@@ -16,7 +16,7 @@ V8核心能力：
 v6兼容层：保留v6全部API端点
 """
 
-from fastapi import FastAPI, HTTPException, Query, Body
+from fastapi import FastAPI, HTTPException, Query, Body, Request
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
@@ -954,11 +954,44 @@ setInterval(()=>{refreshStats();renderEvents()},15000);
 
 # ==================== V8 API端点 ====================
 
+# ============================================================
+# 千面设计市场 — 主题注入（最小化改动，不改写任何页面常量）
+# ============================================================
+
+def apply_theme_to_page(html: str, request: Optional["Request"] = None) -> str:
+    """将激活/预览主题注入页面 <head> 前。
+
+    优先使用 URL 参数 ?theme=<id> 进行预览，否则使用已激活主题。
+    主题引擎不可用或无可应用主题时原样返回，零风险。
+    """
+    try:
+        from theme_manager import ThemeManager
+        tm = ThemeManager()
+        theme_id = None
+        if request is not None:
+            theme_id = request.query_params.get("theme")
+        return tm.apply_theme(html, theme_id)
+    except Exception:
+        return html
+
+
 @app.get("/")
-async def root():
+async def root(request: Request):
     """V8仪表盘"""
     from fastapi.responses import HTMLResponse
-    return HTMLResponse(V8_DASHBOARD)
+    return HTMLResponse(apply_theme_to_page(V8_DASHBOARD, request))
+
+
+@app.get("/theme/{theme_id}/preview")
+async def theme_preview(theme_id: str):
+    """千面设计市场 — 整页主题预览"""
+    from fastapi.responses import HTMLResponse
+    try:
+        from theme_manager import ThemeManager
+        tm = ThemeManager()
+        return HTMLResponse(tm.preview_html(theme_id))
+    except Exception as e:
+        return HTMLResponse(f"<h1>主题预览失败: {e}</h1>")
 
 
 @app.get("/health")
@@ -2497,10 +2530,10 @@ window.addEventListener("DOMContentLoaded", function(){
 
 
 @app.get("/meeting")
-async def meeting_room():
+async def meeting_room(request: Request):
     """会议室前端页面（v7 EventStream风格）"""
     from fastapi.responses import HTMLResponse
-    return HTMLResponse(V7_HTML_PAGE)
+    return HTMLResponse(apply_theme_to_page(V7_HTML_PAGE, request))
 
 
 # ==================== 灵犀独立聊天界面 ====================
@@ -2729,10 +2762,10 @@ function showGroupNotif(msg){
 
 
 @app.get("/lingxi")
-async def lingxi_chat():
+async def lingxi_chat(request: Request):
     """灵犀独立沟通界面（桌面入口）"""
     from fastapi.responses import HTMLResponse
-    return HTMLResponse(LINGXI_CHAT_PAGE)
+    return HTMLResponse(apply_theme_to_page(LINGXI_CHAT_PAGE, request))
 
 
 class LingxiChatRequest(BaseModel):
@@ -3055,14 +3088,14 @@ UNIFIED_CHAT_PAGE = (
 # ============================================================
 
 @app.get("/meeting", name="meeting_page")
-async def meeting_page():
+async def meeting_page(request: Request):
     from fastapi.responses import HTMLResponse
-    return HTMLResponse(UNIFIED_CHAT_PAGE)
+    return HTMLResponse(apply_theme_to_page(UNIFIED_CHAT_PAGE, request))
 
 @app.get("/lingxi", name="lingxi_page")
-async def lingxi_page():
+async def lingxi_page(request: Request):
     from fastapi.responses import HTMLResponse
-    return HTMLResponse(LINGXI_CHAT_PAGE)
+    return HTMLResponse(apply_theme_to_page(LINGXI_CHAT_PAGE, request))
 
 # ============================================================
 # P1: BridgeV7Adapter API（V8模块整合）

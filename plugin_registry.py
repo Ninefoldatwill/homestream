@@ -18,6 +18,7 @@ Manifest 规范（openbridge-plugin.yaml）：
   integration — 集成插件（外部API对接）
   agent — Agent插件（新增Agent能力）
   validator — 验证器插件（数据校验/安全扫描）
+  theme — 主题皮肤（千面设计市场，前端个性化）
 
 生命周期：
   搜索 → 注册 → 签名 → 验证 → 安装 → 沙箱执行 → 卸载
@@ -47,6 +48,7 @@ class PluginType(str, Enum):
     INTEGRATION = "integration"          # 集成插件
     AGENT = "agent"                      # Agent插件
     VALIDATOR = "validator"              # 验证器插件
+    THEME = "theme"                      # 主题皮肤（千面设计市场）
 
 
 class PluginStatus(str, Enum):
@@ -440,6 +442,52 @@ class PluginRegistry:
             return True, f"权限等级 {max_perm.value} 可用"
         except (ImportError, ValueError):
             return True, "权限检查跳过（permission_guard不可用）"
+
+    # --- 主题（千面设计市场）---
+
+    def install_theme(self, theme_id: str, theme_dir: Optional[Path] = None) -> Tuple[bool, str]:
+        """安装主题（委托 ThemeManager 完成文件系统操作）。"""
+        try:
+            from theme_manager import ThemeManager
+        except ImportError:
+            return False, "ThemeManager 不可用"
+        tm = ThemeManager(themes_dir=theme_dir)
+        ok, msg = tm.install_theme(Path(theme_dir or (tm.themes_dir / theme_id)) / "theme.json") \
+            if theme_dir else (True, f"已登记: {theme_id}")
+        if theme_dir and not ok:
+            return ok, msg
+        # 在统一注册表登记（THEME 类型）
+        manifest = PluginManifest(
+            name=theme_id, version="1.0.0", plugin_type=PluginType.THEME,
+            description=f"千面设计市场主题: {theme_id}",
+        )
+        self.register(manifest)
+        return True, f"主题已安装并登记: {theme_id}"
+
+    def activate_theme(self, theme_id: str) -> Tuple[bool, str]:
+        """激活主题。"""
+        try:
+            from theme_manager import ThemeManager
+        except ImportError:
+            return False, "ThemeManager 不可用"
+        tm = ThemeManager()
+        ok, msg = tm.activate(theme_id)
+        if not ok:
+            return ok, msg
+        # 同步注册表状态
+        manifest = self._get_manifest(theme_id)
+        if manifest:
+            self._set_status(theme_id, manifest.version, PluginStatus.INSTALLED)
+        return True, f"主题已激活: {theme_id}"
+
+    def list_themes(self) -> List[Dict[str, Any]]:
+        """列出所有已安装主题。"""
+        try:
+            from theme_manager import ThemeManager
+        except ImportError:
+            return []
+        tm = ThemeManager()
+        return tm.list_themes()
 
 
 # ============================================================
