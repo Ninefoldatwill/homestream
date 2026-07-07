@@ -312,6 +312,54 @@ Full comparison and setup guide: [docs/ai-coding-resources.md](docs/ai-coding-re
 
 ---
 
+## Roadmap
+
+> The keysmith's forging journey never stops.
+
+### V5.0.0 (Current · July 2026)
+
+- ✅ Trinity model routing (L1 local / L2 cloud / L3 backup, **always free**)
+- ✅ EventStream causal chain + 700+ tests passing
+- ✅ Thousand Faces Design Market (9 themes, 6 user personas)
+- ✅ Dual open source (GitHub + Gitee mirror)
+- ✅ Built-in security (injection guard + log sanitization + 3-tier permissions + rate limiting)
+- ✅ Elastic modes (Solo → Team → Ecosystem)
+- ✅ Loop Engineering (execute → verify → retry → archive → learn)
+- ✅ Memory evolution engine (forget / merge / restructure — gets smarter over time)
+
+### V5.1 (Planned)
+
+- 🔮 **One Image, One World** (Photo to Theme) — Snap a photo, generate a unique frontend theme
+
+  Not just color extraction — restores the complete visual soul from **color, texture, and form**:
+
+  | Dimension | Algorithm | What it captures |
+  |:----------|:----------|:-----------------|
+  | Color | K-means + 135 traditional Chinese color matching | Palette, dark/light mode, traditional color names |
+  | Texture | LBP + Gabor + GLCM tri-algorithm fusion | Background texture, border style, shadow feel |
+  | Form | HOG edge gradients + contour roundness | Border radius, font choice, clip paths |
+
+  Use cases: Intangible heritage artisans (wagashi, paper-cutting, lacquerware, Miao silver, tie-dye...), designers, photographers — anyone who wants their work to "live" in an AI interface.
+
+  ```bash
+  # Future usage preview
+  openbridge theme from-photo wagashi.jpg --name wagashi-spring
+  ```
+
+- 🔮 **Visual workflow orchestrator** — Drag-and-drop Agent workflow design
+- 🔮 **Observability frontend** — EventStream data visualization dashboard
+
+### Future vision
+
+- 🌐 Multi-language ecosystem (i18n)
+- 🏛️ **Intangible Heritage Digital Preservation** — Bringing traditional crafts to life in the AI world; each artwork becomes a door
+- 📡 MCP + A2A dual-protocol ecosystem interconnection
+- 🎨 Theme marketplace community (sharing / rating / one-click install)
+
+> We don't build one wall, we forge ten thousand doors. The keysmith gives keys, users choose doors — and in the future, users draw their own doors.
+
+---
+
 ## Contributing
 
 Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
