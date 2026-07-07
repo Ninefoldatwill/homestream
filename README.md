@@ -259,6 +259,26 @@ bandit -r .
 
 ---
 
+## 生态资源
+
+HomeStream 是通往 AI 世界的那把钥匙——钥匙能开很多扇门。以下是收录的优质开源生态资源：
+
+### AI 编程工具
+
+HomeStream 不自己做 AI 编程工具，但连接优秀的开源工具。L3 本地模型层（Ollama）可直接为这些工具提供本地推理：
+
+| 工具 | Stars | 特点 | 本地模型 |
+|:-----|------:|:-----|:--------:|
+| [OpenCode](https://github.com/sst/opencode) | 172K | 75+ 提供商，MIT 协议 | Ollama |
+| [Cline](https://github.com/cline/cline) | 63K | VS Code 自主编码代理 | Ollama |
+| [Aider](https://github.com/Aider-AI/aider) | 46K | Git 原生，终端 AI 编程 | Ollama |
+| [Continue.dev](https://github.com/continuedev/continue) | — | 50+ 模型，高度自定义 | Ollama |
+| [Tabby](https://github.com/TabbyML/tabby) | — | 企业级自托管 Copilot | 完全自托管 |
+
+完整对比和安装引导见 [docs/ai-coding-resources.md](docs/ai-coding-resources.md)。
+
+---
+
 ## 贡献
 
 欢迎贡献！详见 [CONTRIBUTING.md](CONTRIBUTING.md)。

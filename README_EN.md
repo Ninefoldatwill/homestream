@@ -259,6 +259,26 @@ Current test status: **700+ tests, 0 failures**
 
 ---
 
+## Ecosystem resources
+
+HomeStream is the key to the AI world — and a key can open many doors. Here are curated open-source ecosystem resources:
+
+### AI coding tools
+
+HomeStream doesn't build its own AI coding tool, but connects excellent open-source ones. The L3 local model layer (Ollama) can directly power these tools:
+
+| Tool | Stars | Highlight | Local model |
+|:-----|------:|:----------|:-----------:|
+| [OpenCode](https://github.com/sst/opencode) | 172K | 75+ providers, MIT license | Ollama |
+| [Cline](https://github.com/cline/cline) | 63K | VS Code autonomous agent | Ollama |
+| [Aider](https://github.com/Aider-AI/aider) | 46K | Git-native terminal coding | Ollama |
+| [Continue.dev](https://github.com/continuedev/continue) | — | 50+ models, highly customizable | Ollama |
+| [Tabby](https://github.com/TabbyML/tabby) | — | Enterprise self-hosted Copilot | Full self-host |
+
+Full comparison and setup guide: [docs/ai-coding-resources.md](docs/ai-coding-resources.md).
+
+---
+
 ## Contributing
 
 Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
