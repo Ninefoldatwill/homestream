@@ -1,0 +1,64 @@
+/* 终端绿 · Terminal Green — 千面设计市场主题
+ * 灵感: Linux TTY / Matrix / hacker terminal
+ * 黑底绿字 + monospace + 极简
+ */
+:root {
+  --bg: #000000;
+  --card: rgba(0, 20, 0, 0.8);
+  --panel: rgba(0, 15, 0, 0.9);
+  --text: #00ff41;
+  --text2: #00aa2a;
+  --text3: #006619;
+  --border: rgba(0, 255, 65, 0.25);
+  --accent: #00ff41;
+  --accent2: #00cc33;
+  --self-bg: rgba(0, 255, 65, 0.15);
+  --other-bg: rgba(0, 30, 0, 0.6);
+  --user-bg: rgba(0, 255, 65, 0.12);
+  --ai-bg: rgba(0, 20, 0, 0.7);
+  --meeting-bg: rgba(0, 80, 0, 0.2);
+  --meeting-border: rgba(0, 255, 65, 0.3);
+  --green: #00ff41;
+  --red: #ff4444;
+  --yellow: #ffff00;
+  --cyan: #00ffff;
+  --pink: #ff00ff;
+  --shadow: 0 0 10px rgba(0, 255, 65, 0.1);
+  --shadow-lg: 0 0 20px rgba(0, 255, 65, 0.15);
+  --radius: 0px;
+  --radius-sm: 0px;
+}
+
+/* 终端风: 无圆角, 绿色边框 */
+.card, .panel {
+  border: 1px solid rgba(0, 255, 65, 0.2);
+  font-family: 'Courier New', 'Consolas', monospace;
+}
+
+/* 顶栏: 纯黑+绿边 */
+.topbar {
+  background: #000;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.3);
+  font-family: 'Courier New', monospace;
+}
+
+/* CRT扫描线 */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15),
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* 文字发光 */
+* {
+  text-shadow: 0 0 5px rgba(0, 255, 65, 0.3);
+}

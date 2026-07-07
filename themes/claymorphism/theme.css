@@ -1,0 +1,60 @@
+/* 粘土拟态 · Claymorphism — 千面设计市场主题
+ * 灵感: Claymorphism 2025趋势 / 软陶玩具
+ * 3D圆润 + 柔和阴影 + 温暖配色
+ */
+:root {
+  --bg: #fde8e0;
+  --card: #fff5f0;
+  --panel: #ffeee5;
+  --text: #5c3d3d;
+  --text2: #8a6a6a;
+  --text3: #b8a0a0;
+  --border: rgba(255, 154, 118, 0.2);
+  --accent: #ff9a76;
+  --accent2: #ffb088;
+  --self-bg: linear-gradient(145deg, #ff9a76, #ff7a5c);
+  --other-bg: #ffeee5;
+  --user-bg: linear-gradient(145deg, #ff9a76, #ff7a5c);
+  --ai-bg: #fff5f0;
+  --meeting-bg: #fff0e0;
+  --meeting-border: rgba(255, 154, 118, 0.3);
+  --green: #7bc47f;
+  --red: #e8765a;
+  --yellow: #f0c674;
+  --cyan: #6bb8c4;
+  --pink: #e8849e;
+  --shadow: 6px 6px 12px rgba(200, 150, 130, 0.15), -4px -4px 10px rgba(255, 255, 255, 0.8);
+  --shadow-lg: 10px 10px 20px rgba(200, 150, 130, 0.2), -6px -6px 16px rgba(255, 255, 255, 0.9);
+  --radius: 20px;
+  --radius-sm: 14px;
+}
+
+/* 粘土风: 圆润 + 内外阴影 */
+.card, .panel {
+  border: none;
+  background: #fff5f0;
+  box-shadow: 6px 6px 12px rgba(200, 150, 130, 0.15), -4px -4px 10px rgba(255, 255, 255, 0.8);
+}
+
+/* 顶栏: 温暖粘土色 */
+.topbar {
+  background: linear-gradient(180deg, #ff9a76, #ff8a66);
+  box-shadow: 0 4px 12px rgba(255, 154, 118, 0.2);
+}
+
+/* 按钮: 粘土凸起 */
+button {
+  border: none !important;
+  box-shadow: 4px 4px 8px rgba(200, 150, 130, 0.2), -3px -3px 6px rgba(255, 255, 255, 0.7) !important;
+  transition: all 0.15s ease !important;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: 5px 5px 10px rgba(200, 150, 130, 0.25), -4px -4px 8px rgba(255, 255, 255, 0.8) !important;
+}
+
+button:active {
+  transform: translateY(2px);
+  box-shadow: 2px 2px 4px rgba(200, 150, 130, 0.15), -1px -1px 2px rgba(255, 255, 255, 0.5) !important;
+}

@@ -1,0 +1,54 @@
+/* 暗夜极光 · Aurora Dark — 千面设计市场主题
+ * 灵感: 北极极光 / Dark Mode Excellence 2026
+ * 深色底 + 流动渐变 + 紫蓝绿极光带
+ */
+:root {
+  --bg: #0d1117;
+  --card: rgba(22, 27, 34, 0.8);
+  --panel: rgba(17, 22, 28, 0.85);
+  --text: #e6edf3;
+  --text2: #8b949e;
+  --text3: #6e7681;
+  --border: rgba(139, 92, 246, 0.2);
+  --accent: #8b5cf6;
+  --accent2: #06b6d4;
+  --self-bg: linear-gradient(135deg, #8b5cf6, #06b6d4);
+  --other-bg: rgba(22, 27, 34, 0.6);
+  --user-bg: linear-gradient(135deg, #8b5cf6, #6366f1);
+  --ai-bg: rgba(17, 22, 28, 0.7);
+  --meeting-bg: rgba(6, 182, 212, 0.1);
+  --meeting-border: rgba(6, 182, 212, 0.3);
+  --green: #10b981;
+  --red: #f43f5e;
+  --yellow: #f59e0b;
+  --cyan: #06b6d4;
+  --pink: #ec4899;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+/* 极光风: 柔和边框 + 深色背景 */
+.card, .panel {
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* 顶栏: 深色极光 */
+.topbar {
+  background: linear-gradient(180deg, rgba(13, 17, 23, 0.95), rgba(13, 17, 23, 0.8));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(139, 92, 246, 0.15);
+}
+
+/* 极光背景动画 */
+body {
+  background-image: 
+    radial-gradient(ellipse at 20% 0%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(6, 182, 212, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(99, 102, 241, 0.04) 0%, transparent 70%);
+  background-attachment: fixed;
+}

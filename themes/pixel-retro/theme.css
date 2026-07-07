@@ -1,0 +1,52 @@
+/* 像素复古 · Pixel Retro — 千面设计市场主题
+ * 灵感: 8bitcn-ui / RetroUI / 8-bit游戏机
+ * 像素化 + 阶梯边框 + 游戏配色
+ */
+:root {
+  --bg: #1a1c2c;
+  --card: #29366f;
+  --panel: #3b5dc9;
+  --text: #f4f4f4;
+  --text2: #94b0c2;
+  --text3: #566c86;
+  --border: #ffcd75;
+  --accent: #ef7d57;
+  --accent2: #ffcd75;
+  --self-bg: #ef7d57;
+  --other-bg: #29366f;
+  --user-bg: #ef7d57;
+  --ai-bg: #29366f;
+  --meeting-bg: #38b764;
+  --meeting-border: #ffcd75;
+  --green: #38b764;
+  --red: #b13e53;
+  --yellow: #ffcd75;
+  --cyan: #41a6f6;
+  --pink: #ef7d57;
+  --shadow: 4px 4px 0px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 6px 6px 0px rgba(0, 0, 0, 0.5);
+  --radius: 0px;
+  --radius-sm: 0px;
+}
+
+/* 像素风: 硬边框, 无圆角, 像素阴影 */
+.card, .panel {
+  border: 3px solid #ffcd75;
+  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.4);
+  font-family: 'Courier New', monospace;
+  image-rendering: pixelated;
+}
+
+/* 顶栏: 游戏机风 */
+.topbar {
+  background: #1a1c2c;
+  border-bottom: 3px solid #ffcd75;
+  font-family: 'Courier New', monospace;
+}
+
+/* 像素化文字 */
+h1, h2, h3, .title {
+  font-family: 'Courier New', monospace;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}

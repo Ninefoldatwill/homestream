@@ -1,0 +1,49 @@
+/* 水墨国风 · Ink Wash — 千面设计市场主题
+ * 灵感: 中国水墨画 / 宣纸 / 留白艺术
+ * 水墨晕染 + 宣纸纹理 + 东方美学
+ */
+:root {
+  --bg: #f5f0e8;
+  --card: rgba(255, 252, 245, 0.9);
+  --panel: rgba(250, 245, 235, 0.92);
+  --text: #2b2b2b;
+  --text2: #5c5c5c;
+  --text3: #8a8a8a;
+  --border: rgba(120, 110, 95, 0.2);
+  --accent: #8b4513;
+  --accent2: #a0522d;
+  --self-bg: linear-gradient(135deg, #5c4033, #8b4513);
+  --other-bg: rgba(245, 240, 230, 0.7);
+  --user-bg: linear-gradient(135deg, #5c4033, #8b4513);
+  --ai-bg: rgba(250, 245, 235, 0.85);
+  --meeting-bg: rgba(230, 220, 200, 0.4);
+  --meeting-border: rgba(139, 69, 19, 0.3);
+  --green: #556b2f;
+  --red: #8b0000;
+  --yellow: #b8860b;
+  --cyan: #4682b4;
+  --pink: #bc8f8f;
+  --shadow: 0 4px 12px rgba(60, 50, 40, 0.08);
+  --shadow-lg: 0 12px 32px rgba(60, 50, 40, 0.12);
+  --radius: 8px;
+  --radius-sm: 4px;
+}
+
+/* 水墨风: 柔和边框, 宣纸质感 */
+.card, .panel {
+  border: 1px solid rgba(120, 110, 95, 0.15);
+  box-shadow: 0 2px 8px rgba(60, 50, 40, 0.06);
+}
+
+/* 顶栏: 深褐水墨色 */
+.topbar {
+  background: linear-gradient(180deg, #3c3028, #2b2218);
+  border-bottom: 1px solid rgba(139, 69, 19, 0.3);
+}
+
+/* 宣纸纹理 */
+body {
+  background-image: 
+    radial-gradient(ellipse at 20% 50%, rgba(139, 69, 19, 0.02) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(60, 50, 40, 0.02) 0%, transparent 50%);
+}

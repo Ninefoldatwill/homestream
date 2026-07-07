@@ -1,0 +1,42 @@
+/* 极简禅意 · Zen Minimal — 千面设计市场主题
+ * 灵感: 日式侘寂 / 无印良品 / 极简主义
+ * 大留白 + 自然色 + 呼吸感
+ */
+:root {
+  --bg: #f7f6f3;
+  --card: #ffffff;
+  --panel: #faf9f7;
+  --text: #2c2c2c;
+  --text2: #6b6b6b;
+  --text3: #a0a0a0;
+  --border: #e8e6e3;
+  --accent: #7a9e7e;
+  --accent2: #b5a892;
+  --self-bg: linear-gradient(135deg, #7a9e7e, #9ab8a0);
+  --other-bg: #f5f4f1;
+  --user-bg: linear-gradient(135deg, #7a9e7e, #9ab8a0);
+  --ai-bg: #faf9f7;
+  --meeting-bg: #f0ede8;
+  --meeting-border: #d4cfc8;
+  --green: #7a9e7e;
+  --red: #c4756b;
+  --yellow: #c4a86b;
+  --cyan: #6b9ea0;
+  --pink: #c47b9e;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.06);
+  --radius: 4px;
+  --radius-sm: 2px;
+}
+
+/* 禅意: 极简边框, 大间距 */
+.card, .panel {
+  border: 1px solid #e8e6e3;
+  letter-spacing: 0.02em;
+}
+
+/* 顶栏: 自然色, 低饱和 */
+.topbar {
+  background: #f7f6f3;
+  border-bottom: 1px solid #e8e6e3;
+}

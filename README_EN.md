@@ -259,6 +259,39 @@ Current test status: **700+ tests, 0 failures**
 
 ---
 
+## Thousand Faces Design Market
+
+> **We don't build one wall, we forge ten thousand doors.** Everyone's HomeStream is unique.
+
+HomeStream ships with 9 carefully designed themes covering geeks, oriental aesthetics, modern business, creative personalities, and more. Ready to use, one-click switch:
+
+| Theme | Style | Best For |
+|:------|:------|:---------|
+| Liquid Glass | Frosted glass · translucent · depth blur | Modern business |
+| Cyberpunk Neon | Neon glow · glitch art · scanlines | Geeks / sci-fi |
+| Terminal Green | Black & green · monospace · CRT | Developers / ops |
+| Zen Minimal | Whitespace · natural tones · breathing | Calm & focused |
+| Ink Wash | Ink diffusion · rice paper · oriental | Culture enthusiasts |
+| Neubrutalism | Bold borders · hard shadows · saturated | Creative / designers |
+| Pixel Retro | 8-bit · pixelated · game palette | Nostalgic / gamers |
+| Aurora Dark | Dark base · flowing gradients · aurora | Night use / eye care |
+| Claymorphism | 3D rounded · soft shadows · warm | Family / casual |
+
+```bash
+# Switch theme
+openbridge theme activate cyberpunk-neon
+
+# List all themes
+openbridge theme list
+
+# Preview theme (without activating)
+openbridge theme preview ink-wash
+```
+
+Want your own theme? Check `themes/liquid-glass/theme.json` as a template, then submit a PR.
+
+---
+
 ## Ecosystem resources
 
 HomeStream is the key to the AI world — and a key can open many doors. Here are curated open-source ecosystem resources:

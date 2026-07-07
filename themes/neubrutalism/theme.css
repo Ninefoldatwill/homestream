@@ -1,0 +1,60 @@
+/* 新粗野主义 · Neubrutalism — 千面设计市场主题
+ * 灵感: Gumroad / Neubrutalism 2025趋势
+ * 粗边框 + 硬阴影 + 高饱和
+ */
+:root {
+  --bg: #fffbeb;
+  --card: #ffffff;
+  --panel: #fffef0;
+  --text: #1a1a1a;
+  --text2: #444444;
+  --text3: #888888;
+  --border: #000000;
+  --accent: #ff6b6b;
+  --accent2: #4ecdc4;
+  --self-bg: #ff6b6b;
+  --other-bg: #fffef0;
+  --user-bg: #ff6b6b;
+  --ai-bg: #f0f0f0;
+  --meeting-bg: #ffe66d;
+  --meeting-border: #000000;
+  --green: #51cf66;
+  --red: #ff6b6b;
+  --yellow: #ffe66d;
+  --cyan: #4ecdc4;
+  --pink: #f783ac;
+  --shadow: 4px 4px 0px #000000;
+  --shadow-lg: 8px 8px 0px #000000;
+  --radius: 0px;
+  --radius-sm: 0px;
+}
+
+/* 粗野: 粗黑边框 + 硬阴影, 无圆角 */
+.card, .panel {
+  border: 3px solid #000;
+  box-shadow: 4px 4px 0px #000;
+}
+
+/* 顶栏: 黄底黑边 */
+.topbar {
+  background: #ffe66d;
+  border-bottom: 3px solid #000;
+  box-shadow: 0 4px 0px #000;
+}
+
+/* 按钮: 粗野风 */
+button {
+  border: 2px solid #000 !important;
+  box-shadow: 3px 3px 0px #000 !important;
+  font-weight: 700 !important;
+}
+
+button:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px #000 !important;
+}
+
+button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #000 !important;
+}

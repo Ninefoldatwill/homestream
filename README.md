@@ -259,6 +259,39 @@ bandit -r .
 
 ---
 
+## 千面设计市场
+
+> **不造一面墙，只铸千万门。** 每个人的 HomeStream 都是独一无二的。
+
+HomeStream 内置 9 种精心设计的主题，覆盖极客、东方美学、现代商务、创意个性等全用户画像。安装即用，一键切换：
+
+| 主题 | 风格 | 适合谁 |
+|:-----|:-----|:-------|
+| 液态玻璃 Liquid Glass | 毛玻璃质感 · 半透明 · 景深模糊 | 现代商务用户 |
+| 赛博朋克 Cyberpunk Neon | 霓虹光效 · 故障艺术 · 扫描线 | 极客 / 科幻爱好者 |
+| 终端绿 Terminal Green | 黑底绿字 · monospace · CRT | 开发者 / 运维 |
+| 极简禅意 Zen Minimal | 大留白 · 自然色调 · 呼吸感 | 追求平静专注 |
+| 水墨国风 Ink Wash | 水墨晕染 · 宣纸纹理 · 东方留白 | 文化爱好者 / 国潮 |
+| 新粗野主义 Neubrutalism | 粗边框 · 硬阴影 · 高饱和 | 创意 / 设计师 |
+| 像素复古 Pixel Retro | 8-bit · 像素化 · 游戏配色 | 怀旧 / 游戏玩家 |
+| 暗夜极光 Aurora Dark | 深色底 · 流动渐变 · 极光带 | 夜间使用 / 护眼 |
+| 粘土拟态 Claymorphism | 3D圆润 · 柔和阴影 · 温暖 | 家庭 / 普通用户 |
+
+```bash
+# 切换主题
+openbridge theme activate cyberpunk-neon
+
+# 列出所有主题
+openbridge theme list
+
+# 预览主题（不激活）
+openbridge theme preview ink-wash
+```
+
+想要自己的主题？参考 `themes/liquid-glass/theme.json` 创建一个，提交 PR 即可加入市场。
+
+---
+
 ## 生态资源
 
 HomeStream 是通往 AI 世界的那把钥匙——钥匙能开很多扇门。以下是收录的优质开源生态资源：
