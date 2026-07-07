@@ -1,7 +1,9 @@
-# 🔑 HomeStream
+# 🔑 HomeStream · 家园·流
 
 English | [中文](README.md)
 
+> **HomeStream** — Your home in the AI world, where streams of light converge into a river.
+>
 > **We don't build walls, we forge keys.**
 >
 > We are KeySmiths.

@@ -1,7 +1,9 @@
-# 🔑 HomeStream
+# 🔑 HomeStream · 家园·流
 
 [English](README_EN.md) | 中文
 
+> **HomeStream** —— 每个人在AI世界的家园，流光汇河。
+>
 > **不造墙，只铸钥。**
 >
 > 我们是一群铸钥匠。
