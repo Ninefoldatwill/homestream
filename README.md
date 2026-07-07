@@ -1,5 +1,7 @@
 # 🔑 HomeStream
 
+[English](README_EN.md) | 中文
+
 > **不造墙，只铸钥。**
 >
 > 我们是一群铸钥匠。
@@ -15,7 +17,7 @@
 ---
 
 <p align="center">
-  <strong>MIT Licensed</strong> · <strong>Python 3.9+</strong> · <strong>76 tests passing</strong> · <strong>69 API routes</strong>
+  <strong>MIT Licensed</strong> · <strong>Python 3.9+</strong> · <strong>700+ tests</strong> · <strong>76 API routes</strong>
 </p>
 
 ---
@@ -244,7 +246,7 @@ pytest --cov=. --cov-report=html
 bandit -r .
 ```
 
-当前测试状态：**76 tests, 0 failures**
+当前测试状态：**700+ tests, 0 failures**
 
 ---
 
