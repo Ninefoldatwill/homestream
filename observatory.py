@@ -1,10 +1,12 @@
 """
 HomeStream 可观测性数据聚合模块
 
-聚合三大数据源，为 /api/v7/observatory 端点提供8面板仪表盘数据：
+聚合三大数据源，为 /api/v7/observatory 端点提供10面板仪表盘数据：
   1. Prometheus指标 (middleware.py) — HTTP请求/延迟/ICP消息/技能调用
   2. EventStore (event_store.py) — 事件统计/类型分布/会话
   3. ModelRouter (model_router.py) — Provider状态/Token/成本估算
+  4. 架构可视化 (arch_visualizer.py) — Agent拓扑/事件流向/路由状态 SVG
+  5. 数据质量守卫 (data_guardian.py) — 因果链/时间戳/类型/身份校验
 
 设计原则：
   - 零侵入：不修改现有模块，只读取数据
@@ -23,6 +25,19 @@ from prometheus_client import REGISTRY
 if TYPE_CHECKING:
     from event_store import EventStore
     from model_router import ModelRouter
+
+# 延迟导入架构可视化和数据质量模块（避免循环依赖）
+try:
+    from arch_visualizer import collect_architecture_data
+    _HAS_ARCH_VIZ = True
+except ImportError:
+    _HAS_ARCH_VIZ = False
+
+try:
+    from data_guardian import run_full_audit
+    _HAS_DATA_GUARDIAN = True
+except ImportError:
+    _HAS_DATA_GUARDIAN = False
 
 logger = logging.getLogger(__name__)
 
@@ -318,6 +333,26 @@ def collect_observatory_data(
     )
     events_total = sum(events_by_type.values())
 
+    # === Panel 9: 架构可视化 ===
+    arch_data: Dict[str, Any] = {}
+    if _HAS_ARCH_VIZ:
+        try:
+            arch_data = collect_architecture_data(
+                event_store, model_router, session_id
+            )
+        except Exception as e:
+            logger.warning(f"\u67b6\u6784\u53ef\u89c6\u5316\u751f\u6210\u5931\u8d25: {e}")
+            arch_data = {"error": str(e)[:200]}
+
+    # === Panel 10: 数据质量审计 ===
+    quality_data: Dict[str, Any] = {}
+    if _HAS_DATA_GUARDIAN:
+        try:
+            quality_data = run_full_audit(event_store, session_id)
+        except Exception as e:
+            logger.warning(f"\u6570\u636e\u8d28\u91cf\u5ba1\u8ba1\u5931\u8d25: {e}")
+            quality_data = {"error": str(e)[:200]}
+
     # === 构建响应 ===
     return {
         "timestamp": timestamp,
@@ -406,6 +441,8 @@ def collect_observatory_data(
                     "by_type": dict(icp_by_type),
                 },
             },
+            "architecture": arch_data,
+            "data_quality": quality_data,
         },
         "providers": providers_stats,
         "hardware": hardware_info,

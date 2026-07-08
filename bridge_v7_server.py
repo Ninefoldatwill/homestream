@@ -1021,6 +1021,8 @@ body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFo
 <div class="panel"><div class="panel-header"><h3>Skill Invocations</h3><span class="tag" id="tag-skill">-</span></div><div class="panel-body"><div class="chart" id="chart-skill"></div></div></div>
 <div class="panel"><div class="panel-header"><h3>Cost Breakdown</h3><span class="tag" id="tag-cost">-</span></div><div class="panel-body"><div class="chart" id="chart-cost"></div></div></div>
 <div class="panel"><div class="panel-header"><h3>Provider Status</h3><span class="tag" id="tag-provider">-</span></div><div class="panel-body" style="max-height:220px;overflow-y:auto"><table class="table" id="table-provider"><thead><tr><th>Provider</th><th>Tier</th><th>Status</th><th>Req</th><th>Err</th><th>Latency</th></tr></thead><tbody id="tbody-provider"></tbody></table></div></div>
+<div class="panel" style="grid-column:1/-1"><div class="panel-header"><h3>Architecture Visualization</h3><span class="tag" id="tag-arch">-</span></div><div class="panel-body" id="arch-container" style="overflow-x:auto"></div></div>
+<div class="panel" style="grid-column:1/-1"><div class="panel-header"><h3>Data Quality Guardian</h3><span class="tag" id="tag-quality">-</span></div><div class="panel-body" id="quality-container"></div></div>
 </div>
 <script>
 const charts={};
@@ -1194,6 +1196,40 @@ return '<tr>'+
 }).join('');
 }
 
+function renderArchitecture(a){
+const c=document.getElementById('arch-container');
+const t=document.getElementById('tag-arch');
+if(!a||a.error){if(t)t.textContent='N/A';if(c)c.innerHTML='<div class="loading">'+(a?a.error:'No data')+'</div>';return;}
+let html='';
+if(a.topology_svg)html+='<div style="margin-bottom:12px">'+a.topology_svg+'</div>';
+if(a.flow_svg)html+='<div style="margin-bottom:12px">'+a.flow_svg+'</div>';
+if(a.router_svg)html+='<div>'+a.router_svg+'</div>';
+if(c)c.innerHTML=html;
+if(t)t.textContent=(a.meta?a.meta.agent_count+' agents':'-');
+}
+function renderQuality(q){
+const c=document.getElementById('quality-container');
+const t=document.getElementById('tag-quality');
+if(!q||q.error){if(t)t.textContent='N/A';if(c)c.innerHTML='<div class="loading">'+(q?q.error:'No data')+'</div>';return;}
+const score=q.overall_score||0;
+const status=q.overall_status||'unknown';
+const colors={pass:'#1d9e75',warn:'#ef9f27',error:'#e24b4a'};
+if(t){t.textContent=status.toUpperCase()+' ('+(score*100).toFixed(0)+'%)';t.style.color=colors[status]||'#888';}
+let html='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:8px">';
+const checks=q.checks||{};
+for(const[k,v]of Object.entries(checks)){
+const sc=v.score||0;const st=v.status||'unknown';
+html+='<div style="background:var(--bg-secondary,#f5f5f5);border-radius:6px;padding:8px">'+
+'<div style="font-size:11px;color:#888">'+(v.name||k)+'</div>'+
+'<div style="font-size:18px;font-weight:500;color:'+(colors[st]||'#888')+'">'+(sc*100).toFixed(0)+'%</div>'+
+'<div style="font-size:10px;color:#aaa">'+(v.total_checked||0)+' checked, '+(v.issues?v.issues.length:0)+' issues</div></div>';
+}
+html+='</div>';
+if(q.total_issues>0){
+html+='<div style="font-size:12px;color:#888">'+q.total_issues+' issues ('+q.error_count+' errors, '+q.warn_count+' warnings)</div>';
+}
+if(c)c.innerHTML=html;
+}
 async function refresh(){
 try{
 const r=await fetch('/api/v7/observatory');
@@ -1208,6 +1244,8 @@ renderICP(d.panels.active_throughput);
 renderSkill(d.panels.tool_execution);
 renderCost(d.panels.cost_breakdown);
 renderProviders(d.providers);
+renderArchitecture(d.panels.architecture);
+renderQuality(d.panels.data_quality);
 }catch(e){
 document.getElementById('lastUpdate').textContent='Error: '+e.message;
 }
