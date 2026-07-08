@@ -351,7 +351,10 @@ Full comparison and setup guide: [docs/ai-coding-resources.md](docs/ai-coding-re
   ```
 
 - 🔮 **Visual workflow orchestrator** — Drag-and-drop Agent workflow design
-- 🔮 **Observability frontend** — EventStream data visualization dashboard
+- ✅ **Observability frontend** — EventStream data visualization dashboard (Jul 8)
+  - 8-panel dashboard: HTTP success rate / latency percentiles / token usage / event distribution / ICP messages / skill invocations / cost breakdown / provider status
+  - Tech stack: ECharts + pure HTML (no React build chain)
+  - Access at `/observatory` or dashboard quick-link
 
 ### Future vision
 

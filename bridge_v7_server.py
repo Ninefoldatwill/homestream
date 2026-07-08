@@ -70,6 +70,7 @@ from permission_guard import (  # P1权限守卫·6/30
     get_permission_boundary_report, ActionScope, REGISTERED_AGENTS,
 )
 from rate_limiter import get_limiter_for_endpoint, RateLimitMiddleware  # P1限流保护·6/30
+from observatory import collect_observatory_data  # 可观测性数据聚合·7/8
 # ─── 运行模式检测 ────────────────────────────────────────
 # 物理隔离：通过 .openbridge_mode 文件控制
 # "team"=完整书阁3460·"opensource"=静态知识快照
@@ -495,6 +496,7 @@ background:var(--bg)}
 <a href="/" class="active">仪表盘</a>
 <a href="/meeting" target="_blank">会议室</a>
 <a href="/lingxi" target="_blank">灵犀</a>
+<a href="/observatory" target="_blank">观测台</a>
 <a href="/docs" target="_blank">API文档</a>
 </nav>
 <div class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">运行中</span></div>
@@ -564,6 +566,9 @@ background:var(--bg)}
 </a>
 <a href="/lingxi" target="_blank" class="ql-card">
 <div class="ql-icon chat">🐚</div><div><div class="ql-text">灵犀对话</div><div class="ql-sub">信息咨询·战略分析</div></div>
+</a>
+<a href="/observatory" target="_blank" class="ql-card">
+<div class="ql-icon" style="background:rgba(31,111,86,.2);font-size:24px">📊</div><div><div class="ql-text">可观测性仪表盘</div><div class="ql-sub">8面板·实时监控</div></div>
 </a>
 <div class="ql-card" onclick="openExpModal()">
 <div class="ql-icon exp">🧪</div><div><div class="ql-text">Ratchet实验</div><div class="ql-sub">Maker + Reviewer</div></div>
@@ -952,7 +957,270 @@ setInterval(()=>{refreshStats();renderEvents()},15000);
 </body>
 </html>"""
 
-# ==================== V8 API端点 ====================
+# ==================== 可观测性仪表盘页面（7/8新增）====================
+
+OBSERVATORY_PAGE = r"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HomeStream Observatory - 可观测性仪表盘</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
+.header{background:#161b22;border-bottom:1px solid #30363d;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header h1{font-size:18px;font-weight:500;color:#58a6ff}
+.header .meta{font-size:12px;color:#8b949e}
+.header a{color:#58a6ff;text-decoration:none;font-size:13px;margin-left:16px}
+.summary-bar{display:flex;gap:16px;padding:16px 24px;background:#161b22;border-bottom:1px solid #30363d;flex-wrap:wrap}
+.summary-item{display:flex;flex-direction:column;gap:4px}
+.summary-item .label{font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px}
+.summary-item .value{font-size:20px;font-weight:500;color:#e6edf3}
+.summary-item .value.green{color:#3fb950}
+.summary-item .value.yellow{color:#d29922}
+.summary-item .value.red{color:#f85149}
+.summary-item .value.blue{color:#58a6ff}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:20px 24px}
+.panel{background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden}
+.panel-header{padding:12px 16px;border-bottom:1px solid #30363d;display:flex;align-items:center;justify-content:space-between}
+.panel-header h3{font-size:13px;font-weight:500;color:#e6edf3}
+.panel-header .tag{font-size:11px;padding:2px 8px;border-radius:10px;background:#21262d;color:#8b949e}
+.panel-body{padding:12px}
+.chart{width:100%;height:220px}
+.table{width:100%;font-size:12px;border-collapse:collapse}
+.table th{text-align:left;padding:8px 12px;color:#8b949e;font-weight:400;border-bottom:1px solid #30363d}
+.table td{padding:8px 12px;border-bottom:1px solid #21262d}
+.table tr:hover{background:#21262d}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.status-dot.healthy{background:#3fb950}
+.status-dot.degraded{background:#d29922}
+.status-dot.offline{background:#f85149}
+.status-dot.unknown{background:#8b949e}
+.tier-badge{font-size:10px;padding:1px 6px;border-radius:3px;font-weight:500}
+.tier-badge.L1{background:#1a3a5c;color:#58a6ff}
+.tier-badge.L2{background:#2d1a3c;color:#bc8cff}
+.tier-badge.L3{background:#3c2a1a;color:#d29922}
+.loading{display:flex;align-items:center;justify-content:center;height:220px;color:#8b949e;font-size:13px}
+@media(max-width:1200px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:768px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="header">
+<div><h1>HomeStream Observatory</h1><div class="meta" id="lastUpdate">loading...</div></div>
+<div><a href="/">Back to Dashboard</a></div>
+</div>
+<div class="summary-bar" id="summaryBar"></div>
+<div class="grid">
+<div class="panel"><div class="panel-header"><h3>HTTP Success Rate</h3><span class="tag" id="tag-success">-</span></div><div class="panel-body"><div class="chart" id="chart-success"></div></div></div>
+<div class="panel"><div class="panel-header"><h3>Latency Percentiles</h3><span class="tag" id="tag-latency">-</span></div><div class="panel-body"><div class="chart" id="chart-latency"></div></div></div>
+<div class="panel"><div class="panel-header"><h3>Token Usage</h3><span class="tag" id="tag-token">-</span></div><div class="panel-body"><div class="chart" id="chart-token"></div></div></div>
+<div class="panel"><div class="panel-header"><h3>Event Distribution</h3><span class="tag" id="tag-event">-</span></div><div class="panel-body"><div class="chart" id="chart-event"></div></div></div>
+<div class="panel"><div class="panel-header"><h3>ICP Messages</h3><span class="tag" id="tag-icp">-</span></div><div class="panel-body"><div class="chart" id="chart-icp"></div></div></div>
+<div class="panel"><div class="panel-header"><h3>Skill Invocations</h3><span class="tag" id="tag-skill">-</span></div><div class="panel-body"><div class="chart" id="chart-skill"></div></div></div>
+<div class="panel"><div class="panel-header"><h3>Cost Breakdown</h3><span class="tag" id="tag-cost">-</span></div><div class="panel-body"><div class="chart" id="chart-cost"></div></div></div>
+<div class="panel"><div class="panel-header"><h3>Provider Status</h3><span class="tag" id="tag-provider">-</span></div><div class="panel-body" style="max-height:220px;overflow-y:auto"><table class="table" id="table-provider"><thead><tr><th>Provider</th><th>Tier</th><th>Status</th><th>Req</th><th>Err</th><th>Latency</th></tr></thead><tbody id="tbody-provider"></tbody></table></div></div>
+</div>
+<script>
+const charts={};
+function initChart(id){const el=document.getElementById(id);if(el)charts[id]=echarts.init(el);return charts[id];}
+function showLoading(id){const el=document.getElementById(id);if(el)el.innerHTML='<div class="loading">Loading...</div>';}
+
+function renderSummary(s){
+const bar=document.getElementById('summaryBar');
+const items=[
+{label:'HTTP Requests',value:s.http_total_requests,cls:'blue'},
+{label:'Success Rate',value:(s.http_success_rate*100).toFixed(1)+'%',cls:s.http_success_rate>=0.95?'green':s.http_success_rate>=0.8?'yellow':'red'},
+{label:'Total Events',value:s.total_events,cls:'blue'},
+{label:'Active Sessions',value:s.active_sessions,cls:'blue'},
+{label:'WS Connections',value:s.active_connections,cls:'blue'},
+{label:'Tokens In/Out',value:(s.total_tokens_in||0).toLocaleString()+' / '+(s.total_tokens_out||0).toLocaleString(),cls:'blue'},
+{label:'Est. Cost',value:'¥'+(s.total_cost||0).toFixed(4),cls:'yellow'},
+{label:'Skill Rate',value:(s.skill_success_rate*100).toFixed(1)+'%',cls:s.skill_success_rate>=0.95?'green':s.skill_success_rate>=0.8?'yellow':'red'},
+{label:'Strategy',value:s.strategy||'-',cls:'blue'}
+];
+bar.innerHTML=items.map(i=>'<div class="summary-item"><div class="label">'+i.label+'</div><div class="value '+i.cls+'">'+i.value+'</div></div>').join('');
+}
+
+function renderSuccess(p){
+const c=initChart('chart-success');
+document.getElementById('tag-success').textContent=p.total+' total';
+if(!c)return;
+c.setOption({
+tooltip:{trigger:'item'},
+series:[{
+type:'gauge',radius:'85%',center:['50%','60%'],
+min:0,max:100,
+axisLine:{lineStyle:{width:12,color:[[0.8,'#f85149'],[0.95,'#d29922'],[1,'#3fb950']]}},
+pointer:{width:4,length:'60%'},
+detail:{formatter:'{value}%',fontSize:22,color:'#e6edf3',offsetCenter:[0,'70%']},
+data:[{value:(p.rate*100).toFixed(1),name:'Success'}],
+title:{show:false}
+}],
+graphic:{type:'text',left:'center',bottom:8,style:{text:'Success: '+p.success+'  Error: '+p.error,fill:'#8b949e',fontSize:11}}
+});
+}
+
+function renderLatency(p){
+const c=initChart('chart-latency');
+const pct=p.percentiles_ms||{};
+document.getElementById('tag-latency').textContent='avg '+p.avg_ms+'ms';
+if(!c)return;
+c.setOption({
+tooltip:{trigger:'axis',formatter:function(p){return p[0].name+': '+p[0].value+'ms'}},
+xAxis:{type:'category',data:['P50','P75','P90','P95','P99'],axisLabel:{color:'#8b949e',fontSize:11}},
+yAxis:{type:'value',axisLabel:{color:'#8b949e',fontSize:11,formatter:'{value}ms'},splitLine:{lineStyle:{color:'#30363d'}}},
+series:[{type:'bar',data:[
+{value:pct.p50||0,itemStyle:{color:'#3fb950'}},
+{value:pct.p75||0,itemStyle:{color:'#58a6ff'}},
+{value:pct.p90||0,itemStyle:{color:'#d29922'}},
+{value:pct.p95||0,itemStyle:{color:'#db6d28'}},
+{value:pct.p99||0,itemStyle:{color:'#f85149'}}
+],barWidth:'50%'}],
+grid:{left:50,right:20,top:20,bottom:30}
+});
+}
+
+function renderToken(p){
+const c=initChart('chart-token');
+const provs=p.by_provider||[];
+document.getElementById('tag-token').textContent=provs.length+' providers';
+if(!c)return;
+if(provs.length===0){c.setOption({title:{text:'No data',left:'center',top:'center',textStyle:{color:'#8b949e',fontSize:13}}});return;}
+c.setOption({
+tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
+legend:{data:['Tokens In','Tokens Out'],top:0,textStyle:{color:'#8b949e',fontSize:10}},
+xAxis:{type:'category',data:provs.map(p=>p.name),axisLabel:{color:'#8b949e',fontSize:10,rotate:20}},
+yAxis:{type:'value',axisLabel:{color:'#8b949e',fontSize:10},splitLine:{lineStyle:{color:'#30363d'}}},
+series:[
+{name:'Tokens In',type:'bar',data:provs.map(p=>p.tokens_in),itemStyle:{color:'#58a6ff'}},
+{name:'Tokens Out',type:'bar',data:provs.map(p=>p.tokens_out),itemStyle:{color:'#3fb950'}}
+],
+grid:{left:50,right:20,top:30,bottom:40}
+});
+}
+
+function renderEvent(p){
+const c=initChart('chart-event');
+const types=p.by_type||{};
+const data=Object.entries(types).map(([k,v])=>({name:k,value:v}));
+document.getElementById('tag-event').textContent=p.total+' events';
+if(!c)return;
+if(data.length===0){c.setOption({title:{text:'No events',left:'center',top:'center',textStyle:{color:'#8b949e',fontSize:13}}});return;}
+c.setOption({
+tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},
+series:[{
+type:'pie',radius:['40%','65%'],center:['50%','50%'],
+data:data,
+label:{color:'#c9d1d9',fontSize:10},
+itemStyle:{borderColor:'#161b22',borderWidth:2}
+}]
+});
+}
+
+function renderICP(p){
+const c=initChart('chart-icp');
+const icp=p.icp_messages||{};
+const types=icp.by_type||{};
+const data=Object.entries(types).map(([k,v])=>({name:k||'unknown',value:v}));
+document.getElementById('tag-icp').textContent=(icp.total||0)+' messages';
+if(!c)return;
+if(data.length===0){c.setOption({title:{text:'No ICP data',left:'center',top:'center',textStyle:{color:'#8b949e',fontSize:13}}});return;}
+c.setOption({
+tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},
+series:[{
+type:'pie',radius:'55%',center:['50%','50%'],
+data:data,
+label:{color:'#c9d1d9',fontSize:10},
+itemStyle:{borderColor:'#161b22',borderWidth:2}
+}]
+});
+}
+
+function renderSkill(p){
+const c=initChart('chart-skill');
+const skills=p.by_skill||[];
+document.getElementById('tag-skill').textContent=p.total+' calls';
+if(!c)return;
+if(skills.length===0){c.setOption({title:{text:'No skill data',left:'center',top:'center',textStyle:{color:'#8b949e',fontSize:13}}});return;}
+c.setOption({
+tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
+legend:{data:['Success','Error'],top:0,textStyle:{color:'#8b949e',fontSize:10}},
+xAxis:{type:'category',data:skills.map(s=>s.skill),axisLabel:{color:'#8b949e',fontSize:10,rotate:20}},
+yAxis:{type:'value',axisLabel:{color:'#8b949e',fontSize:10},splitLine:{lineStyle:{color:'#30363d'}}},
+series:[
+{name:'Success',type:'bar',stack:'total',data:skills.map(s=>s.success),itemStyle:{color:'#3fb950'}},
+{name:'Error',type:'bar',stack:'total',data:skills.map(s=>s.error),itemStyle:{color:'#f85149'}}
+],
+grid:{left:50,right:20,top:30,bottom:40}
+});
+}
+
+function renderCost(p){
+const c=initChart('chart-cost');
+const tiers=p.by_tier||{};
+const data=Object.entries(tiers).filter(([k,v])=>v>0).map(([k,v])=>({name:k,value:parseFloat(v.toFixed(6))}));
+document.getElementById('tag-cost').textContent='¥'+p.total.toFixed(4);
+if(!c)return;
+if(data.length===0){c.setOption({title:{text:'L1 only (zero cost)',left:'center',top:'center',textStyle:{color:'#3fb950',fontSize:13}}});return;}
+c.setOption({
+tooltip:{trigger:'item',formatter:'{b}: ¥{c} ({d}%)'},
+series:[{
+type:'pie',radius:['40%','65%'],center:['50%','50%'],
+data:data,
+label:{color:'#c9d1d9',fontSize:11,formatter:'{b}\n¥{c}'},
+itemStyle:{borderColor:'#161b22',borderWidth:2},
+color:['#58a6ff','#bc8cff','#d29922']
+}]
+});
+}
+
+function renderProviders(provs){
+const tbody=document.getElementById('tbody-provider');
+document.getElementById('tag-provider').textContent=(provs||[]).length+' providers';
+if(!provs||provs.length===0){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:#8b949e">No providers</td></tr>';return;}
+tbody.innerHTML=provs.map(p=>{
+const cls=p.status||'unknown';
+const tierCls='tier-badge '+(p.tier||'L1');
+return '<tr>'+
+'<td>'+p.display_name+'</td>'+
+'<td><span class="'+tierCls+'">'+p.tier+'</span></td>'+
+'<td><span class="status-dot '+cls+'"></span>'+p.status+'</td>'+
+'<td>'+p.requests+'</td>'+
+'<td>'+(p.errors>0?'<span style="color:#f85149">'+p.errors+'</span>':p.errors)+'</td>'+
+'<td>'+p.avg_latency_ms+'ms</td>'+
+'</tr>';
+}).join('');
+}
+
+async function refresh(){
+try{
+const r=await fetch('/api/v7/observatory');
+const d=await r.json();
+document.getElementById('lastUpdate').textContent='Updated: '+new Date(d.timestamp).toLocaleTimeString();
+renderSummary(d.summary);
+renderSuccess(d.panels.success_rate);
+renderLatency(d.panels.latency);
+renderToken(d.panels.token_cost);
+renderEvent(d.panels.event_distribution);
+renderICP(d.panels.active_throughput);
+renderSkill(d.panels.tool_execution);
+renderCost(d.panels.cost_breakdown);
+renderProviders(d.providers);
+}catch(e){
+document.getElementById('lastUpdate').textContent='Error: '+e.message;
+}
+}
+
+refresh();
+setInterval(refresh,5000);
+window.addEventListener('resize',function(){Object.values(charts).forEach(c=>c&&c.resize());});
+</script>
+</body>
+</html>"""
+
+
 
 # ============================================================
 # 千面设计市场 — 主题注入（最小化改动，不改写任何页面常量）
@@ -1275,6 +1543,28 @@ async def get_stats(session_id: str = Query("default")):
             "db_by_type": db_stats.get("by_type", {}),
         },
     }
+
+
+# ==================== 可观测性 API（7/8新增） ====================
+
+@app.get("/api/v7/observatory")
+async def observatory(session_id: str = Query("default")):
+    """可观测性仪表盘数据 — 8面板聚合
+
+    聚合三大数据源：
+      1. Prometheus指标 — HTTP请求/延迟/ICP消息/技能调用
+      2. EventStore — 事件统计/类型分布/会话
+      3. ModelRouter — Provider状态/Token/成本估算
+
+    返回 summary + panels + providers 完整结构。
+    """
+    stream = get_or_create_stream(session_id)
+    store = getattr(stream, "_store", None)
+    return collect_observatory_data(
+        event_store=store,
+        model_router=model_router,
+        session_id=session_id,
+    )
 
 
 # ==================== ModelRouter API（v7.2新增） ====================
@@ -3096,6 +3386,12 @@ async def meeting_page(request: Request):
 async def lingxi_page(request: Request):
     from fastapi.responses import HTMLResponse
     return HTMLResponse(apply_theme_to_page(LINGXI_CHAT_PAGE, request))
+
+@app.get("/observatory", name="observatory_page")
+async def observatory_page(request: Request):
+    """可观测性仪表盘页面 — ECharts + 纯HTML，无React构建链"""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(apply_theme_to_page(OBSERVATORY_PAGE, request))
 
 # ============================================================
 # P1: BridgeV7Adapter API（V8模块整合）
