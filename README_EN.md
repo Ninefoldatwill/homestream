@@ -370,6 +370,8 @@ Full comparison and setup guide: [docs/ai-coding-resources.md](docs/ai-coding-re
 
 Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
 
+Governance strategy (three-layer model / licensing / dependency audit / anti-vibe-coding) — see [GOVERNANCE.md](GOVERNANCE.md).
+
 Quick flow:
 1. Fork → 2. Create branch → 3. Develop → 4. Test → 5. PR
 
