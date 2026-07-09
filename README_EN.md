@@ -39,6 +39,7 @@ English | [中文](README.md)
   <a href="#-theme-marketplace">Themes</a> ·
   <a href="#observability">Observability</a> ·
   <a href="#roadmap">Roadmap</a> ·
+  <a href="docs/MEMORY_PHILOSOPHY.md">Memory Philosophy</a> ·
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
@@ -213,6 +214,22 @@ HomeStream practices **Loop Engineering** — tasks run in autonomous loops rath
 ### EventStream Causal Chains
 
 Every Event carries a `cause` field pointing to its upstream trigger Event, forming a complete causal trace chain.
+
+### Memory Evolution Engine
+
+Three-engine pipeline: **Forget** (cognitive decay) → **Merge** (clustering compression) → **Reconstruct** (reflective distillation). Agents get smarter over time.
+
+| Memory Type | Cognitive Science | Decay Half-Life | Typical Content |
+|:------------|:------------------|:----------------|:----------------|
+| Reflective | Metacognition | 693 days | Core insights, philosophy |
+| Semantic | Declarative | 138 days | Technical knowledge, facts |
+| Procedural | Procedural | 86 days | Workflows, operations |
+| Episodic | Episodic | 46 days | Conversations, events |
+| Emotional | Affective | 34 days | User preferences, sentiment |
+
+> **Frozen main model — zero catastrophic forgetting risk**: Memory evolution never touches model parameters. No GPU, no LoRA, no training data needed. Every memory is plaintext — traceable, auditable, editable. This is the foundation of "universal accessibility": zero cost, zero risk, fully local.
+>
+> Full design philosophy: [docs/MEMORY_PHILOSOPHY.md](docs/MEMORY_PHILOSOPHY.md)
 
 ### Elastic Mode — Three Tiers
 
@@ -443,6 +460,7 @@ Full comparison and setup guide: [docs/ai-coding-resources.md](docs/ai-coding-re
 
 ### Future vision
 
+- 🧠 **Causal Memory Engine** — From "retrieval-driven" to "causal-driven": memories emerge naturally along causal chains, no explicit retrieval needed
 - 🌐 Multi-language ecosystem (i18n)
 - 📡 MCP + A2A dual-protocol ecosystem interconnection
 - 🎨 Theme marketplace community (sharing / rating / one-click install)
