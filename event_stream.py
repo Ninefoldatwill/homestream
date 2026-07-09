@@ -312,21 +312,24 @@ class EventStream:
     
     def get_cause_chain(self, event_id: str) -> List[Event]:
         """获取事件的因果链（从根到叶）
-        
-        返回从最早的事件到指定事件的完整链路
+
+        返回从最早的事件到指定事件的完整链路。
+        内置循环检测，防止因事件重发导致的环引用。
         """
         chain = []
         current_id = event_id
-        
+        visited = set()  # 循环检测
+
         with self._lock:
-            while current_id:
+            while current_id and current_id not in visited:
+                visited.add(current_id)
                 event = self._event_index.get(current_id)
                 if event:
                     chain.append(event)
                     current_id = event.cause
                 else:
                     break
-        
+
         return chain[::-1]  # 反转，从根到叶
     
     def get_events_for_agent(self, agent_name: str, 

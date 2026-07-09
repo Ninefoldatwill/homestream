@@ -91,6 +91,7 @@ class MemoryRecord:
     parent_id: Optional[str] = None   # 合并来源
     is_evergreen: bool = False
     archived: bool = False
+    cause_event_id: Optional[str] = None  # 因果链：触发此记忆写入的Event ID
 
     def salience(self, now: Optional[float] = None) -> float:
         """计算当前衰减后显著度。salience = importance × e^(-λ × days)。"""
@@ -111,6 +112,11 @@ class MemoryRecord:
         self.importance = min(1.0, self.importance + BOOST_ON_ACCESS)
         # 重置时间戳：让衰减重新计 — 仿生设计
         self.timestamp = time.time()
+
+    @property
+    def has_cause(self) -> bool:
+        """是否携带因果链。"""
+        return self.cause_event_id is not None
 
 
 # ===========================================================================
@@ -139,9 +145,16 @@ class ForgettingEngine:
                 tags TEXT DEFAULT '[]',
                 parent_id TEXT,
                 is_evergreen INTEGER DEFAULT 0,
-                archived INTEGER DEFAULT 0
+                archived INTEGER DEFAULT 0,
+                cause_event_id TEXT
             )
         """)
+        # Migration: 为旧库添加 cause_event_id 列（CREATE IF NOT EXISTS 不更新已有表）
+        try:
+            conn.execute("SELECT cause_event_id FROM memories LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE memories ADD COLUMN cause_event_id TEXT")
+            logger.info("memory_evolution.schema_migrated", added_column="cause_event_id")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS cold_store (
                 id TEXT PRIMARY KEY,
@@ -152,6 +165,11 @@ class ForgettingEngine:
                 archived_at REAL,
                 reason TEXT
             )
+        """)
+        # 因果索引：加速 cause_event_id 查询
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_memories_cause
+            ON memories(cause_event_id)
         """)
         conn.commit()
         conn.close()
@@ -167,12 +185,12 @@ class ForgettingEngine:
         conn.execute(
             """INSERT OR REPLACE INTO memories
                (id,content,mtype,importance,timestamp,access_count,last_access,
-                source,tags,parent_id,is_evergreen,archived)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                source,tags,parent_id,is_evergreen,archived,cause_event_id)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (record.id, record.content, record.mtype.value, record.importance,
              record.timestamp, record.access_count, record.last_access,
              record.source, json.dumps(record.tags), record.parent_id,
-             int(record.is_evergreen), int(record.archived)),
+             int(record.is_evergreen), int(record.archived), record.cause_event_id),
         )
         conn.commit()
         conn.close()
@@ -196,7 +214,18 @@ class ForgettingEngine:
             tags=json.loads(row[8]) if row[8] else [],
             parent_id=row[9], is_evergreen=bool(row[10]),
             archived=bool(row[11]),
+            cause_event_id=row[12] if len(row) > 12 else None,
         )
+
+    def get_by_cause(self, event_id: str) -> List[MemoryRecord]:
+        """根据因果事件ID查找所有关联记忆。"""
+        conn = sqlite3.connect(self.db_path)
+        rows = conn.execute(
+            "SELECT * FROM memories WHERE cause_event_id=? AND archived=0",
+            (event_id,),
+        ).fetchall()
+        conn.close()
+        return [self._row_to_record(r) for r in rows]
 
     def decay_scan(self) -> List[MemoryRecord]:
         """扫描所有需遗忘的记忆。"""
@@ -451,12 +480,20 @@ class ReconstructionEngine:
 # ===========================================================================
 
 class HybridRetriever:
-    """混合召回：BM25(稀疏) + 向量(语义) → RRF 融合 → Cross-Encoder 重排 → MMR 多样性。"""
+    """混合召回：BM25(稀疏) + 向量(语义) → RRF 融合 → Cross-Encoder 重排 → MMR 多样性。
+
+    因果召回通道（V5.0新增）：
+      当提供 causal_context（当前因果链上的事件ID集合）时，
+      携带 cause_event_id 且在因果链上的记忆获得分数加成，
+      实现"果形成时，相关的因自然涌现"。
+    """
 
     # RRF 常数：Elasticsearch 生产默认值 k=60
     RRF_K = 60
     # 多样性权衡：λ 越高越看重相关性
     MMR_LAMBDA = 0.7
+    # 因果加成权重：因果链上的记忆获得此比例的额外分数
+    CAUSAL_BOOST_RATIO = 0.3
 
     def __init__(self, forgetting: ForgettingEngine, vector_weight: float = 0.3,
                  cross_encoder_enabled: bool = False):
@@ -517,8 +554,15 @@ class HybridRetriever:
     def search(self, query: str, top_k: int = 10,
                time_decay: bool = True,
                use_rrf: bool = True,
-               use_mmr: bool = True) -> List[MemoryRecord]:
-        """混合检索入口：RRF 融合 + Cross-Encoder 重排 + MMR 多样性。"""
+               use_mmr: bool = True,
+               causal_context: Optional[Set[str]] = None) -> List[MemoryRecord]:
+        """混合检索入口：RRF 融合 + Cross-Encoder 重排 + MMR 多样性 + 因果加成。
+
+        Args:
+            causal_context: 当前因果链上的事件ID集合。
+                           提供时，携带 cause_event_id 且在此集合中的记忆获得分数加成，
+                           实现"因果涌现"——果形成时相关的因自然浮现。
+        """
         candidates = self.forgetting.list_active(limit=200)
         if not candidates:
             return []
@@ -549,6 +593,12 @@ class HybridRetriever:
                     decay = math.exp(-0.005 * days)
                     rrf_scores[r.id] = rrf_scores.get(r.id, 0.0) * decay
 
+            # 因果加成：因果链上的记忆获得分数提升
+            if causal_context:
+                for r in candidates:
+                    if r.cause_event_id and r.cause_event_id in causal_context:
+                        rrf_scores[r.id] = rrf_scores.get(r.id, 0.0) * (1.0 + self.CAUSAL_BOOST_RATIO)
+
             scored = [(r, rrf_scores.get(r.id, 0.0)) for r in candidates]
             scored.sort(key=lambda x: x[1], reverse=True)
         else:
@@ -562,6 +612,9 @@ class HybridRetriever:
                     days = (now - r.timestamp) / 86400.0
                     decay = math.exp(-0.005 * days)
                     raw_score *= decay
+                # 因果加成（兼容旧路径）
+                if causal_context and r.cause_event_id and r.cause_event_id in causal_context:
+                    raw_score *= (1.0 + self.CAUSAL_BOOST_RATIO)
                 scored.append((r, raw_score))
             scored.sort(key=lambda x: x[1], reverse=True)
 

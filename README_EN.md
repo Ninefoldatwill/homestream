@@ -164,6 +164,7 @@ HomeStream V5
 │
 ├── Memory System
 │   ├── memory_evolution.py    # Memory evolution (forget/merge/reconstruct)
+│   ├── causal_memory.py       # Causal memory bridge (EventStream causal chain ↔ memory recall)
 │   └── soul_config.py         # Soul config (role templates)
 │
 ├── Collaboration Tools
@@ -228,6 +229,8 @@ Three-engine pipeline: **Forget** (cognitive decay) → **Merge** (clustering co
 | Emotional | Affective | 34 days | User preferences, sentiment |
 
 > **Frozen main model — zero catastrophic forgetting risk**: Memory evolution never touches model parameters. No GPU, no LoRA, no training data needed. Every memory is plaintext — traceable, auditable, editable. This is the foundation of "universal accessibility": zero cost, zero risk, fully local.
+>
+> **Causal Memory Closed Loop**: V5.0 adds `CausalMemoryBridge`, bridging EventStream causal chains with the memory evolution system. Events automatically create causal memories (Trigger), retrieval traces causal chains with score boosting (Emerge), and memories can be traced back to root events (Trace) — forming a complete closed loop of "intention → causation → natural emergence".
 >
 > Full design philosophy: [docs/MEMORY_PHILOSOPHY.md](docs/MEMORY_PHILOSOPHY.md)
 
