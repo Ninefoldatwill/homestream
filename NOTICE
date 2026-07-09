@@ -1,0 +1,55 @@
+NOTICE — HomeStream 第三方商标与服务声明
+=============================================
+
+HomeStream 是一个开源项目（MIT许可证），其核心代码均为原创开发。
+本项目通过API客户端适配器（Provider）连接多个第三方AI模型服务，
+但不包含、不分发任何第三方模型权重、参数或源代码。
+
+第三方商标声明
+--------------
+
+本项目中出现的以下名称均为各自所有者的商标，本项目与这些实体无关联、
+未获赞助或背书。商标的使用仅限于描述Provider所连接的API服务
+（商标法意义上的"描述性合理使用"）。
+
+| 名称               | 类型     | 所有者                           | 用途                     |
+|:-------------------|:---------|:---------------------------------|:-------------------------|
+| 通义千问 / Qwen    | 商标     | 阿里巴巴集团 (Alibaba Cloud)     | DashScope API 连接目标   |
+| DeepSeek / 深度求索| 商标     | DeepSeek (深度求索) 公司         | DeepSeek API 连接目标    |
+| GLM / 智谱         | 商标     | 北京智谱华章科技有限公司         | 智谱开放平台 API 连接目标|
+| Ollama             | 商标     | Ollama Inc.                      | 本地推理引擎连接目标     |
+| Hugging Face       | 商标     | Hugging Face Inc.                | 模型下载平台引用         |
+| ECharts            | 商标     | Apache Software Foundation       | 可视化图表库（Apache 2.0）|
+
+API客户端适配器声明
+-------------------
+
+HomeStream 的 providers/ 目录下的所有 Provider 文件均为独立开发的
+API客户端适配器，其特征为：
+
+1. **不包含模型权重**：不包含任何第三方模型的训练参数、权重文件
+2. **不包含模型源代码**：不包含任何第三方模型的推理/训练/微调代码
+3. **纯HTTP客户端**：仅通过标准HTTP协议调用第三方API服务
+4. **原创实现**：所有代码均为本项目独立编写，非从第三方SDK复制
+
+此模式与 LangChain、AutoGen、CrewAI、Dify 等主流开源框架的做法一致，
+是AI行业的通行实践。
+
+开源许可证
+----------
+
+- HomeStream 核心代码：MIT License（见 LICENSE 文件）
+- ECharts（assets/echarts.min.js）：Apache License 2.0
+- 通义千问模型权重：如需使用模型权重（非本项目分发），受 Qwen LICENSE 
+  AGREEMENT 约束（见 https://huggingface.co/Qwen/Qwen2.5-72B/blob/main/LICENSE）
+
+参考文档
+--------
+
+- IP_QWEN_PROVIDER_ASSESSMENT.md — Qwen Provider IP合规评估报告
+- TECH_SOVEREIGNTY_ASSESSMENT.md — 技术主权保障评估
+- IP_RISK_ASSESSMENT.md — 架构可视化与数据守卫IP风险评估
+- IP_PRE_DEV_ASSESSMENT.md — 主题无障碍与A2A协议预排雷
+
+Copyright (c) 2026 九重 (Ninefold) — HomeStream 开源项目
+Licensed under the MIT License.

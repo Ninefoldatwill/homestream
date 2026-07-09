@@ -8,6 +8,12 @@ DeepSeek V4-Flash: $0.28/M tokens，性价比之王
   - API Key（从 https://platform.deepseek.com 获取）
   - 模型选择（Flash便宜 / Pro更强）
   - 温度、最大token等
+
+商标声明：
+  "DeepSeek"是DeepSeek（深度求索）公司的商标。
+  本文件是独立开发的API客户端适配器，不包含任何DeepSeek
+  模型权重或源代码，仅通过HTTP调用DeepSeek API。
+  本项目与DeepSeek公司无关联、未获背书。
 """
 
 from __future__ import annotations

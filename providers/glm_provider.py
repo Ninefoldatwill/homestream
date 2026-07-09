@@ -8,6 +8,12 @@ GLM-4.7-Flash: 免费，30B参数(3B激活)，适合日常任务
   - API Key（从 https://open.bigmodel.cn 获取）
   - 模型选择（GLM-4.7-Flash免费 / GLM-4-Plus付费）
   - 温度、最大token等
+
+商标声明：
+  "GLM"和"智谱"是北京智谱华章科技有限公司（Zhipu AI）的商标。
+  本文件是独立开发的API客户端适配器，不包含任何GLM模型权重
+  或源代码，仅通过HTTP调用智谱开放平台API。
+  本项目与智谱华章无关联、未获背书。
 """
 
 from __future__ import annotations

@@ -13,6 +13,13 @@ Qwen Provider - 通义千问 API适配器（国内备选，防卡脖）
 技术主权保障（参考: TECH_SOVEREIGNTY_ASSESSMENT.md）：
   通义千问为阿里云国产API，数据中心在国内，
   不受GFW和国际网络波动影响，是抗卡脖的优选备选。
+
+商标声明：
+  "通义千问"和"Qwen"是阿里巴巴集团（Alibaba Cloud）的商标。
+  本文件是独立开发的API客户端适配器，不包含任何Qwen模型权重、
+  参数或源代码（非Qwen许可证定义的"Materials"），仅通过HTTP
+  调用DashScope API。本项目与阿里巴巴集团无关联、未获背书。
+  参见 NOTICE 文件和 IP_QWEN_PROVIDER_ASSESSMENT.md 评估报告。
 """
 
 from __future__ import annotations
