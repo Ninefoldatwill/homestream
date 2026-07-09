@@ -292,6 +292,14 @@ openbridge theme preview ink-wash
 
 Want your own theme? Check `themes/liquid-glass/theme.json` as a template, then submit a PR.
 
+### Theme Accessibility Audit (theme_a11y)
+
+Every theme is audited against WCAG 2.1 AA standards before release, ensuring "beautiful" also means "usable":
+
+- **Contrast checking** — Normal text ≥4.5:1, large text ≥3:1, UI components ≥3:1 (W3C public algorithm)
+- **Colorblind friendliness** — Protanopia / Deuteranopia / Tritanopia distinguishability testing
+- **Zero dependencies** — Pure Python standard library, based on W3C Royalty-Free (RF) standards
+
 ---
 
 ## Ecosystem resources
@@ -357,6 +365,16 @@ Full comparison and setup guide: [docs/ai-coding-resources.md](docs/ai-coding-re
   - Architecture visualization: Agent topology / event causal chain flow / 3-layer router status
   - Data quality guardian: causal chain integrity / timestamp continuity / event type legality / agent identity validation
   - Access at `/observatory` or dashboard quick-link
+
+- ✅ **Theme accessibility auditor** — WCAG 2.1 AA color audit (Jul 9)
+  - Contrast checking + colorblind friendliness testing (3 types)
+  - Zero third-party dependencies, pure Python standard library
+  - Based on W3C Royalty-Free (RF) standards, safeguarding the Design Marketplace
+
+- ✅ **A2A collaboration protocol** — Agent-to-Agent protocol specification (Jul 9)
+  - Extended from ICP v1.1, defining agent discovery / capability declaration / task delegation / result return
+  - Supports Solo / Team / Ecosystem collaboration modes
+  - See [A2A_PROTOCOL.md](A2A_PROTOCOL.md)
 
 ### Future vision
 
