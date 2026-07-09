@@ -2285,8 +2285,10 @@ async def channels_send(req: ChannelSendRequest):
         channel = ch_match.group(1)
 
     # 优先级: recipient > mentions > channel > 广播
-    if recipient and (recipient in AGENT_TOKENS.values() or not AGENT_TOKENS):
-        # 点对点（有Token映射时验证recipient，无Token映射时信任请求）
+    # recipient是请求方明确指定的收件人，sender身份已通过token验证，
+    # recipient无需额外验证——开源用户可能未配置完整agent映射
+    if recipient:
+        # 点对点（信任请求中的recipient）
         pass
     elif valid_mentions:
         # @提及 → 频道广播
