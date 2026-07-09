@@ -2,6 +2,10 @@
 
 English | [中文](README.md)
 
+<p align="center">
+  <img src="assets/brand/logo.svg" width="120" alt="HomeStream Logo">
+</p>
+
 > **HomeStream** — Your home in the AI world, where streams of light converge into a river.
 >
 > **We don't build walls, we forge keys.**
@@ -19,7 +23,23 @@ English | [中文](README.md)
 ---
 
 <p align="center">
-  <strong>MIT Licensed</strong> · <strong>Python 3.9+</strong> · <strong>700+ tests</strong> · <strong>76 API routes</strong>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.9+-green.svg" alt="Python 3.9+"></a>
+  <a href="#"><img src="https://img.shields.io/badge/tests-700%2B-brightgreen.svg" alt="700+ Tests"></a>
+  <a href="#"><img src="https://img.shields.io/badge/API%20routes-76-orange.svg" alt="76 API Routes"></a>
+  <a href="#"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg" alt="Cross Platform"></a>
+  <a href="#"><img src="https://img.shields.io/badge/PWA-ready-success.svg" alt="PWA Ready"></a>
+  <a href="#"><img src="https://img.shields.io/badge/zero%20cost-free%20forever-ff69b4.svg" alt="Zero Cost"></a>
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#what-is-this">Features</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#-theme-marketplace">Themes</a> ·
+  <a href="#observability">Observability</a> ·
+  <a href="#roadmap">Roadmap</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
 ---
@@ -36,6 +56,30 @@ HomeStream is a lightweight, self-hostable **multi-Agent collaboration framework
 - 🔌 **Elastic Mode** — Solo (single Agent) → Team (multi-Agent collaboration) → Ecosystem (plugin extension)
 
 HomeStream is the open-source cornerstone of the [OpenBridge](https://github.com/Ninefoldatwill/openbridge) ecosystem.
+
+### Architecture
+
+```mermaid
+graph TB
+    User[👤 User] -->|HTTP / WebSocket| API[FastAPI Server]
+    API --> Router{Three-tier Router}
+    Router -->|L1 Free| Local[L1 Local Model<br/>Qwen2.5-7B]
+    Router -->|L2 Enhanced| Cloud[L2 Cloud Model<br/>GLM / DeepSeek]
+    Router -->|L3 Fallback| Backup[L3 Backup Model<br/>Ollama Local]
+    API --> Events[EventStream Causal Chain]
+    Events --> Store[(SQLite EventStore)]
+    API --> Agents[Agent Collaboration]
+    Agents -->|ICP v1.1| Chat[💬 Group Chat / P2P]
+    Agents -->|A2A Protocol| Tasks[🎯 Task Delegation]
+    API --> Themes[🎨 Theme Marketplace]
+    API --> Obs[📊 Observability 10 Panels]
+    API --> PWA[📱 PWA Mobile]
+    
+    style Local fill:#4a90d9,color:#fff
+    style Router fill:#ff69b4,color:#fff
+    style Events fill:#f5a623,color:#fff
+    style Themes fill:#9b59b6,color:#fff
+```
 
 ---
 
@@ -185,6 +229,18 @@ Every Event carries a `cause` field pointing to its upstream trigger Event, form
 | MCP Server | — | — | ✓ |
 | A2A Protocol | — | — | ✓ |
 
+> **Ratchet Loop — The Quality Ratchet That Only Moves Forward**
+>
+> Every Agent output — code or document — passes through dual workshops: Maker (forging) and Reviewer (auditing). The Reviewer is an independent Critique sub-agent that doesn't see the Maker's reasoning, only whether the output meets spec. Pass = ratchet locks (no rollback). Fail = auto-archive and re-forge. This isn't simple code review — it's a **self-evolving quality mechanism for AI**.
+>
+> *(Concept reference: OpenScience Critique sub-agent — HomeStream's Ratchet Loop goes further with "forward-only" ratchet locking)*
+
+> **Skill Ecosystem — The Package Manager for AI**
+>
+> HomeStream's SKILL.md format has become the "package manager" standard for the Agent ecosystem. Skills are organized by scenario: office collaboration / development engineering / information retrieval / creative design / data analysis... Each SKILL.md is a new capability an Agent can learn. The community can contribute skill packs, just like npm for JavaScript.
+>
+> *(Concept reference: OpenScience 290+ skill pack classification — HomeStream organizes skills by professional scenarios)*
+
 ### Three-tier Model Routing
 
 | Tier | Model | Latency | Cost | Purpose |
@@ -194,6 +250,12 @@ Every Event carries a `cause` field pointing to its upstream trigger Event, form
 | L3 | DeepSeek (backup) | ~1.5s | ~$0.001 | Auto-failover |
 
 Dual-line protection: Main line (L1+L2) + Backup line (L3), asyncio.wait_for timeout auto-switch.
+
+> **Model-agnostic, but cost-aware.**
+>
+> HomeStream's three-tier router supports any OpenAI API-compatible provider — but unlike competitors that require API keys, **L1 always runs on your own machine: zero cost, zero dependency, zero privacy leakage.** Even offline, L3's Ollama local model keeps the key in your hands, forever.
+>
+> *(Concept reference: OpenScience by Synthetic Sciences, Apache 2.0 — model-agnostic design philosophy)*
 
 ---
 
@@ -364,7 +426,10 @@ Full comparison and setup guide: [docs/ai-coding-resources.md](docs/ai-coding-re
   - Tech stack: ECharts + pure HTML + original SVG engine (no React build chain)
   - Architecture visualization: Agent topology / event causal chain flow / 3-layer router status
   - Data quality guardian: causal chain integrity / timestamp continuity / event type legality / agent identity validation
+  - **Full-chain provenance**: Every Agent action from trigger to completion has a complete traceable causal chain — not after-the-fact logs, but natively recorded event lineage. data_guardian's 4-dimensional validation ensures the provenance data itself is trustworthy.
   - Access at `/observatory` or dashboard quick-link
+
+  > *(Concept reference: OpenScience Provenance — HomeStream's EventStore + data_guardian goes further in Agent event provenance)*
 
 - ✅ **Theme accessibility auditor** — WCAG 2.1 AA color audit (Jul 9)
   - Contrast checking + colorblind friendliness testing (3 types)
@@ -430,4 +495,18 @@ Integrate the best of others, forge something new. We don't build walls, we forg
 
 ---
 
-**JiuChong Studio · KeySmith** · 2026
+## Star History
+
+<a href="https://star-history.com/#Ninefoldatwill/homestream&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://star-history.com/embed?secret=#Ninefoldatwill/homestream&Date&theme=dark">
+    <img align="center" width="660" src="https://star-history.com/embed?secret=#Ninefoldatwill/homestream&Date" alt="Star History Chart">
+  </picture>
+</a>
+
+---
+
+<p align="center">
+  <sub>KeySmith · JiuChong Studio · 2026</sub><br>
+  <sub> 🔑 Your home in the AI world, where streams of light converge into a river. </sub>
+</p>

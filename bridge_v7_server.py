@@ -1264,11 +1264,50 @@ window.addEventListener('resize',function(){Object.values(charts).forEach(c=>c&&
 # 千面设计市场 — 主题注入（最小化改动，不改写任何页面常量）
 # ============================================================
 
+# --- PWA 普大众化接口注入标签 ---
+_PWA_HEAD_TAGS = (
+    '<link rel="manifest" href="/manifest.json">'
+    '<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">'
+    '<link rel="icon" type="image/png" sizes="192x192" href="/assets/icon-192.png">'
+    '<link rel="icon" type="image/png" sizes="512x512" href="/assets/icon-512.png">'
+    '<link rel="stylesheet" href="/assets/mobile.css">'
+    '<meta name="theme-color" content="#4a90d9">'
+    '<meta name="apple-mobile-web-app-capable" content="yes">'
+    '<meta name="apple-mobile-web-app-status-bar-style" content="default">'
+    '<meta name="mobile-web-app-capable" content="yes">'
+    "<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){})}</script>"
+)
+
+# 移动端底部导航栏 HTML（≤768px 时显示）
+_MOBILE_TAB_BAR = (
+    '<div class="mobile-tab-bar">'
+    '<a href="/"><span class="tab-icon">🏠</span>仪表盘</a>'
+    '<a href="/chat"><span class="tab-icon">💬</span>聊天</a>'
+    '<a href="/observatory"><span class="tab-icon">📊</span>观测台</a>'
+    '<a href="/group"><span class="tab-icon">👥</span>群聊</a>'
+    '</div>'
+)
+
+
+def _inject_pwa(html: str) -> str:
+    """将 PWA 标签和移动端导航注入 HTML 页面。
+
+    在 </head> 前插入 PWA meta/link 标签，在 </body> 前插入移动端导航栏。
+    若页面无对应标签则原样返回（零风险）。
+    """
+    if "</head>" in html:
+        html = html.replace("</head>", _PWA_HEAD_TAGS + "</head>", 1)
+    if "</body>" in html:
+        html = html.replace("</body>", _MOBILE_TAB_BAR + "</body>", 1)
+    return html
+
+
 def apply_theme_to_page(html: str, request: Optional["Request"] = None) -> str:
-    """将激活/预览主题注入页面 <head> 前。
+    """将激活/预览主题注入页面 <head> 前，并注入 PWA 标签。
 
     优先使用 URL 参数 ?theme=<id> 进行预览，否则使用已激活主题。
     主题引擎不可用或无可应用主题时原样返回，零风险。
+    最后统一注入 PWA 标签和移动端导航栏。
     """
     try:
         from theme_manager import ThemeManager
@@ -1276,9 +1315,63 @@ def apply_theme_to_page(html: str, request: Optional["Request"] = None) -> str:
         theme_id = None
         if request is not None:
             theme_id = request.query_params.get("theme")
-        return tm.apply_theme(html, theme_id)
+        html = tm.apply_theme(html, theme_id)
     except Exception:
-        return html
+        pass
+    return _inject_pwa(html)
+
+
+# ============================================================
+# PWA 普大众化接口 — 静态文件路由
+# ============================================================
+
+@app.get("/manifest.json")
+async def serve_manifest():
+    """PWA 清单文件"""
+    from fastapi.responses import JSONResponse
+    import json as _json
+    _base = os.path.dirname(os.path.abspath(__file__))
+    _path = os.path.join(_base, "manifest.json")
+    if os.path.exists(_path):
+        with open(_path, "r", encoding="utf-8") as f:
+            return JSONResponse(_json.load(f))
+    return JSONResponse({"error": "manifest not found"}, status_code=404)
+
+
+@app.get("/sw.js")
+async def serve_sw():
+    """Service Worker 脚本"""
+    from fastapi.responses import PlainTextResponse
+    _base = os.path.dirname(os.path.abspath(__file__))
+    _path = os.path.join(_base, "sw.js")
+    if os.path.exists(_path):
+        with open(_path, "r", encoding="utf-8") as f:
+            return PlainTextResponse(f.read(), media_type="application/javascript")
+    return PlainTextResponse("// SW not found", status_code=404)
+
+
+@app.get("/offline.html")
+async def serve_offline():
+    """离线回退页面"""
+    from fastapi.responses import HTMLResponse
+    _base = os.path.dirname(os.path.abspath(__file__))
+    _path = os.path.join(_base, "offline.html")
+    if os.path.exists(_path):
+        with open(_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+    return HTMLResponse("<h1>Offline</h1>", status_code=404)
+
+
+@app.get("/assets/{file_path:path}")
+async def serve_assets(file_path: str):
+    """静态资源服务（图标、CSS等）"""
+    from fastapi.responses import FileResponse
+    _base = os.path.dirname(os.path.abspath(__file__))
+    _full = os.path.join(_base, "assets", file_path)
+    if os.path.exists(_full) and os.path.isfile(_full):
+        return FileResponse(_full)
+    from fastapi import HTTPException as _HTTPException
+    raise _HTTPException(status_code=404, detail="Asset not found")
 
 
 @app.get("/")

@@ -1,0 +1,210 @@
+/*!
+ * HomeStream Mobile Responsive CSS v5.0.0
+ * 普大众化接口 — 让 AI 钥匙装进每个人的口袋
+ * Original implementation, W3C CSS standards only
+ */
+
+/* ==================== 全局触控优化 ==================== */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, a, select, input, textarea {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+input, textarea, select {
+  font-size: 16px; /* 防止 iOS 缩放 */
+}
+
+/* ==================== 聊天底部固定输入栏 ==================== */
+.chat-input-bar,
+.input-wrap {
+  position: sticky;
+  bottom: 0;
+}
+
+.chat-input-bar {
+  padding: 12px 16px env(safe-area-inset-bottom, 12px);
+  background: var(--bg, #f5f7fb);
+  border-top: 0.5px solid var(--border, #e0e0e0);
+  z-index: 100;
+}
+
+/* ==================== 消息气泡 ==================== */
+.msg, .msg-row {
+  max-width: 92%;
+}
+
+/* ==================== 平板 (≤768px) ==================== */
+@media (max-width: 768px) {
+  /* 侧边栏折叠 */
+  .sidebar { display: none; }
+
+  /* 主布局单列 */
+  .main {
+    grid-template-columns: 1fr !important;
+    padding: 16px;
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 统计行 2 列 */
+  .stats-row {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* 快捷启动单列 */
+  .quick-launch {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 模式栏换行 */
+  .mode-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* 模态框 */
+  .modal {
+    width: 92% !important;
+    max-width: 92% !important;
+    margin: 16px !important;
+  }
+
+  /* 可观测性面板单列 */
+  .panel-grid,
+  .observatory-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 会议模态框 */
+  .meeting-modal .modal-box {
+    width: 90vw !important;
+  }
+
+  /* 输入区紧凑 */
+  .input-wrap select {
+    width: 80px;
+  }
+
+  /* 导航栏简化 */
+  .nav-bar,
+  .top-nav {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .nav-bar a,
+  .top-nav a {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+}
+
+/* ==================== 手机 (≤480px) ==================== */
+@media (max-width: 480px) {
+  /* 统计行单列 */
+  .stats-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 头部紧凑 */
+  .header {
+    padding: 12px 16px;
+  }
+
+  .header h1 {
+    font-size: 18px;
+  }
+
+  /* 卡片内边距 */
+  .card {
+    padding: 14px;
+  }
+
+  /* Agent 卡片纵向 */
+  .agent-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  /* 隐藏次要元素 */
+  .hide-mobile {
+    display: none !important;
+  }
+
+  /* 主题选择器简化 */
+  .theme-selector {
+    max-width: 120px;
+  }
+}
+
+/* ==================== 安全区适配（刘海屏） ==================== */
+@supports (padding: max(0px)) {
+  .header,
+  .chat-input-bar,
+  .footer {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+
+  .header {
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+}
+
+/* ==================== 底部导航栏（移动端） ==================== */
+@media (max-width: 768px) {
+  .mobile-tab-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: var(--bg, #f5f7fb);
+    border-top: 0.5px solid var(--border, #e0e0e0);
+    z-index: 200;
+    justify-content: space-around;
+    align-items: center;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .mobile-tab-bar a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    font-size: 11px;
+    color: var(--text-secondary, #666);
+    min-height: 44px;
+    flex: 1;
+  }
+
+  .mobile-tab-bar a.active {
+    color: var(--accent, #4a90d9);
+  }
+
+  .mobile-tab-bar .tab-icon {
+    font-size: 20px;
+    margin-bottom: 2px;
+  }
+
+  /* 为底部导航留出空间 */
+  .main,
+  .content {
+    padding-bottom: 60px;
+  }
+}
+
+/* 桌面端隐藏移动导航 */
+@media (min-width: 769px) {
+  .mobile-tab-bar {
+    display: none;
+  }
+}
