@@ -64,7 +64,7 @@ graph TB
     User[👤 用户] -->|HTTP / WebSocket| API[FastAPI 服务]
     API --> Router{三层模型路由}
     Router -->|L1 免费| Local[L1 本地模型<br/>Qwen2.5-7B]
-    Router -->|L2 增强| Cloud[L2 云端模型<br/>GLM / DeepSeek]
+    Router -->|L2 增强| Cloud[L2 云端模型<br/>GLM / 通义千问 / DeepSeek]
     Router -->|L3 托底| Backup[L3 备份模型<br/>Ollama 本地]
     API --> Events[EventStream 因果链]
     Events --> Store[(SQLite EventStore)]
@@ -84,6 +84,10 @@ graph TB
 ---
 
 ## 快速开始
+
+> 🇨🇳 **国内用户**：请参阅 [国内安装指南](INSTALL_CN.md) 获取镜像源配置、ModelScope模型下载、国产API备选等详细指引。
+>
+> HomeStream 的 L1 本地推理层**零外部依赖**，即使完全断网也可运行。
 
 ### 一键安装
 
@@ -111,8 +115,10 @@ git clone https://github.com/Ninefoldatwill/homestream.git
 git clone https://gitee.com/ninefoldatwill/homestream.git
 cd homestream
 
-# 2. 安装依赖
+# 2. 安装依赖（国内推荐加 -i 清华镜像）
 pip install -r requirements.txt
+# 国内镜像加速：
+# pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 3. 配置环境
 cp .env.example .env
@@ -246,10 +252,14 @@ HomeStream 践行 **Loop Engineering**——任务在自主循环中运转，而
 | 层级 | 模型 | 延迟 | 成本 | 用途 |
 |:----:|:-----|:----:|:----:|:-----|
 | L1 | Qwen2.5-7B (本地) | ~444ms | 免费 | 日常推理 |
-| L2 | GLM (云端) | ~1.4s | 免费 | 复杂任务 |
-| L3 | DeepSeek (备份) | ~1.5s | ~¥0.0001 | 自动降级 |
+| L2 | GLM / 通义千问Turbo (云端) | ~1.4s | 免费 | 复杂任务 |
+| L3 | DeepSeek / 通义千问Max (备份) | ~1.5s | ~¥0.0001 | 自动降级 |
 
 双线路保障：主线路(L1+L2) + 复线(L3)，asyncio.wait_for超时自动切换。
+
+> **抗卡脖设计**：通义千问为阿里云国产API，数据中心在国内，不受国际网络波动影响。
+> 当 GLM/DeepSeek 不可用时，自动降级到通义千问保障服务连续性。
+> 详见 [技术主权评估](TECH_SOVEREIGNTY_ASSESSMENT.md) 和 [国内安装指南](INSTALL_CN.md)。
 
 > **模型无关，但成本有知。**
 >
