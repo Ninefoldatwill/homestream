@@ -95,13 +95,13 @@ graph TB
 curl -fsSL https://raw.githubusercontent.com/Ninefoldatwill/homestream/main/install.sh | bash
 
 # Linux/macOS (Gitee mirror, recommended for China)
-curl -fsSL https://gitee.com/jiuchong/homestream/raw/main/install.sh | bash
+curl -fsSL https://gitee.com/the-warrior-king/homestream/raw/main/install.sh | bash
 
 # Windows PowerShell (GitHub)
 iwr -useb https://raw.githubusercontent.com/Ninefoldatwill/homestream/main/install.ps1 | iex
 
 # Windows PowerShell (Gitee mirror, recommended for China)
-iwr -useb https://gitee.com/jiuchong/homestream/raw/main/install.ps1 | iex
+iwr -useb https://gitee.com/the-warrior-king/homestream/raw/main/install.ps1 | iex
 ```
 
 ### Manual Install
@@ -111,7 +111,7 @@ iwr -useb https://gitee.com/jiuchong/homestream/raw/main/install.ps1 | iex
 # GitHub (international)
 git clone https://github.com/Ninefoldatwill/homestream.git
 # or Gitee (recommended for China, faster)
-git clone https://gitee.com/jiuchong/homestream.git
+git clone https://gitee.com/the-warrior-king/homestream.git
 cd homestream
 
 # 2. Install dependencies
@@ -490,7 +490,7 @@ Quick flow:
 - 📖 [Documentation](https://github.com/Ninefoldatwill/homestream/wiki)
 - 💬 [Discussions](https://github.com/Ninefoldatwill/homestream/discussions)
 - 🐛 [Issue Tracker](https://github.com/Ninefoldatwill/homestream/issues)
-- 🇨🇳 [Gitee Mirror](https://gitee.com/jiuchong/homestream) (for China access)
+- 🇨🇳 [Gitee Mirror](https://gitee.com/the-warrior-king/homestream) (for China access)
 - 📧 contribute@jiuchong.studio
 
 ---

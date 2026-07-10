@@ -99,13 +99,13 @@ graph TB
 curl -fsSL https://raw.githubusercontent.com/Ninefoldatwill/homestream/main/install.sh | bash
 
 # Linux/macOS（Gitee 镜像，国内推荐）
-curl -fsSL https://gitee.com/jiuchong/homestream/raw/main/install.sh | bash
+curl -fsSL https://gitee.com/the-warrior-king/homestream/raw/main/install.sh | bash
 
 # Windows PowerShell（GitHub 源）
 iwr -useb https://raw.githubusercontent.com/Ninefoldatwill/homestream/main/install.ps1 | iex
 
 # Windows PowerShell（Gitee 镜像，国内推荐）
-iwr -useb https://gitee.com/jiuchong/homestream/raw/main/install.ps1 | iex
+iwr -useb https://gitee.com/the-warrior-king/homestream/raw/main/install.ps1 | iex
 ```
 
 ### 手动安装
@@ -115,7 +115,7 @@ iwr -useb https://gitee.com/jiuchong/homestream/raw/main/install.ps1 | iex
 # GitHub（国际）
 git clone https://github.com/Ninefoldatwill/homestream.git
 # 或 Gitee（国内推荐，速度快）
-git clone https://gitee.com/jiuchong/homestream.git
+git clone https://gitee.com/the-warrior-king/homestream.git
 cd homestream
 
 # 2. 安装依赖（国内推荐加 -i 清华镜像）
@@ -501,7 +501,7 @@ HomeStream 不自己做 AI 编程工具，但连接优秀的开源工具。L3 �
 - 📖 [文档](https://github.com/Ninefoldatwill/homestream/wiki)
 - 💬 [讨论](https://github.com/Ninefoldatwill/homestream/discussions)
 - 🐛 [问题追踪](https://github.com/Ninefoldatwill/homestream/issues)
-- 🇨🇳 [Gitee 镜像](https://gitee.com/jiuchong/homestream)（国内访问）
+- 🇨🇳 [Gitee 镜像](https://gitee.com/the-warrior-king/homestream)（国内访问）
 - 📧 contribute@jiuchong.studio
 
 ---

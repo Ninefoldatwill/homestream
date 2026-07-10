@@ -180,12 +180,12 @@ HomeStream 采用 GitHub + Gitee 双源托管策略：
 | 平台 | 地址 | 说明 |
 |:-----|:-----|:-----|
 | GitHub | `https://github.com/Ninefoldatwill/HomeStream` | 主仓库（国际） |
-| Gitee | `https://gitee.com/jiuchong/homestream` | 镜像仓库（国内） |
+| Gitee | `https://gitee.com/the-warrior-king/homestream` | 镜像仓库（国内） |
 
 **国内用户推荐使用 Gitee 克隆**：
 
 ```bash
-git clone https://gitee.com/jiuchong/homestream.git
+git clone https://gitee.com/the-warrior-king/homestream.git
 ```
 
 ---

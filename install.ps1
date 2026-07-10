@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = "Stop"
 $BR = "HomeStream"
 $RepoGithub = "https://github.com/Ninefoldatwill/homestream"
-$RepoGitee = "https://gitee.com/jiuchong/homestream"
+$RepoGitee = "https://gitee.com/the-warrior-king/homestream"
 $REPO = $RepoGithub
 
 Write-Host ""
