@@ -75,7 +75,7 @@ graph TB
     API --> Themes[🎨 Theme Marketplace]
     API --> Obs[📊 Observability 10 Panels]
     API --> PWA[📱 PWA Mobile]
-    
+
     style Local fill:#4a90d9,color:#fff
     style Router fill:#ff69b4,color:#fff
     style Events fill:#f5a623,color:#fff

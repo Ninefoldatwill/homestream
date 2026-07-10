@@ -203,6 +203,7 @@ ignore = [
     "UP036", # Python版本块过时 — 逐步更新
     "UP042", # str+Enum继承 — StrEnum需Python 3.11+
     "UP035", # typing.List/Dict弃用 — 逐步迁移到list/dict
+    "UP038", # isinstance用X|Y — Python 3.10+特性，逐步迁移
     "C401",  # dict comprehension — 风格建议
     "C416",  # 不必要的comprehension — 风格建议
 ]
@@ -226,5 +227,4 @@ skips = [
     "B607",  # 部分路径 — dev工具预期
     "B608",  # SQL — 参数化查询(?占位符)，f-string仅插值受控变量
     "B105",  # 硬编码密码 — 误报(80.0/0/emoji被误判)
-    "B615",  # HF下载未锁revision — AI项目加载模型预期行为
 ]

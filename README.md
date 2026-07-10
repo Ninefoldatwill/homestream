@@ -75,7 +75,7 @@ graph TB
     API --> Themes[🎨 千面设计市场]
     API --> Obs[📊 可观测性 10面板]
     API --> PWA[📱 PWA 移动端]
-    
+
     style Local fill:#4a90d9,color:#fff
     style Router fill:#ff69b4,color:#fff
     style Events fill:#f5a623,color:#fff
