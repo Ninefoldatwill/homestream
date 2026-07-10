@@ -8,7 +8,6 @@ repos:
     rev: v0.11.6
     hooks:
       - id: ruff
-        args: [--fix]
       - id: ruff-format
 
   # === 基础文件检查 ===
