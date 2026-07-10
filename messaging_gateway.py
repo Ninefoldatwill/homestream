@@ -26,14 +26,14 @@
 import abc
 import time
 import uuid
-import re
 from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any
 
-from pydantic import BaseModel, Field, ConfigDict
 import structlog
+from pydantic import BaseModel, ConfigDict, Field
 
 logger = structlog.get_logger("bridge_v7.messaging_gateway")
 
@@ -42,22 +42,25 @@ logger = structlog.get_logger("bridge_v7.messaging_gateway")
 # 统一消息格式
 # ============================================================
 
+
 class MessageRole(str, Enum):
     """消息角色。"""
-    USER = "user"          # 用户消息
+
+    USER = "user"  # 用户消息
     ASSISTANT = "assistant"  # AI回复
-    SYSTEM = "system"      # 系统通知
-    TOOL = "tool"          # 工具输出
+    SYSTEM = "system"  # 系统通知
+    TOOL = "tool"  # 工具输出
 
 
 class MessageType(str, Enum):
     """消息类型。"""
-    TEXT = "text"            # 纯文本
-    IMAGE = "image"          # 图片
-    FILE = "file"            # 文件
-    COMMAND = "command"      # 斜杠命令
-    EVENT = "event"          # 事件通知
-    ERROR = "error"          # 错误消息
+
+    TEXT = "text"  # 纯文本
+    IMAGE = "image"  # 图片
+    FILE = "file"  # 文件
+    COMMAND = "command"  # 斜杠命令
+    EVENT = "event"  # 事件通知
+    ERROR = "error"  # 错误消息
 
 
 class UnifiedMessage(BaseModel):
@@ -76,6 +79,7 @@ class UnifiedMessage(BaseModel):
       timestamp: 时间戳
       metadata: 扩展元数据
     """
+
     model_config = ConfigDict(extra="allow")
 
     id: str = Field(default_factory=lambda: f"msg_{uuid.uuid4().hex[:8]}")
@@ -85,12 +89,12 @@ class UnifiedMessage(BaseModel):
     from_user: str = Field(default="")
     to_user: str = Field(default="")
     text: str = Field(default="")
-    attachments: List[Dict[str, Any]] = Field(default_factory=list)
+    attachments: list[dict[str, Any]] = Field(default_factory=list)
     session_id: str = Field(default="")
     timestamp: float = Field(default_factory=time.time)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """转为字典。"""
         return self.model_dump()
 
@@ -98,7 +102,7 @@ class UnifiedMessage(BaseModel):
         """是否是斜杠命令消息。"""
         return self.type == MessageType.COMMAND or self.text.startswith("/")
 
-    def extract_command(self) -> Tuple[str, str]:
+    def extract_command(self) -> tuple[str, str]:
         """提取命令名和参数。"""
         if not self.text.startswith("/"):
             return ("", self.text)
@@ -113,13 +117,15 @@ class UnifiedMessage(BaseModel):
 # 斜杠命令路由系统
 # ============================================================
 
+
 @dataclass
 class SlashCommand:
     """斜杠命令定义。"""
-    name: str               # 命令名（如 /new）
-    description: str        # 描述
-    handler: Callable       # 处理函数
-    platforms: Set[str] = field(default_factory=lambda: {"all"})  # 适用平台
+
+    name: str  # 命令名（如 /new）
+    description: str  # 描述
+    handler: Callable  # 处理函数
+    platforms: set[str] = field(default_factory=lambda: {"all"})  # 适用平台
     requires_auth: bool = False  # 是否需要认证
 
 
@@ -140,7 +146,7 @@ class SlashCommandRouter:
     """
 
     def __init__(self):
-        self._commands: Dict[str, SlashCommand] = {}
+        self._commands: dict[str, SlashCommand] = {}
         self._register_default_commands()
 
     def _register_default_commands(self):
@@ -153,18 +159,26 @@ class SlashCommandRouter:
         self.register("/mode", "切换弹性模式(solo/team/ecosystem)", self._cmd_mode)
         self.register("/skill", "查看可用技能", self._cmd_skill)
 
-    def register(self, name: str, description: str,
-                 handler: Callable, platforms: Set[str] = None,
-                 requires_auth: bool = False):
+    def register(
+        self,
+        name: str,
+        description: str,
+        handler: Callable,
+        platforms: set[str] = None,
+        requires_auth: bool = False,
+    ):
         """注册斜杠命令。"""
         cmd = SlashCommand(
-            name=name, description=description, handler=handler,
-            platforms=platforms or {"all"}, requires_auth=requires_auth,
+            name=name,
+            description=description,
+            handler=handler,
+            platforms=platforms or {"all"},
+            requires_auth=requires_auth,
         )
         self._commands[name] = cmd
         logger.info("messaging.command_registered", name=name)
 
-    def route(self, message: UnifiedMessage) -> Optional[UnifiedMessage]:
+    def route(self, message: UnifiedMessage) -> UnifiedMessage | None:
         """路由消息到命令处理器。"""
         if not message.is_command():
             return None
@@ -216,7 +230,7 @@ class SlashCommandRouter:
                 session_id=message.session_id,
             )
 
-    def list_commands(self, platform: str = "") -> List[Dict[str, str]]:
+    def list_commands(self, platform: str = "") -> list[dict[str, str]]:
         """列出可用命令。"""
         result = []
         for name, cmd in self._commands.items():
@@ -270,23 +284,26 @@ class SlashCommandRouter:
 # 会话管理器
 # ============================================================
 
+
 class SessionResetMode(str, Enum):
     """会话重置策略。"""
-    DAILY = "daily"        # 每日定时重置
-    IDLE = "idle"          # 空闲N分钟后重置
+
+    DAILY = "daily"  # 每日定时重置
+    IDLE = "idle"  # 空闲N分钟后重置
     COMBINED = "combined"  # 每日+空闲
 
 
 @dataclass
 class Session:
     """会话对象。"""
+
     session_id: str
     platform: str
     user_id: str
     created_at: float = field(default_factory=time.time)
     last_active: float = field(default_factory=time.time)
     message_count: int = 0
-    context: Dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
     is_active: bool = True
 
 
@@ -303,7 +320,7 @@ class SessionManager:
       LRU淘汰（最久未活跃的先淘汰）
     """
 
-    MAX_SESSIONS = 100        # 最大活跃会话数
+    MAX_SESSIONS = 100  # 最大活跃会话数
     IDLE_TIMEOUT_MINUTES = 240  # 空闲超时（4小时）
 
     def __init__(self, reset_mode: SessionResetMode = SessionResetMode.IDLE):
@@ -326,14 +343,13 @@ class SessionManager:
         )
         self._sessions[session_id] = session
 
-        logger.info("messaging.session_created",
-                    session_id=session_id,
-                    platform=platform,
-                    user_id=user_id)
+        logger.info(
+            "messaging.session_created", session_id=session_id, platform=platform, user_id=user_id
+        )
 
         return session
 
-    def get_session(self, session_id: str) -> Optional[Session]:
+    def get_session(self, session_id: str) -> Session | None:
         """获取会话。"""
         return self._sessions.get(session_id)
 
@@ -359,7 +375,7 @@ class SessionManager:
             session.message_count += 1
             self._sessions.move_to_end(session_id)
 
-    def reset_session(self, session_id: str) -> Tuple[bool, str]:
+    def reset_session(self, session_id: str) -> tuple[bool, str]:
         """重置会话（清空上下文但不删除）。"""
         session = self._sessions.get(session_id)
         if not session:
@@ -372,7 +388,7 @@ class SessionManager:
         logger.info("messaging.session_reset", session_id=session_id)
         return True, f"会话 {session_id} 已重置"
 
-    def check_idle_sessions(self) -> List[str]:
+    def check_idle_sessions(self) -> list[str]:
         """检查空闲会话，返回应重置的session_id列表。"""
         if self.reset_mode == SessionResetMode.DAILY:
             return []  # daily模式不按空闲检查
@@ -399,7 +415,7 @@ class SessionManager:
                 count += 1
         return count
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """会话统计。"""
         active = sum(1 for s in self._sessions.values() if s.is_active)
         return {
@@ -416,13 +432,13 @@ class SessionManager:
             session = self._sessions[oldest_id]
             session.is_active = False
             del self._sessions[oldest_id]
-            logger.info("messaging.session_evicted",
-                        session_id=oldest_id)
+            logger.info("messaging.session_evicted", session_id=oldest_id)
 
 
 # ============================================================
 # MessageAdapter 抽象基类
 # ============================================================
+
 
 class MessageAdapter(abc.ABC):
     """消息适配器抽象基类 — 每个平台一个实现。
@@ -459,6 +475,7 @@ class MessageAdapter(abc.ABC):
 # WebSocketAdapter
 # ============================================================
 
+
 class WebSocketAdapter(MessageAdapter):
     """WebSocket适配器 — 封装ws_manager.py。
 
@@ -491,7 +508,7 @@ class WebSocketAdapter(MessageAdapter):
                 text=str(raw_message),
             )
 
-    def send(self, message: UnifiedMessage) -> Dict[str, Any]:
+    def send(self, message: UnifiedMessage) -> dict[str, Any]:
         """UnifiedMessage转为WebSocket格式。"""
         return {
             "type": "message",
@@ -516,6 +533,7 @@ class WebSocketAdapter(MessageAdapter):
 # ============================================================
 # WebhookAdapter
 # ============================================================
+
 
 class WebhookAdapter(MessageAdapter):
     """HTTP Webhook适配器 — 接收外部POST请求。
@@ -543,7 +561,7 @@ class WebhookAdapter(MessageAdapter):
             )
         return UnifiedMessage(from_platform="webhook", text=str(raw_message))
 
-    def send(self, message: UnifiedMessage) -> Dict[str, Any]:
+    def send(self, message: UnifiedMessage) -> dict[str, Any]:
         """UnifiedMessage转为Webhook响应格式。"""
         return {
             "status": "ok",
@@ -562,6 +580,7 @@ class WebhookAdapter(MessageAdapter):
 # ============================================================
 # CLIAdapter
 # ============================================================
+
 
 class CLIAdapter(MessageAdapter):
     """CLI适配器 — 命令行交互。
@@ -607,6 +626,7 @@ class CLIAdapter(MessageAdapter):
 # 网关协调器
 # ============================================================
 
+
 class MessagingGateway:
     """消息网关协调器 — 统一所有平台的消息入口。
 
@@ -618,7 +638,7 @@ class MessagingGateway:
     """
 
     def __init__(self, reset_mode: SessionResetMode = SessionResetMode.IDLE):
-        self._adapters: Dict[str, MessageAdapter] = {}
+        self._adapters: dict[str, MessageAdapter] = {}
         self._command_router = SlashCommandRouter()
         self._session_manager = SessionManager(reset_mode)
 
@@ -630,11 +650,9 @@ class MessagingGateway:
     def register_adapter(self, adapter: MessageAdapter):
         """注册消息适配器。"""
         self._adapters[adapter.platform_name] = adapter
-        logger.info("messaging.adapter_registered",
-                    platform=adapter.platform_name)
+        logger.info("messaging.adapter_registered", platform=adapter.platform_name)
 
-    def process_message(self, platform: str,
-                        raw_message: Any) -> UnifiedMessage:
+    def process_message(self, platform: str, raw_message: Any) -> UnifiedMessage:
         """处理消息：接收 → 转换 → 命令路由 → 会话管理。"""
         # 获取适配器
         adapter = self._adapters.get(platform)
@@ -658,7 +676,8 @@ class MessagingGateway:
 
         # 会话管理
         session = self._session_manager.get_or_create(
-            message.from_platform, message.from_user,
+            message.from_platform,
+            message.from_user,
         )
         message.session_id = session.session_id
         self._session_manager.update_activity(session.session_id)
@@ -674,8 +693,7 @@ class MessagingGateway:
         # 非命令消息：返回UnifiedMessage供后续处理
         return message
 
-    def send_response(self, platform: str,
-                      message: UnifiedMessage) -> Any:
+    def send_response(self, platform: str, message: UnifiedMessage) -> Any:
         """通过适配器发送回复。"""
         adapter = self._adapters.get(platform)
         if not adapter:
@@ -683,20 +701,21 @@ class MessagingGateway:
             return None
         return adapter.send(message)
 
-    def list_adapters(self) -> List[str]:
+    def list_adapters(self) -> list[str]:
         """列出所有已注册适配器。"""
         return list(self._adapters.keys())
 
-    def list_commands(self, platform: str = "") -> List[Dict[str, str]]:
+    def list_commands(self, platform: str = "") -> list[dict[str, str]]:
         """列出可用命令。"""
         return self._command_router.list_commands(platform)
 
-    def register_command(self, name: str, description: str,
-                         handler: Callable, platforms: Set[str] = None):
+    def register_command(
+        self, name: str, description: str, handler: Callable, platforms: set[str] = None
+    ):
         """注册自定义命令。"""
         self._command_router.register(name, description, handler, platforms)
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """网关统计。"""
         return {
             "adapters": list(self._adapters.keys()),
@@ -708,6 +727,7 @@ class MessagingGateway:
 # ============================================================
 # 便捷API
 # ============================================================
+
 
 def create_gateway(reset_mode: SessionResetMode = SessionResetMode.IDLE) -> MessagingGateway:
     """快捷创建消息网关。"""

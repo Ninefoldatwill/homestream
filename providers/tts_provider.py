@@ -10,14 +10,10 @@ V8多模态生态·语音入口
 
 from __future__ import annotations
 
-import os
 import io
 import logging
 import subprocess
-import tempfile
-from pathlib import Path
-from typing import Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -25,35 +21,39 @@ logger = logging.getLogger(__name__)
 
 class TTSEngine(Enum):
     """TTS引擎"""
-    PIPER = "piper"              # 本地·离线·零费用
-    EDGE_TTS = "edge_tts"        # 微软免费TTS·需网络
-    CLOUD_FALLBACK = "cloud"     # 其他云端备选
+
+    PIPER = "piper"  # 本地·离线·零费用
+    EDGE_TTS = "edge_tts"  # 微软免费TTS·需网络
+    CLOUD_FALLBACK = "cloud"  # 其他云端备选
 
 
 class TTSVoice(Enum):
     """语音风格"""
-    ZH_FEMALE = "zh_female"       # 中文女声
-    ZH_MALE = "zh_male"           # 中文男声
-    EN_FEMALE = "en_female"       # 英文女声
-    EN_MALE = "en_male"           # 英文男声
+
+    ZH_FEMALE = "zh_female"  # 中文女声
+    ZH_MALE = "zh_male"  # 中文男声
+    EN_FEMALE = "en_female"  # 英文女声
+    EN_MALE = "en_male"  # 英文男声
 
 
 @dataclass
 class TTSConfig:
     """TTS配置"""
+
     engine: TTSEngine = TTSEngine.PIPER
     voice: TTSVoice = TTSVoice.ZH_FEMALE
-    piper_binary: str = "piper"            # piper可执行文件路径
+    piper_binary: str = "piper"  # piper可执行文件路径
     piper_model: str = "zh_CN-huayan-medium.onnx"  # 中文女声模型
     speed: float = 1.0
-    offline_only: bool = True              # 开源线默认脱网
+    offline_only: bool = True  # 开源线默认脱网
 
 
 @dataclass
 class TTSResult:
     """TTS结果"""
+
     audio_bytes: bytes
-    format: str = "wav"          # wav / mp3
+    format: str = "wav"  # wav / mp3
     duration_ms: float = 0.0
     engine_used: str = "piper"
     text: str = ""
@@ -70,14 +70,14 @@ class TTSProvider:
         TTSVoice.EN_MALE: "en_US-ryan-medium.onnx",
     }
 
-    def __init__(self, config: Optional[TTSConfig] = None):
+    def __init__(self, config: TTSConfig | None = None):
         self.config = config or TTSConfig()
         self._piper_available = self._check_piper()
         self._edge_tts_available = self._check_edge_tts()
 
     # ── 公开API ──────────────────────────────────
 
-    def speak(self, text: str, voice: Optional[TTSVoice] = None) -> TTSResult:
+    def speak(self, text: str, voice: TTSVoice | None = None) -> TTSResult:
         """将文字转为语音
 
         Args:
@@ -97,11 +97,11 @@ class TTSProvider:
             return self._speak_cloud(text, v)
         else:
             logger.warning("所有TTS引擎不可用且 offline_only=True")
-            return TTSResult(audio_bytes=b"", format="wav",
-                             engine_used="none", text=text)
+            return TTSResult(audio_bytes=b"", format="wav", engine_used="none", text=text)
 
-    def speak_to_file(self, text: str, output_path: str,
-                      voice: Optional[TTSVoice] = None) -> TTSResult:
+    def speak_to_file(
+        self, text: str, output_path: str, voice: TTSVoice | None = None
+    ) -> TTSResult:
         """播报并保存到文件"""
         result = self.speak(text, voice)
         if result.audio_bytes:
@@ -117,8 +117,7 @@ class TTSProvider:
     def _check_piper(self) -> bool:
         try:
             result = subprocess.run(
-                [self.config.piper_binary, "--version"],
-                capture_output=True, text=True, timeout=5
+                [self.config.piper_binary, "--version"], capture_output=True, text=True, timeout=5
             )
             return result.returncode == 0
         except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -128,6 +127,7 @@ class TTSProvider:
     def _check_edge_tts(self) -> bool:
         try:
             import edge_tts
+
             return True
         except ImportError:
             logger.debug("edge-tts 未安装")
@@ -138,8 +138,9 @@ class TTSProvider:
         model = self.VOICE_MODELS.get(voice, self.config.piper_model)
         cmd = [
             self.config.piper_binary,
-            "--model", model,
-            "--output_raw",      # 输出原始音频
+            "--model",
+            model,
+            "--output_raw",  # 输出原始音频
         ]
         try:
             result = subprocess.run(
@@ -165,6 +166,7 @@ class TTSProvider:
         """使用微软Edge TTS（免费·需网络）"""
         try:
             import edge_tts
+
             # 映射语音
             voice_map = {
                 TTSVoice.ZH_FEMALE: "zh-CN-XiaoxiaoNeural",
@@ -176,6 +178,7 @@ class TTSProvider:
 
             # edge_tts 异步，用 subprocess 简化
             import asyncio
+
             async def _run():
                 communicate = edge_tts.Communicate(text, voice_name)
                 buf = io.BytesIO()
@@ -209,9 +212,12 @@ class TTSProvider:
 
 # ── 便捷工厂 ──────────────────────────────────
 
+
 def create_tts_provider(offline_only: bool = True) -> TTSProvider:
     """创建TTS Provider（开源线·默认离线）"""
-    return TTSProvider(TTSConfig(
-        engine=TTSEngine.PIPER,
-        offline_only=offline_only,
-    ))
+    return TTSProvider(
+        TTSConfig(
+            engine=TTSEngine.PIPER,
+            offline_only=offline_only,
+        )
+    )

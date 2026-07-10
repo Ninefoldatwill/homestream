@@ -25,21 +25,20 @@ IP 边界:
 
 from __future__ import annotations
 
-import colorsys
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 # ============================================================
 # WCAG 2.1 AA 对比度阈值（W3C 公开标准）
 # ============================================================
 
-WCAG_AA_NORMAL: float = 4.5   # 普通文本（<18pt 或 <14pt 粗体）最小对比度
-WCAG_AA_LARGE: float = 3.0    # 大文本（≥18pt 或 ≥14pt 粗体）最小对比度
-WCAG_AA_UI: float = 3.0       # UI 组件（图标、边框等）最小对比度
+WCAG_AA_NORMAL: float = 4.5  # 普通文本（<18pt 或 <14pt 粗体）最小对比度
+WCAG_AA_LARGE: float = 3.0  # 大文本（≥18pt 或 ≥14pt 粗体）最小对比度
+WCAG_AA_UI: float = 3.0  # UI 组件（图标、边框等）最小对比度
 WCAG_AAA_NORMAL: float = 7.0  # AAA 级普通文本（增强对比度）
-WCAG_AAA_LARGE: float = 4.5   # AAA 级大文本
+WCAG_AAA_LARGE: float = 4.5  # AAA 级大文本
 
 # ============================================================
 # 色盲模拟矩阵（基于 Brettel/Viénot 修正模型）
@@ -47,21 +46,21 @@ WCAG_AAA_LARGE: float = 4.5   # AAA 级大文本
 # ============================================================
 
 # 红色盲（Protanopia）— 约1%男性
-PROTANOPIA_MATRIX: Tuple[Tuple[float, float, float], ...] = (
+PROTANOPIA_MATRIX: tuple[tuple[float, float, float], ...] = (
     (0.567, 0.433, 0.000),
     (0.558, 0.442, 0.000),
     (0.000, 0.242, 0.758),
 )
 
 # 绿色盲（Deuteranopia）— 约1%男性
-DEUTERANOPIA_MATRIX: Tuple[Tuple[float, float, float], ...] = (
+DEUTERANOPIA_MATRIX: tuple[tuple[float, float, float], ...] = (
     (0.625, 0.375, 0.000),
     (0.700, 0.300, 0.000),
     (0.000, 0.300, 0.700),
 )
 
 # 蓝色盲（Tritanopia）— 极罕见
-TRITANOPIA_MATRIX: Tuple[Tuple[float, float, float], ...] = (
+TRITANOPIA_MATRIX: tuple[tuple[float, float, float], ...] = (
     (0.950, 0.050, 0.000),
     (0.000, 0.433, 0.567),
     (0.000, 0.475, 0.525),
@@ -71,18 +70,20 @@ TRITANOPIA_MATRIX: Tuple[Tuple[float, float, float], ...] = (
 # 主题对比对定义（对接 ThemeManager.CANONICAL_TOKENS）
 # ============================================================
 
+
 @dataclass
 class ContrastPair:
     """一对需要检查对比度的 CSS 变量。"""
-    fg_token: str          # 前景色变量名（如 "--text"）
-    bg_token: str          # 背景色变量名（如 "--bg"）
-    label: str             # 人类可读描述
-    threshold: float       # WCAG AA 阈值
-    category: str          # "normal" | "large" | "ui"
+
+    fg_token: str  # 前景色变量名（如 "--text"）
+    bg_token: str  # 背景色变量名（如 "--bg"）
+    label: str  # 人类可读描述
+    threshold: float  # WCAG AA 阈值
+    category: str  # "normal" | "large" | "ui"
 
 
 # 千面设计市场核心对比对（覆盖正文/次要文本/强调色/状态色场景）
-DEFAULT_CONTRAST_PAIRS: List[ContrastPair] = [
+DEFAULT_CONTRAST_PAIRS: list[ContrastPair] = [
     # 正文文本
     ContrastPair("--text", "--bg", "正文 vs 主背景", WCAG_AA_NORMAL, "normal"),
     ContrastPair("--text", "--card", "正文 vs 卡片背景", WCAG_AA_NORMAL, "normal"),
@@ -105,13 +106,11 @@ DEFAULT_CONTRAST_PAIRS: List[ContrastPair] = [
 # 颜色解析与 W3C 对比度计算
 # ============================================================
 
-_HEX_PATTERN = re.compile(r'^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$')
-_RGB_PATTERN = re.compile(
-    r'rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*[\d.]+)?\s*\)'
-)
+_HEX_PATTERN = re.compile(r"^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
+_RGB_PATTERN = re.compile(r"rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*[\d.]+)?\s*\)")
 
 
-def parse_color(color_str: str) -> Optional[Tuple[int, int, int]]:
+def parse_color(color_str: str) -> tuple[int, int, int] | None:
     """解析 CSS 颜色值为 (R, G, B) 三元组。
 
     支持: #RGB, #RRGGBB, #RRGGBBAA, rgb(r,g,b), rgba(r,g,b,a)
@@ -154,7 +153,7 @@ def _srgb_to_linear(c: float) -> float:
     return ((c + 0.055) / 1.055) ** 2.4
 
 
-def relative_luminance(rgb: Tuple[int, int, int]) -> float:
+def relative_luminance(rgb: tuple[int, int, int]) -> float:
     """计算颜色的相对亮度（W3C 公开算法）。
 
     公式: L = 0.2126*R + 0.7152*G + 0.0722*B
@@ -169,7 +168,7 @@ def relative_luminance(rgb: Tuple[int, int, int]) -> float:
     return 0.2126 * r_lin + 0.7152 * g_lin + 0.0722 * b_lin
 
 
-def contrast_ratio(fg: str, bg: str) -> Optional[float]:
+def contrast_ratio(fg: str, bg: str) -> float | None:
     """计算两色之间的对比度比率（W3C 公开公式）。
 
     公式: (L1 + 0.05) / (L2 + 0.05)，其中 L1 > L2
@@ -193,10 +192,11 @@ def contrast_ratio(fg: str, bg: str) -> Optional[float]:
 # 色盲友好性检查
 # ============================================================
 
+
 def simulate_colorblind(
-    rgb: Tuple[int, int, int],
-    matrix: Tuple[Tuple[float, float, float], ...],
-) -> Tuple[int, int, int]:
+    rgb: tuple[int, int, int],
+    matrix: tuple[tuple[float, float, float], ...],
+) -> tuple[int, int, int]:
     """使用变换矩阵模拟色盲视觉（公开学术算法）。"""
     r, g, b = rgb
     new_r = matrix[0][0] * r + matrix[0][1] * g + matrix[0][2] * b
@@ -209,7 +209,7 @@ def simulate_colorblind(
     )
 
 
-def _color_distance(c1: Tuple[int, int, int], c2: Tuple[int, int, int]) -> float:
+def _color_distance(c1: tuple[int, int, int], c2: tuple[int, int, int]) -> float:
     """计算两色之间的欧氏距离（简化版 ΔRGB）。"""
     return ((c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2 + (c1[2] - c2[2]) ** 2) ** 0.5
 
@@ -221,8 +221,8 @@ _COLORBLIND_DIST_THRESHOLD: float = 30.0
 def check_colorblind_pair(
     fg: str,
     bg: str,
-    matrix: Tuple[Tuple[float, float, float], ...],
-) -> Optional[float]:
+    matrix: tuple[tuple[float, float, float], ...],
+) -> float | None:
     """检查颜色对在色盲模拟下的可区分性。
 
     返回模拟后的 RGB 距离，距离越小越难区分。
@@ -241,32 +241,35 @@ def check_colorblind_pair(
 # 审计结果数据结构
 # ============================================================
 
+
 @dataclass
 class CheckResult:
     """单项检查结果。"""
-    check_type: str          # "contrast" | "colorblind"
-    label: str               # 检查项描述
-    status: str              # "pass" | "warn" | "error"
-    value: float             # 测量值（对比度比率 或 色盲距离）
-    threshold: float         # 合格阈值
-    detail: str = ""         # 详细说明
+
+    check_type: str  # "contrast" | "colorblind"
+    label: str  # 检查项描述
+    status: str  # "pass" | "warn" | "error"
+    value: float  # 测量值（对比度比率 或 色盲距离）
+    threshold: float  # 合格阈值
+    detail: str = ""  # 详细说明
 
 
 @dataclass
 class AuditReport:
     """主题无障碍审计报告。"""
+
     theme_id: str = ""
     theme_name: str = ""
     total_checks: int = 0
     passed: int = 0
     warnings: int = 0
     errors: int = 0
-    overall_score: float = 0.0   # 0.0-1.0
+    overall_score: float = 0.0  # 0.0-1.0
     overall_status: str = "pass"  # "pass" | "warn" | "error"
-    results: List[CheckResult] = field(default_factory=list)
-    missing_tokens: List[str] = field(default_factory=list)
+    results: list[CheckResult] = field(default_factory=list)
+    missing_tokens: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "theme_id": self.theme_id,
             "theme_name": self.theme_name,
@@ -295,14 +298,15 @@ class AuditReport:
 # 核心审计函数
 # ============================================================
 
-def extract_tokens_from_css(css_text: str) -> Dict[str, str]:
+
+def extract_tokens_from_css(css_text: str) -> dict[str, str]:
     """从 CSS 文本中提取 CSS 变量定义。
 
     匹配 :root { --var: #color; } 格式。
     """
-    tokens: Dict[str, str] = {}
+    tokens: dict[str, str] = {}
     # 匹配 --token-name: value;
-    pattern = re.compile(r'(--[a-zA-Z0-9-]+)\s*:\s*([^;]+)\s*;')
+    pattern = re.compile(r"(--[a-zA-Z0-9-]+)\s*:\s*([^;]+)\s*;")
     for match in pattern.finditer(css_text):
         token_name = match.group(1)
         token_value = match.group(2).strip()
@@ -312,12 +316,12 @@ def extract_tokens_from_css(css_text: str) -> Dict[str, str]:
     return tokens
 
 
-def extract_tokens_from_manifest(manifest: Dict[str, Any]) -> Dict[str, str]:
+def extract_tokens_from_manifest(manifest: dict[str, Any]) -> dict[str, str]:
     """从 theme.json manifest 中提取颜色 token。
 
     优先使用 manifest["colors"] 字典，其次从 manifest["css"] 文本提取。
     """
-    tokens: Dict[str, str] = {}
+    tokens: dict[str, str] = {}
     # 方式1: manifest 中直接有 colors 字段
     colors = manifest.get("colors", {})
     if isinstance(colors, dict):
@@ -333,9 +337,9 @@ def extract_tokens_from_manifest(manifest: Dict[str, Any]) -> Dict[str, str]:
 
 
 def audit_contrast(
-    tokens: Dict[str, str],
-    pairs: Optional[List[ContrastPair]] = None,
-) -> List[CheckResult]:
+    tokens: dict[str, str],
+    pairs: list[ContrastPair] | None = None,
+) -> list[CheckResult]:
     """审计主题配色变量的对比度。
 
     对每对 ContrastPair 计算对比度比率，与 WCAG AA 阈值比较。
@@ -343,31 +347,35 @@ def audit_contrast(
     if pairs is None:
         pairs = DEFAULT_CONTRAST_PAIRS
 
-    results: List[CheckResult] = []
+    results: list[CheckResult] = []
     for pair in pairs:
         fg = tokens.get(pair.fg_token)
         bg = tokens.get(pair.bg_token)
         if fg is None or bg is None:
-            results.append(CheckResult(
-                check_type="contrast",
-                label=pair.label,
-                status="warn",
-                value=0.0,
-                threshold=pair.threshold,
-                detail=f"缺少 token: {pair.fg_token} 或 {pair.bg_token}",
-            ))
+            results.append(
+                CheckResult(
+                    check_type="contrast",
+                    label=pair.label,
+                    status="warn",
+                    value=0.0,
+                    threshold=pair.threshold,
+                    detail=f"缺少 token: {pair.fg_token} 或 {pair.bg_token}",
+                )
+            )
             continue
 
         ratio = contrast_ratio(fg, bg)
         if ratio is None:
-            results.append(CheckResult(
-                check_type="contrast",
-                label=pair.label,
-                status="warn",
-                value=0.0,
-                threshold=pair.threshold,
-                detail=f"无法解析颜色: {fg} / {bg}",
-            ))
+            results.append(
+                CheckResult(
+                    check_type="contrast",
+                    label=pair.label,
+                    status="warn",
+                    value=0.0,
+                    threshold=pair.threshold,
+                    detail=f"无法解析颜色: {fg} / {bg}",
+                )
+            )
             continue
 
         if ratio >= pair.threshold:
@@ -380,22 +388,24 @@ def audit_contrast(
             status = "error"
             detail = f"对比度 {ratio:.2f}:1 < {pair.threshold}:1"
 
-        results.append(CheckResult(
-            check_type="contrast",
-            label=pair.label,
-            status=status,
-            value=ratio,
-            threshold=pair.threshold,
-            detail=detail,
-        ))
+        results.append(
+            CheckResult(
+                check_type="contrast",
+                label=pair.label,
+                status=status,
+                value=ratio,
+                threshold=pair.threshold,
+                detail=detail,
+            )
+        )
 
     return results
 
 
 def audit_colorblindness(
-    tokens: Dict[str, str],
-    pairs: Optional[List[ContrastPair]] = None,
-) -> List[CheckResult]:
+    tokens: dict[str, str],
+    pairs: list[ContrastPair] | None = None,
+) -> list[CheckResult]:
     """审计主题配色变量的色盲友好性。
 
     对正文/强调色对比对，在三种色盲模拟下检查可区分性。
@@ -404,7 +414,7 @@ def audit_colorblindness(
         # 只检查正文和强调色对比对（非 UI 类）
         pairs = [p for p in DEFAULT_CONTRAST_PAIRS if p.category in ("normal", "large")]
 
-    results: List[CheckResult] = []
+    results: list[CheckResult] = []
     cb_types = [
         ("protanopia", "红色盲", PROTANOPIA_MATRIX),
         ("deuteranopia", "绿色盲", DEUTERANOPIA_MATRIX),
@@ -432,23 +442,25 @@ def audit_colorblindness(
                 status = "error"
                 detail = f"{cb_name}模拟下 RGB距离 {dist:.1f} 难以区分"
 
-            results.append(CheckResult(
-                check_type="colorblind",
-                label=f"{pair.label} ({cb_name})",
-                status=status,
-                value=dist,
-                threshold=_COLORBLIND_DIST_THRESHOLD,
-                detail=detail,
-            ))
+            results.append(
+                CheckResult(
+                    check_type="colorblind",
+                    label=f"{pair.label} ({cb_name})",
+                    status=status,
+                    value=dist,
+                    threshold=_COLORBLIND_DIST_THRESHOLD,
+                    detail=detail,
+                )
+            )
 
     return results
 
 
 def audit_theme(
-    tokens: Dict[str, str],
+    tokens: dict[str, str],
     theme_id: str = "",
     theme_name: str = "",
-    pairs: Optional[List[ContrastPair]] = None,
+    pairs: list[ContrastPair] | None = None,
 ) -> AuditReport:
     """对主题 token 字典执行完整无障碍审计。
 
@@ -462,7 +474,7 @@ def audit_theme(
 
     # 检查缺失 token
     all_tokens_needed = set()
-    for p in (pairs or DEFAULT_CONTRAST_PAIRS):
+    for p in pairs or DEFAULT_CONTRAST_PAIRS:
         all_tokens_needed.add(p.fg_token)
         all_tokens_needed.add(p.bg_token)
     for token in sorted(all_tokens_needed):
@@ -534,7 +546,7 @@ def format_report(report: AuditReport) -> str:
     """将审计报告格式化为人类可读文本。"""
     lines = [
         f"无障碍审计报告 · {report.theme_name or report.theme_id}",
-        f"{'='*50}",
+        f"{'=' * 50}",
         f"总检查项: {report.total_checks} | 通过: {report.passed} | "
         f"警告: {report.warnings} | 错误: {report.errors}",
         f"综合评分: {report.overall_score:.1%} | 状态: {report.overall_status.upper()}",
@@ -543,7 +555,7 @@ def format_report(report: AuditReport) -> str:
     if report.missing_tokens:
         lines.append(f"\n缺失 Token: {', '.join(report.missing_tokens)}")
 
-    lines.append(f"\n{'─'*50}")
+    lines.append(f"\n{'─' * 50}")
     lines.append("对比度检查:")
     for r in report.results:
         if r.check_type == "contrast":
@@ -552,7 +564,7 @@ def format_report(report: AuditReport) -> str:
 
     cb_results = [r for r in report.results if r.check_type == "colorblind"]
     if cb_results:
-        lines.append(f"\n{'─'*50}")
+        lines.append(f"\n{'─' * 50}")
         lines.append("色盲友好性检查:")
         for r in cb_results:
             icon = {"pass": "✅", "warn": "⚠️", "error": "❌"}[r.status]

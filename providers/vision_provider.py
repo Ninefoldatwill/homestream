@@ -17,47 +17,47 @@ V8多模态生态·图像理解入口
 
 from __future__ import annotations
 
-import os
-import json
-import base64
 import logging
+import os
 import subprocess
 import tempfile
-from pathlib import Path
-from typing import Optional, List, Dict, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
 class VisionEngine(Enum):
     """图像理解引擎"""
-    INTERNVL2 = "internvl2"            # InternVL2-2B 本地（推荐·轻量）
-    QWEN_VL = "qwen_vl"                # Qwen2.5-VL-7B 本地（更强·显存大）
-    LLAMA_VISION = "llama_vision"      # llama.cpp vision（本地·通用）
-    L1_COLLAB = "l1_collab"            # L1本地模型协同（描述→推理）
-    CLOUD_FALLBACK = "cloud"           # 云端备选
+
+    INTERNVL2 = "internvl2"  # InternVL2-2B 本地（推荐·轻量）
+    QWEN_VL = "qwen_vl"  # Qwen2.5-VL-7B 本地（更强·显存大）
+    LLAMA_VISION = "llama_vision"  # llama.cpp vision（本地·通用）
+    L1_COLLAB = "l1_collab"  # L1本地模型协同（描述→推理）
+    CLOUD_FALLBACK = "cloud"  # 云端备选
 
 
 @dataclass
 class VisionConfig:
     """图像理解配置"""
+
     engine: VisionEngine = VisionEngine.INTERNVL2
     max_tokens: int = 512
     temperature: float = 0.7
-    offline_only: bool = True           # 开源线默认脱网
+    offline_only: bool = True  # 开源线默认脱网
     internvl_model: str = "InternVL2-2B"  # 本地模型名称
-    internvl_binary: str = ""            # 可执行路径（空=用Python API）
+    internvl_binary: str = ""  # 可执行路径（空=用Python API）
 
 
 @dataclass
 class VisionResult:
     """图像理解结果"""
-    description: str                     # 图片描述
-    answer: str = ""                     # 针对问题的回答
-    objects: List[str] = field(default_factory=list)  # 检测到的物体
-    text_in_image: str = ""             # 图中文字（OCR协同）
+
+    description: str  # 图片描述
+    answer: str = ""  # 针对问题的回答
+    objects: list[str] = field(default_factory=list)  # 检测到的物体
+    text_in_image: str = ""  # 图中文字（OCR协同）
     engine_used: str = "internvl2"
     processing_ms: float = 0.0
 
@@ -73,7 +73,7 @@ class VisionProvider:
         VisionEngine.L1_COLLAB: ["_describe_l1_collab", "_answer_l1_collab"],
     }
 
-    def __init__(self, config: Optional[VisionConfig] = None):
+    def __init__(self, config: VisionConfig | None = None):
         self.config = config or VisionConfig()
         self._engine_available = self._check_engine()
 
@@ -88,7 +88,9 @@ class VisionProvider:
         Returns:
             VisionResult: 图片描述
         """
-        import time; start = time.time()
+        import time
+
+        start = time.time()
         method_name = f"_describe_{self.config.engine.value}"
         method = getattr(self, method_name, self._describe_l1_collab)
         result = method(image_path)
@@ -105,7 +107,9 @@ class VisionProvider:
         Returns:
             VisionResult: 答案
         """
-        import time; start = time.time()
+        import time
+
+        start = time.time()
         method_name = f"_answer_{self.config.engine.value}"
         method = getattr(self, method_name, self._answer_l1_collab)
         result = method(image_path, question)
@@ -125,8 +129,9 @@ class VisionProvider:
             except Exception:
                 pass
 
-    def ask_about_image_bytes(self, image_bytes: bytes, question: str,
-                               ext: str = "png") -> VisionResult:
+    def ask_about_image_bytes(
+        self, image_bytes: bytes, question: str, ext: str = "png"
+    ) -> VisionResult:
         """从字节数据针对图片提问"""
         with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False) as f:
             f.write(image_bytes)
@@ -160,6 +165,7 @@ class VisionProvider:
         try:
             # InternVL2用transformers加载
             from transformers import AutoModel, AutoTokenizer
+
             return True
         except ImportError:
             logger.debug("transformers未安装，InternVL2不可用")
@@ -168,6 +174,7 @@ class VisionProvider:
     def _check_qwen_vl(self) -> bool:
         try:
             from transformers import AutoModel
+
             return True
         except ImportError:
             return False
@@ -175,8 +182,7 @@ class VisionProvider:
     def _check_llama_vision(self) -> bool:
         try:
             result = subprocess.run(
-                ["llama-vision-cli", "--version"],
-                capture_output=True, text=True, timeout=5
+                ["llama-vision-cli", "--version"], capture_output=True, text=True, timeout=5
             )
             return result.returncode == 0
         except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -259,7 +265,7 @@ class VisionProvider:
     def _describe_qwen_vl(self, image_path: str) -> VisionResult:
         try:
             from PIL import Image
-            from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+            from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
 
             processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct")
             model = Qwen2VLForConditionalGeneration.from_pretrained(
@@ -269,12 +275,17 @@ class VisionProvider:
 
             image = Image.open(image_path).convert("RGB")
             messages = [
-                {"role": "user", "content": [
-                    {"type": "image", "image": image},
-                    {"type": "text", "text": "请详细描述这张图片"},
-                ]}
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "image": image},
+                        {"type": "text", "text": "请详细描述这张图片"},
+                    ],
+                }
             ]
-            text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            text = processor.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
             inputs = processor(text=text, images=image, return_tensors="pt")
             output = model.generate(**inputs, max_new_tokens=self.config.max_tokens)
             response = processor.decode(output[0], skip_special_tokens=True)
@@ -301,6 +312,7 @@ class VisionProvider:
         """
         try:
             from PIL import Image
+
             img = Image.open(image_path)
             info_parts = [
                 f"尺寸: {img.size[0]}x{img.size[1]}",
@@ -328,7 +340,7 @@ class VisionProvider:
     def _answer_l1_collab(self, image_path: str, question: str) -> VisionResult:
         """L1本地模型协同回答图片问题"""
         base = self._describe_l1_collab(image_path)
-        answer = f"基于图片元信息回答\"{question}\":\n{base.description}"
+        answer = f'基于图片元信息回答"{question}":\n{base.description}'
         return VisionResult(
             description=base.description,
             answer=answer,
@@ -340,9 +352,18 @@ class VisionProvider:
     def _describe_llama_vision(self, image_path: str) -> VisionResult:
         try:
             result = subprocess.run(
-                ["llama-vision-cli", "-m", "llava-v1.6-7b.Q4_K_M.gguf",
-                 "--image", image_path, "-p", "请描述这张图片"],
-                capture_output=True, text=True, timeout=60,
+                [
+                    "llama-vision-cli",
+                    "-m",
+                    "llava-v1.6-7b.Q4_K_M.gguf",
+                    "--image",
+                    image_path,
+                    "-p",
+                    "请描述这张图片",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
             )
             return VisionResult(
                 description=result.stdout.strip(),
@@ -355,9 +376,18 @@ class VisionProvider:
     def _answer_llama_vision(self, image_path: str, question: str) -> VisionResult:
         try:
             result = subprocess.run(
-                ["llama-vision-cli", "-m", "llava-v1.6-7b.Q4_K_M.gguf",
-                 "--image", image_path, "-p", question],
-                capture_output=True, text=True, timeout=60,
+                [
+                    "llama-vision-cli",
+                    "-m",
+                    "llava-v1.6-7b.Q4_K_M.gguf",
+                    "--image",
+                    image_path,
+                    "-p",
+                    question,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
             )
             return VisionResult(
                 description="",
@@ -369,6 +399,7 @@ class VisionProvider:
 
 
 # ── Python脚本入口 ──────────────────────────────
+
 
 def create_vision_provider(offline_only: bool = True) -> VisionProvider:
     """创建Vision Provider（开源线·默认离线·InternVL2-2B优先）"""
@@ -383,6 +414,7 @@ def create_vision_provider(offline_only: bool = True) -> VisionProvider:
 
 if __name__ == "__main__":
     import sys
+
     p = create_vision_provider()
     if len(sys.argv) > 1:
         img = sys.argv[1]

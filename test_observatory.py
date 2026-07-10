@@ -7,16 +7,16 @@
   4. API端点集成测试
 """
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
 from observatory import (
-    collect_observatory_data,
-    _read_counter_total,
-    _read_counter_by_label,
-    _read_gauge,
     _calc_percentiles,
-    _parse_label_str,
     _group_http_by_endpoint,
+    _parse_label_str,
+    _read_counter_by_label,
+    _read_counter_total,
+    _read_gauge,
+    collect_observatory_data,
 )
 
 
@@ -135,9 +135,7 @@ class TestPrometheusHelpers:
         assert val >= 0
 
     def test_read_counter_by_label_returns_dict(self):
-        result = _read_counter_by_label(
-            "bridge_icp_messages_sent_total", "message_type"
-        )
+        result = _read_counter_by_label("bridge_icp_messages_sent_total", "message_type")
         assert isinstance(result, dict)
 
     def test_read_gauge_returns_float(self):
@@ -192,15 +190,17 @@ class TestWithMockModelRouter:
         mock_router.get_status.return_value = {
             "strategy": "cost_first",
             "hardware": {"cpu": "test"},
-            "providers": [{
-                "name": "test_provider",
-                "display_name": "Test Provider",
-                "tier": "L1",
-                "model": "test-model",
-                "status": "healthy",
-                "enabled": True,
-                "stats": {"requests": 10, "errors": 1, "avg_latency_ms": 500},
-            }],
+            "providers": [
+                {
+                    "name": "test_provider",
+                    "display_name": "Test Provider",
+                    "tier": "L1",
+                    "model": "test-model",
+                    "status": "healthy",
+                    "enabled": True,
+                    "stats": {"requests": 10, "errors": 1, "avg_latency_ms": 500},
+                }
+            ],
         }
 
         result = collect_observatory_data(model_router=mock_router)

@@ -23,7 +23,7 @@ from __future__ import annotations
 import logging
 import math
 from collections import Counter, defaultdict
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from event_store import EventStore
@@ -63,7 +63,7 @@ C = {
 }
 
 # EventType 颜色映射
-EVENT_COLORS: Dict[str, str] = {
+EVENT_COLORS: dict[str, str] = {
     "INFO": "#378add",
     "ASK": "#ba7517",
     "TASK": "#639922",
@@ -80,6 +80,7 @@ VALID_EVENT_TYPES = set(EVENT_COLORS.keys())
 
 
 # ==================== 工具函数 ====================
+
 
 def _escape_xml(text: str) -> str:
     """转义 XML 特殊字符，限制长度防止 SVG 膨胀"""
@@ -108,21 +109,22 @@ def _placeholder_svg(message: str, height: int = 200) -> str:
     """生成占位 SVG（数据不足时使用）"""
     return (
         f'<svg viewBox="0 0 {SVG_WIDTH} {height}" width="100%" role="img">'
-        f'<title>{_escape_xml(message)}</title>'
+        f"<title>{_escape_xml(message)}</title>"
         f'<rect x="0" y="0" width="{SVG_WIDTH}" height="{height}" '
         f'fill="{C["bg"]}" rx="8"/>'
         f'<text x="{SVG_WIDTH // 2}" y="{height // 2}" '
         f'text-anchor="middle" dominant-baseline="central" '
         f'font-size="13" fill="{C["text_muted"]}">'
-        f'{_escape_xml(message)}</text>'
+        f"{_escape_xml(message)}</text>"
         f"</svg>"
     )
 
 
 # ==================== 1. Agent 拓扑图 ====================
 
+
 def generate_agent_topology(
-    event_store: Optional["EventStore"] = None,
+    event_store: EventStore | None = None,
     session_id: str = "default",
     max_events: int = 200,
 ) -> str:
@@ -138,9 +140,7 @@ def generate_agent_topology(
         return _placeholder_svg("EventStore 未初始化，无法生成拓扑图")
 
     try:
-        events = event_store.query_by_session(
-            session_id, limit=max_events, newest_first=False
-        )
+        events = event_store.query_by_session(session_id, limit=max_events, newest_first=False)
     except Exception as e:
         logger.warning(f"拓扑图数据查询失败: {e}")
         return _placeholder_svg(f"数据查询失败: {_escape_xml(str(e)[:30])}")
@@ -150,7 +150,7 @@ def generate_agent_topology(
 
     # 构建通信图
     agent_activity: Counter = Counter()
-    edge_weights: Dict[str, int] = defaultdict(int)
+    edge_weights: dict[str, int] = defaultdict(int)
 
     for ev in events:
         sender = getattr(ev, "sender", None) or "unknown"
@@ -171,7 +171,7 @@ def generate_agent_topology(
     radius = min(130, 40 + n * 8)
 
     # 计算节点坐标
-    positions: Dict[str, tuple] = {}
+    positions: dict[str, tuple] = {}
     for i, agent in enumerate(top_agents):
         angle = 2 * math.pi * i / n - math.pi / 2  # 从顶部开始
         x = cx + radius * math.cos(angle)
@@ -180,9 +180,7 @@ def generate_agent_topology(
 
     # 构建有效边（只保留两端都在 top_agents 中的边）
     valid_edges = []
-    for edge_key, weight in sorted(
-        edge_weights.items(), key=lambda x: -x[1]
-    )[:30]:
+    for edge_key, weight in sorted(edge_weights.items(), key=lambda x: -x[1])[:30]:
         sender, recipient = edge_key.split("->", 1)
         if sender in positions and recipient in positions:
             valid_edges.append((sender, recipient, weight))
@@ -190,28 +188,23 @@ def generate_agent_topology(
     max_weight = max((w for _, _, w in valid_edges), default=1)
 
     # 生成 SVG
-    parts: List[str] = []
+    parts: list[str] = []
     svg_height = 400
 
-    parts.append(
-        f'<svg viewBox="0 0 {SVG_WIDTH} {svg_height}" width="100%" role="img">'
-    )
+    parts.append(f'<svg viewBox="0 0 {SVG_WIDTH} {svg_height}" width="100%" role="img">')
     parts.append("<title>Agent 通信拓扑图</title>")
-    parts.append(
-        f'<desc>{n} 个 Agent，{len(valid_edges)} 条通信链路</desc>'
-    )
+    parts.append(f"<desc>{n} 个 Agent，{len(valid_edges)} 条通信链路</desc>")
 
     # 背景
     parts.append(
-        f'<rect x="0" y="0" width="{SVG_WIDTH}" height="{svg_height}" '
-        f'fill="{C["bg"]}" rx="8"/>'
+        f'<rect x="0" y="0" width="{SVG_WIDTH}" height="{svg_height}" fill="{C["bg"]}" rx="8"/>'
     )
 
     # 标题
     parts.append(
         f'<text x="{SVG_WIDTH // 2}" y="24" text-anchor="middle" '
         f'font-size="14" font-weight="500" fill="{C["text_primary"]}">'
-        f'Agent 通信拓扑 ({n} agents, {len(valid_edges)} links)</text>'
+        f"Agent 通信拓扑 ({n} agents, {len(valid_edges)} links)</text>"
     )
 
     # 绘制边（在节点下方）
@@ -245,7 +238,7 @@ def generate_agent_topology(
             f'<text x="{x:.1f}" y="{y:.1f}" text-anchor="middle" '
             f'dominant-baseline="central" font-size="11" '
             f'font-weight="500" fill="{C["node_text"]}">'
-            f'{_escape_xml(label)}</text>'
+            f"{_escape_xml(label)}</text>"
         )
         # 事件计数
         parts.append(
@@ -259,7 +252,7 @@ def generate_agent_topology(
     parts.append(
         f'<text x="20" y="{legend_y}" font-size="11" '
         f'fill="{C["text_secondary"]}">'
-        f'\u25cf 节点大小 = 活跃度  |  线条粗细 = 通信频率</text>'
+        f"\u25cf 节点大小 = 活跃度  |  线条粗细 = 通信频率</text>"
     )
 
     parts.append("</svg>")
@@ -268,8 +261,9 @@ def generate_agent_topology(
 
 # ==================== 2. 事件流向图 ====================
 
+
 def generate_event_flow(
-    event_store: Optional["EventStore"] = None,
+    event_store: EventStore | None = None,
     session_id: str = "default",
     max_events: int = 15,
 ) -> str:
@@ -281,9 +275,7 @@ def generate_event_flow(
         return _placeholder_svg("EventStore 未初始化，无法生成事件流向图")
 
     try:
-        events = event_store.query_by_session(
-            session_id, limit=max_events, newest_first=True
-        )
+        events = event_store.query_by_session(session_id, limit=max_events, newest_first=True)
     except Exception as e:
         logger.warning(f"事件流向图查询失败: {e}")
         return _placeholder_svg(f"数据查询失败: {_escape_xml(str(e)[:30])}")
@@ -303,28 +295,23 @@ def generate_event_flow(
     start_y = 40
 
     # 构建 event_id -> y 坐标映射（用于因果链箭头）
-    event_positions: Dict[str, tuple] = {}
+    event_positions: dict[str, tuple] = {}
 
-    parts: List[str] = []
-    parts.append(
-        f'<svg viewBox="0 0 {SVG_WIDTH} {svg_height}" width="100%" role="img">'
-    )
+    parts: list[str] = []
+    parts.append(f'<svg viewBox="0 0 {SVG_WIDTH} {svg_height}" width="100%" role="img">')
     parts.append("<title>事件因果链流向图</title>")
-    parts.append(
-        f'<desc>最近 {n} 个事件的时间线</desc>'
-    )
+    parts.append(f"<desc>最近 {n} 个事件的时间线</desc>")
 
     # 背景
     parts.append(
-        f'<rect x="0" y="0" width="{SVG_WIDTH}" height="{svg_height}" '
-        f'fill="{C["bg"]}" rx="8"/>'
+        f'<rect x="0" y="0" width="{SVG_WIDTH}" height="{svg_height}" fill="{C["bg"]}" rx="8"/>'
     )
 
     # 标题
     parts.append(
         f'<text x="{SVG_WIDTH // 2}" y="24" text-anchor="middle" '
         f'font-size="14" font-weight="500" fill="{C["text_primary"]}">'
-        f'EventStream 因果链 (最近 {n} 事件)</text>'
+        f"EventStream 因果链 (最近 {n} 事件)</text>"
     )
 
     # 时间线竖线
@@ -349,8 +336,7 @@ def generate_event_flow(
 
         # 时间线节点
         parts.append(
-            f'<circle cx="{timeline_x}" cy="{y + box_height // 2}" '
-            f'r="4" fill="{ev_color}"/>'
+            f'<circle cx="{timeline_x}" cy="{y + box_height // 2}" r="4" fill="{ev_color}"/>'
         )
 
         # 事件框
@@ -367,7 +353,7 @@ def generate_event_flow(
             f'<text x="{box_x + 8}" y="{y + box_height // 2}" '
             f'dominant-baseline="central" font-size="11" '
             f'font-weight="500" fill="{ev_color}">'
-            f'{_escape_xml(ev_type)}</text>'
+            f"{_escape_xml(ev_type)}</text>"
         )
 
         # 发送者 -> 接收者
@@ -389,7 +375,7 @@ def generate_event_flow(
             f'<text x="{box_x + box_width - 8}" y="{y + box_height // 2}" '
             f'text-anchor="end" dominant-baseline="central" '
             f'font-size="10" fill="{C["text_secondary"]}">'
-            f'{_escape_xml(time_str)}</text>'
+            f"{_escape_xml(time_str)}</text>"
         )
 
     # 绘制因果链箭头
@@ -406,7 +392,7 @@ def generate_event_flow(
                 mid_y = (from_y + to_y) / 2
                 parts.append(
                     f'<path d="M {timeline_x - 10},{from_y + 12} '
-                    f'Q {timeline_x - 35},{mid_y} '
+                    f"Q {timeline_x - 35},{mid_y} "
                     f'{timeline_x - 10},{to_y - 4}" '
                     f'fill="none" stroke="{C["edge_active"]}" '
                     f'stroke-width="0.8" stroke-dasharray="3,2" '
@@ -438,7 +424,7 @@ def generate_event_flow(
     parts.append(
         f'<text x="{SVG_WIDTH - 20}" y="{legend_y}" '
         f'text-anchor="end" font-size="10" fill="{C["text_secondary"]}">'
-        f'\u2192 虚线 = 因果链</text>'
+        f"\u2192 虚线 = 因果链</text>"
     )
 
     parts.append("</svg>")
@@ -447,8 +433,9 @@ def generate_event_flow(
 
 # ==================== 3. 路由状态图 ====================
 
+
 def generate_router_status(
-    model_router: Optional["ModelRouter"] = None,
+    model_router: ModelRouter | None = None,
 ) -> str:
     """生成三层模型路由状态图 SVG
 
@@ -470,7 +457,7 @@ def generate_router_status(
         return _placeholder_svg("无已配置 Provider", height=150)
 
     # 按 tier 分组
-    tier_groups: Dict[str, list] = {"L1": [], "L2": [], "L3": []}
+    tier_groups: dict[str, list] = {"L1": [], "L2": [], "L3": []}
     for p in providers:
         tier = p.get("tier", "L1")
         if tier not in tier_groups:
@@ -484,20 +471,15 @@ def generate_router_status(
     ]
 
     svg_height = 60 + len(tier_config) * 70
-    parts: List[str] = []
+    parts: list[str] = []
 
-    parts.append(
-        f'<svg viewBox="0 0 {SVG_WIDTH} {svg_height}" width="100%" role="img">'
-    )
+    parts.append(f'<svg viewBox="0 0 {SVG_WIDTH} {svg_height}" width="100%" role="img">')
     parts.append("<title>三层模型路由状态图</title>")
-    parts.append(
-        f'<desc>策略: {status.get("strategy", "unknown")}</desc>'
-    )
+    parts.append(f"<desc>策略: {status.get('strategy', 'unknown')}</desc>")
 
     # 背景
     parts.append(
-        f'<rect x="0" y="0" width="{SVG_WIDTH}" height="{svg_height}" '
-        f'fill="{C["bg"]}" rx="8"/>'
+        f'<rect x="0" y="0" width="{SVG_WIDTH}" height="{svg_height}" fill="{C["bg"]}" rx="8"/>'
     )
 
     # 标题
@@ -505,14 +487,12 @@ def generate_router_status(
     parts.append(
         f'<text x="{SVG_WIDTH // 2}" y="24" text-anchor="middle" '
         f'font-size="14" font-weight="500" fill="{C["text_primary"]}">'
-        f'\u4e09\u5c42\u6a21\u578b\u8def\u7531\u72b6\u6001 '
-        f'(\u7b56\u7565: {_escape_xml(strategy)})</text>'
+        f"\u4e09\u5c42\u6a21\u578b\u8def\u7531\u72b6\u6001 "
+        f"(\u7b56\u7565: {_escape_xml(strategy)})</text>"
     )
 
     # 绘制每一层
-    for idx, (tier_key, tier_label, fill, stroke, text_color) in enumerate(
-        tier_config
-    ):
+    for idx, (tier_key, tier_label, fill, stroke, text_color) in enumerate(tier_config):
         y = 45 + idx * 70
         provs = tier_groups.get(tier_key, [])
 
@@ -527,7 +507,7 @@ def generate_router_status(
         parts.append(
             f'<text x="32" y="{y + 18}" font-size="12" '
             f'font-weight="500" fill="{text_color}">'
-            f'{_escape_xml(tier_label)}</text>'
+            f"{_escape_xml(tier_label)}</text>"
         )
 
         if not provs:
@@ -539,9 +519,7 @@ def generate_router_status(
 
         # Provider 框
         box_x = 180
-        box_w = min(
-            140, (SVG_WIDTH - 220) // max(len(provs), 1)
-        )
+        box_w = min(140, (SVG_WIDTH - 220) // max(len(provs), 1))
         for j, p in enumerate(provs):
             px = box_x + j * (box_w + 10)
             py = y + 12
@@ -565,19 +543,14 @@ def generate_router_status(
             )
 
             # 状态点
-            parts.append(
-                f'<circle cx="{px + 8}" cy="{py + 10}" r="3" '
-                f'fill="{status_color}"/>'
-            )
+            parts.append(f'<circle cx="{px + 8}" cy="{py + 10}" r="3" fill="{status_color}"/>')
 
             # Provider 名称
-            name = _truncate(
-                p.get("display_name", p.get("name", "?")), 14
-            )
+            name = _truncate(p.get("display_name", p.get("name", "?")), 14)
             parts.append(
                 f'<text x="{px + 16}" y="{py + 14}" font-size="10" '
                 f'font-weight="500" fill="{C["text_primary"]}">'
-                f'{_escape_xml(name)}</text>'
+                f"{_escape_xml(name)}</text>"
             )
 
             # 模型名
@@ -585,7 +558,7 @@ def generate_router_status(
             parts.append(
                 f'<text x="{px + 8}" y="{py + 28}" font-size="9" '
                 f'fill="{C["text_secondary"]}">'
-                f'{_escape_xml(model)}</text>'
+                f"{_escape_xml(model)}</text>"
             )
 
             # 请求量
@@ -602,11 +575,12 @@ def generate_router_status(
 
 # ==================== 统一聚合接口 ====================
 
+
 def collect_architecture_data(
-    event_store: Optional["EventStore"] = None,
-    model_router: Optional["ModelRouter"] = None,
+    event_store: EventStore | None = None,
+    model_router: ModelRouter | None = None,
     session_id: str = "default",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """聚合所有架构可视化数据，供 API 端点返回。
 
     Returns:

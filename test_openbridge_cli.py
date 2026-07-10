@@ -11,10 +11,10 @@ OpenBridge CLI 测试套件
   - test: 测试运行
 """
 
+import json
+import os
 import subprocess
 import sys
-import os
-import json
 from pathlib import Path
 
 import pytest
@@ -247,7 +247,6 @@ class TestStop:
 
 # 导入platform用于测试
 import platform
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -14,10 +14,9 @@
 
 import os
 import re
-import json
-from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Tuple
+from datetime import UTC, datetime
+
 import structlog
 
 logger = structlog.get_logger("bridge_v7.knowledge_pruner")
@@ -27,29 +26,32 @@ logger = structlog.get_logger("bridge_v7.knowledge_pruner")
 # 数据结构
 # ============================================================
 
+
 @dataclass
 class MemoryEntry:
     """MEMORY.md中的知识点条目"""
+
     line_start: int
     line_end: int
     content: str
-    category: str                    # 分类标签
-    is_outdated: bool = False        # 是否过时
-    is_redundant: bool = False       # 是否与其他条目重复
-    is_correctable: bool = False     # 是否有可修正的错误
-    suggestion: str = ""             # 操作建议
+    category: str  # 分类标签
+    is_outdated: bool = False  # 是否过时
+    is_redundant: bool = False  # 是否与其他条目重复
+    is_correctable: bool = False  # 是否有可修正的错误
+    suggestion: str = ""  # 操作建议
 
 
 @dataclass
 class PruneReport:
     """知识防腐分析报告"""
+
     timestamp: str
     total_lines: int
     total_entries: int
-    outdated_entries: List[MemoryEntry] = field(default_factory=list)
-    redundant_pairs: List[Tuple[MemoryEntry, MemoryEntry]] = field(default_factory=list)
-    correctable_entries: List[MemoryEntry] = field(default_factory=list)
-    suggestions: List[str] = field(default_factory=list)
+    outdated_entries: list[MemoryEntry] = field(default_factory=list)
+    redundant_pairs: list[tuple[MemoryEntry, MemoryEntry]] = field(default_factory=list)
+    correctable_entries: list[MemoryEntry] = field(default_factory=list)
+    suggestions: list[str] = field(default_factory=list)
 
 
 # ============================================================
@@ -58,11 +60,11 @@ class PruneReport:
 
 # 已完成的日期/任务引用模式（超过30天视为可归档）
 OUTDATED_PATTERNS = [
-    r"✅.*\d{1,2}/\d{1,2}",           # ✅已完成的日期标记
-    r"已完成.*\d{4}-\d{2}-\d{2}",       # 已完成的日期引用
-    r"之前已\S*(完成|交付|上线)",          # 之前已完成
-    r"旧版\S*(已废弃|已下线|已迁移)",       # 旧版废弃标记
-    r"v[0-4]\.\d+\.\d+",                # 旧版本号（v4及以下）
+    r"✅.*\d{1,2}/\d{1,2}",  # ✅已完成的日期标记
+    r"已完成.*\d{4}-\d{2}-\d{2}",  # 已完成的日期引用
+    r"之前已\S*(完成|交付|上线)",  # 之前已完成
+    r"旧版\S*(已废弃|已下线|已迁移)",  # 旧版废弃标记
+    r"v[0-4]\.\d+\.\d+",  # 旧版本号（v4及以下）
 ]
 
 # 冗余检测关键词（同类概念可能重复）
@@ -77,10 +79,10 @@ REDUNDANCY_KEYWORDS = {
 }
 
 
-def detect_outdated(content: str, reference_date: Optional[datetime] = None) -> bool:
+def detect_outdated(content: str, reference_date: datetime | None = None) -> bool:
     """检测知识条目是否过时"""
     if reference_date is None:
-        reference_date = datetime.now(timezone.utc)
+        reference_date = datetime.now(UTC)
 
     for pattern in OUTDATED_PATTERNS:
         if re.search(pattern, content, re.IGNORECASE):
@@ -88,7 +90,7 @@ def detect_outdated(content: str, reference_date: Optional[datetime] = None) -> 
             dates = re.findall(r"(\d{1,2})/(\d{1,2})", content)
             for m, d in dates:
                 try:
-                    entry_date = datetime(reference_date.year, int(m), int(d), tzinfo=timezone.utc)
+                    entry_date = datetime(reference_date.year, int(m), int(d), tzinfo=UTC)
                     if entry_date > reference_date:
                         # 可能是明年，视为去年
                         entry_date = entry_date.replace(year=reference_date.year - 1)
@@ -99,7 +101,7 @@ def detect_outdated(content: str, reference_date: Optional[datetime] = None) -> 
     return False
 
 
-def find_redundant(entries: List[MemoryEntry]) -> List[Tuple[MemoryEntry, MemoryEntry]]:
+def find_redundant(entries: list[MemoryEntry]) -> list[tuple[MemoryEntry, MemoryEntry]]:
     """发现同一分类下的冗余条目对"""
     redundant_pairs = []
     for i in range(len(entries)):
@@ -119,6 +121,7 @@ def find_redundant(entries: List[MemoryEntry]) -> List[Tuple[MemoryEntry, Memory
 # MEMORY.md 解析器
 # ============================================================
 
+
 def categorize_line(line: str) -> str:
     """根据行内容推断分类"""
     line_lower = line.lower()
@@ -127,21 +130,26 @@ def categorize_line(line: str) -> str:
             return category
 
     # 标题推断
-    if line.startswith("## ") and "安全" in line: return "安全"
-    if line.startswith("## ") and "版本" in line: return "版本"
-    if line.startswith("## ") and "路由" in line: return "路由"
-    if line.startswith("## ") and "测试" in line: return "测试"
-    if line.startswith("## "): return "通用"
+    if line.startswith("## ") and "安全" in line:
+        return "安全"
+    if line.startswith("## ") and "版本" in line:
+        return "版本"
+    if line.startswith("## ") and "路由" in line:
+        return "路由"
+    if line.startswith("## ") and "测试" in line:
+        return "测试"
+    if line.startswith("## "):
+        return "通用"
 
     return "通用"
 
 
-def parse_memory_md(filepath: str) -> Tuple[List[MemoryEntry], int]:
+def parse_memory_md(filepath: str) -> tuple[list[MemoryEntry], int]:
     """解析MEMORY.md为知识条目列表"""
     if not os.path.exists(filepath):
         return [], 0
 
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8") as f:
         lines = f.readlines()
 
     entries = []
@@ -177,7 +185,8 @@ def parse_memory_md(filepath: str) -> Tuple[List[MemoryEntry], int]:
 # 精简分析主函数
 # ============================================================
 
-def analyze_memory(filepath: str, reference_date: Optional[datetime] = None) -> PruneReport:
+
+def analyze_memory(filepath: str, reference_date: datetime | None = None) -> PruneReport:
     """分析MEMORY.md，生成精简建议报告。
 
     返回PruneReport包含:
@@ -188,7 +197,7 @@ def analyze_memory(filepath: str, reference_date: Optional[datetime] = None) -> 
     """
     entries, total_lines = parse_memory_md(filepath)
     report = PruneReport(
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         total_lines=total_lines,
         total_entries=len(entries),
     )
@@ -220,9 +229,7 @@ def analyze_memory(filepath: str, reference_date: Optional[datetime] = None) -> 
             f"发现 {len(report.outdated_entries)} 条过时条目（超过30天未更新），建议归档或删除"
         )
     if report.redundant_pairs:
-        report.suggestions.append(
-            f"发现 {len(report.redundant_pairs)} 对冗余条目，建议合并为一条"
-        )
+        report.suggestions.append(f"发现 {len(report.redundant_pairs)} 对冗余条目，建议合并为一条")
     if report.correctable_entries:
         report.suggestions.append(
             f"发现 {len(report.correctable_entries)} 条可修正条目（版本冲突等），建议核查修正"
@@ -230,8 +237,8 @@ def analyze_memory(filepath: str, reference_date: Optional[datetime] = None) -> 
 
     # 健康度评分（0-100）
     health = 100
-    health -= len(report.outdated_entries) * 5   # 每条过时扣5分
-    health -= len(report.redundant_pairs) * 3     # 每对冗余扣3分
+    health -= len(report.outdated_entries) * 5  # 每条过时扣5分
+    health -= len(report.redundant_pairs) * 3  # 每对冗余扣3分
     health -= len(report.correctable_entries) * 2  # 每条需修正扣2分
     report.suggestions.insert(0, f"知识健康度: {max(0, health)}/100")
 
@@ -249,12 +256,12 @@ def should_trigger_review(filepath: str, max_age_days: int = 30) -> bool:
         return False
 
     # 检查最后修改时间
-    mtime = datetime.fromtimestamp(os.path.getmtime(filepath), tz=timezone.utc)
-    if (datetime.now(timezone.utc) - mtime).days > max_age_days:
+    mtime = datetime.fromtimestamp(os.path.getmtime(filepath), tz=UTC)
+    if (datetime.now(UTC) - mtime).days > max_age_days:
         return True
 
     # 检查文件大小
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8") as f:
         content = f.read()
     if len(content) > 2500:  # 接近3000字符限制
         return True
@@ -268,6 +275,7 @@ def should_trigger_review(filepath: str, max_age_days: int = 30) -> bool:
 
 if __name__ == "__main__":
     import sys
+
     memory_path = sys.argv[1] if len(sys.argv) > 1 else ".workbuddy/memory/MEMORY.md"
 
     print(f"知识防腐分析: {memory_path}")
@@ -286,12 +294,12 @@ if __name__ == "__main__":
         print("\n📦 可遗忘条目:")
         for entry in report.outdated_entries[:5]:
             preview = entry.content[:80].replace("\n", " ")
-            print(f"  L{entry.line_start+1}-L{entry.line_end+1}: {preview}...")
+            print(f"  L{entry.line_start + 1}-L{entry.line_end + 1}: {preview}...")
 
     if report.redundant_pairs:
         print(f"\n🔗 冗余条目对 ({len(report.redundant_pairs)}):")
         for a, b in report.redundant_pairs[:3]:
-            print(f"  [{a.category}] L{a.line_start+1} ↔ L{b.line_start+1}")
+            print(f"  [{a.category}] L{a.line_start + 1} ↔ L{b.line_start + 1}")
 
     print("\n" + "=" * 60)
     print("知识防腐完成。以上为分析建议，请人工确认后执行精简。")

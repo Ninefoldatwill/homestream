@@ -12,12 +12,12 @@
 来源：6/29六维生态健康冲浪融优 — Erlang/OTP监管者模式 + Bulkhead隔离
 """
 
-from enum import Enum
-from dataclasses import dataclass, field
-from typing import Optional, List, Set
-from datetime import datetime, timezone
-import structlog
 import uuid
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import Enum
+
+import structlog
 
 logger = structlog.get_logger("bridge_v7.permission_guard")
 
@@ -26,29 +26,43 @@ logger = structlog.get_logger("bridge_v7.permission_guard")
 # 权限层级定义
 # ============================================================
 
+
 class PermissionLevel(str, Enum):
     """三层分治权限等级"""
-    L1_PUBLIC = "L1_PUBLIC"          # 基础设施·公开资源（只读数据+公开API）
-    L2_PLUGIN = "L2_PLUGIN"          # 协作层·插件权限（读写数据+受控工具）
-    L3_CORE = "L3_CORE"              # 核心壁垒·内部全权限（全API+内部工具）
-    ADMIN = "ADMIN"                  # 管理员·最高权限（配置变更+安全操作）
+
+    L1_PUBLIC = "L1_PUBLIC"  # 基础设施·公开资源（只读数据+公开API）
+    L2_PLUGIN = "L2_PLUGIN"  # 协作层·插件权限（读写数据+受控工具）
+    L3_CORE = "L3_CORE"  # 核心壁垒·内部全权限（全API+内部工具）
+    ADMIN = "ADMIN"  # 管理员·最高权限（配置变更+安全操作）
 
 
 class ActionScope(str, Enum):
     """操作范围分类"""
-    READ = "READ"                    # 读操作
-    WRITE = "WRITE"                  # 写操作
-    EXECUTE = "EXECUTE"              # 工具执行（Skill/MCP调用）
-    ADMIN = "ADMIN"                  # 管理操作（配置/安全变更）
-    SYSTEM = "SYSTEM"                 # 系统操作（启动/关闭/健康检查）
+
+    READ = "READ"  # 读操作
+    WRITE = "WRITE"  # 写操作
+    EXECUTE = "EXECUTE"  # 工具执行（Skill/MCP调用）
+    ADMIN = "ADMIN"  # 管理操作（配置/安全变更）
+    SYSTEM = "SYSTEM"  # 系统操作（启动/关闭/健康检查）
 
 
 # 每个权限等级允许的操作范围
-PERMISSION_MATRIX: dict[PermissionLevel, Set[ActionScope]] = {
-    PermissionLevel.L1_PUBLIC:  {ActionScope.READ},
-    PermissionLevel.L2_PLUGIN:  {ActionScope.READ, ActionScope.WRITE, ActionScope.EXECUTE},
-    PermissionLevel.L3_CORE:    {ActionScope.READ, ActionScope.WRITE, ActionScope.EXECUTE, ActionScope.SYSTEM},
-    PermissionLevel.ADMIN:      {ActionScope.READ, ActionScope.WRITE, ActionScope.EXECUTE, ActionScope.ADMIN, ActionScope.SYSTEM},
+PERMISSION_MATRIX: dict[PermissionLevel, set[ActionScope]] = {
+    PermissionLevel.L1_PUBLIC: {ActionScope.READ},
+    PermissionLevel.L2_PLUGIN: {ActionScope.READ, ActionScope.WRITE, ActionScope.EXECUTE},
+    PermissionLevel.L3_CORE: {
+        ActionScope.READ,
+        ActionScope.WRITE,
+        ActionScope.EXECUTE,
+        ActionScope.SYSTEM,
+    },
+    PermissionLevel.ADMIN: {
+        ActionScope.READ,
+        ActionScope.WRITE,
+        ActionScope.EXECUTE,
+        ActionScope.ADMIN,
+        ActionScope.SYSTEM,
+    },
 }
 
 
@@ -56,15 +70,17 @@ PERMISSION_MATRIX: dict[PermissionLevel, Set[ActionScope]] = {
 # Agent/Tool/Skill 权限声明
 # ============================================================
 
+
 @dataclass
 class AgentPermission:
     """Agent权限声明卡片"""
-    agent_id: str                              # Agent唯一标识
-    agent_name: str                            # Agent名称
-    level: PermissionLevel                     # 权限等级
-    allowed_skills: List[str] = field(default_factory=list)  # 允许使用的Skill列表
-    description: str = ""                      # 权限说明
-    risk_score: float = 0.0                    # 风险评分（0-10）
+
+    agent_id: str  # Agent唯一标识
+    agent_name: str  # Agent名称
+    level: PermissionLevel  # 权限等级
+    allowed_skills: list[str] = field(default_factory=list)  # 允许使用的Skill列表
+    description: str = ""  # 权限说明
+    risk_score: float = 0.0  # 风险评分（0-10）
 
 
 # 预注册的Agent权限配置
@@ -116,21 +132,23 @@ REGISTERED_AGENTS: dict[str, AgentPermission] = {
 # 权限检查引擎
 # ============================================================
 
+
 @dataclass
 class AuditEntry:
     """审计记录"""
+
     audit_id: str
     agent_id: str
     action: ActionScope
     resource: str
     timestamp: datetime
     request_id: str
-    result: str = "ALLOWED"          # ALLOWED / DENIED
+    result: str = "ALLOWED"  # ALLOWED / DENIED
     detail: str = ""
 
 
-_audit_log: List[AuditEntry] = []     # 内存审计日志（生产应持久化到DB）
-_audit_max_size = 1000                # 内存审计日志上限
+_audit_log: list[AuditEntry] = []  # 内存审计日志（生产应持久化到DB）
+_audit_max_size = 1000  # 内存审计日志上限
 
 
 def check_permission(
@@ -160,8 +178,8 @@ def check_permission(
 
     reason = (
         f"ALLOWED: {agent_id}({agent.level.value}) -> {action.value} on {resource}"
-        if allowed else
-        f"DENIED: {agent_id}({agent.level.value}) 无 {action.value} 权限(需>=L2)"
+        if allowed
+        else f"DENIED: {agent_id}({agent.level.value}) 无 {action.value} 权限(需>=L2)"
     )
 
     # 高风险Agent即使有权也降低信任
@@ -170,7 +188,9 @@ def check_permission(
         reason = f"DENIED: {agent_id} 风险评分{agent.risk_score}过高·拒绝{action.value}操作"
 
     # 记录审计
-    _record_audit(agent_id, action, resource, request_id, "ALLOWED" if allowed else "DENIED", reason)
+    _record_audit(
+        agent_id, action, resource, request_id, "ALLOWED" if allowed else "DENIED", reason
+    )
 
     return allowed, reason
 
@@ -211,7 +231,7 @@ def _record_audit(
         agent_id=agent_id,
         action=action,
         resource=resource,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         request_id=request_id,
         result=result,
         detail=detail,
@@ -237,9 +257,9 @@ def _record_audit(
 
 def get_audit_trail(
     agent_id: str = "",
-    action: Optional[ActionScope] = None,
+    action: ActionScope | None = None,
     limit: int = 50,
-) -> List[AuditEntry]:
+) -> list[AuditEntry]:
     """查询审计追踪链（因果链）。"""
     filtered = _audit_log
     if agent_id:

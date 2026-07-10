@@ -7,11 +7,12 @@
 
 import time
 import uuid
-import structlog
 from contextvars import ContextVar
-from starlette.middleware.base import BaseHTTPMiddleware
-from prometheus_client import Counter, Histogram, Gauge, generate_latest
+
+import structlog
 from fastapi import FastAPI, Response
+from prometheus_client import Counter, Gauge, Histogram, generate_latest
+from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = structlog.get_logger("bridge_v7.middleware")
 

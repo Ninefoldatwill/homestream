@@ -11,30 +11,31 @@ HomeStream 架构可视化引擎 + 数据质量守卫 测试
   - 验证四维质量校验的准确性
 """
 
-import pytest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
-from event_stream import Event, Action, EventType, EventSource
+import pytest
+
 from arch_visualizer import (
+    _escape_xml,
+    _truncate,
+    collect_architecture_data,
     generate_agent_topology,
     generate_event_flow,
     generate_router_status,
-    collect_architecture_data,
-    _escape_xml,
-    _truncate,
 )
 from data_guardian import (
-    validate_causal_chain,
-    validate_timestamps,
-    validate_event_types,
-    validate_agent_identity,
-    run_full_audit,
     VALID_EVENT_TYPES,
+    run_full_audit,
+    validate_agent_identity,
+    validate_causal_chain,
+    validate_event_types,
+    validate_timestamps,
 )
-
+from event_stream import Action, EventSource, EventType
 
 # ==================== 测试 fixtures ====================
+
 
 class FakeEventStore:
     """模拟 EventStore，用于测试"""
@@ -47,7 +48,7 @@ class FakeEventStore:
         events = list(self._events)
         if newest_first:
             events = list(reversed(events))
-        return events[offset: offset + limit]
+        return events[offset : offset + limit]
 
     def query_range(self, session_id, start=None, end=None, limit=100):
         return self._events[:limit]
@@ -57,9 +58,12 @@ class FakeEventStore:
 
     def stats(self, session_id="default"):
         from collections import Counter
+
         by_type = Counter(str(e.event_type) for e in self._events)
         top_senders = Counter(e.sender for e in self._events)
-        sessions = Counter(e.session_id if hasattr(e, 'session_id') else "default" for e in self._events)
+        sessions = Counter(
+            e.session_id if hasattr(e, "session_id") else "default" for e in self._events
+        )
         return {
             "db_path": ":memory:",
             "session_id": session_id,
@@ -101,10 +105,30 @@ def sample_events():
     base = datetime(2026, 7, 8, 12, 0, 0)
     return [
         make_event("evt-1", EventType.TASK, "alice", "bob", "do task", None, base),
-        make_event("evt-2", EventType.DONE, "bob", "alice", "done", "evt-1", base + timedelta(seconds=10)),
-        make_event("evt-3", EventType.INFO, "alice", "carol", "fyi", "evt-2", base + timedelta(seconds=20)),
-        make_event("evt-4", EventType.ASK, "carol", "alice", "question?", "evt-3", base + timedelta(seconds=30)),
-        make_event("evt-5", EventType.ACK, "alice", "carol", "got it", "evt-4", base + timedelta(seconds=40)),
+        make_event(
+            "evt-2", EventType.DONE, "bob", "alice", "done", "evt-1", base + timedelta(seconds=10)
+        ),
+        make_event(
+            "evt-3", EventType.INFO, "alice", "carol", "fyi", "evt-2", base + timedelta(seconds=20)
+        ),
+        make_event(
+            "evt-4",
+            EventType.ASK,
+            "carol",
+            "alice",
+            "question?",
+            "evt-3",
+            base + timedelta(seconds=30),
+        ),
+        make_event(
+            "evt-5",
+            EventType.ACK,
+            "alice",
+            "carol",
+            "got it",
+            "evt-4",
+            base + timedelta(seconds=40),
+        ),
     ]
 
 
@@ -115,8 +139,8 @@ def sample_store(sample_events):
 
 # ==================== arch_visualizer 测试 ====================
 
-class TestArchVisualizer:
 
+class TestArchVisualizer:
     def test_placeholder_when_no_event_store(self):
         """EventStore 为 None 时返回占位 SVG"""
         svg = generate_agent_topology(None)
@@ -172,15 +196,33 @@ class TestArchVisualizer:
         mock_router.get_status.return_value = {
             "strategy": "cascade",
             "providers": [
-                {"name": "silicon", "display_name": "Silicon", "tier": "L1",
-                 "model": "qwen-7b", "status": "healthy", "enabled": True,
-                 "stats": {"requests": 10}},
-                {"name": "deepseek", "display_name": "DeepSeek", "tier": "L2",
-                 "model": "deepseek-chat", "status": "healthy", "enabled": True,
-                 "stats": {"requests": 5}},
-                {"name": "ollama", "display_name": "Ollama", "tier": "L3",
-                 "model": "qwen2.5:3b", "status": "healthy", "enabled": True,
-                 "stats": {"requests": 20}},
+                {
+                    "name": "silicon",
+                    "display_name": "Silicon",
+                    "tier": "L1",
+                    "model": "qwen-7b",
+                    "status": "healthy",
+                    "enabled": True,
+                    "stats": {"requests": 10},
+                },
+                {
+                    "name": "deepseek",
+                    "display_name": "DeepSeek",
+                    "tier": "L2",
+                    "model": "deepseek-chat",
+                    "status": "healthy",
+                    "enabled": True,
+                    "stats": {"requests": 5},
+                },
+                {
+                    "name": "ollama",
+                    "display_name": "Ollama",
+                    "tier": "L3",
+                    "model": "qwen2.5:3b",
+                    "status": "healthy",
+                    "enabled": True,
+                    "stats": {"requests": 20},
+                },
             ],
         }
         svg = generate_router_status(mock_router)
@@ -219,8 +261,8 @@ class TestArchVisualizer:
 
 # ==================== data_guardian 测试 ====================
 
-class TestDataGuardian:
 
+class TestDataGuardian:
     def test_empty_event_store(self):
         """空 EventStore 返回 pass"""
         store = FakeEventStore([])
@@ -250,7 +292,10 @@ class TestDataGuardian:
         result = validate_causal_chain(events, FakeEventStore(events))
         assert result["status"] == "error"
         assert len(result["issues"]) == 1
-        assert "断" in result["issues"][0]["message"] or "cause" in result["issues"][0]["message"].lower()
+        assert (
+            "断" in result["issues"][0]["message"]
+            or "cause" in result["issues"][0]["message"].lower()
+        )
 
     def test_valid_causal_chain(self, sample_events):
         """正常因果链通过"""
@@ -277,7 +322,9 @@ class TestDataGuardian:
         ]
         result = validate_timestamps(events)
         assert result["status"] == "warn"
-        assert any("未来" in i["message"] or "future" in i["message"].lower() for i in result["issues"])
+        assert any(
+            "未来" in i["message"] or "future" in i["message"].lower() for i in result["issues"]
+        )
 
     def test_valid_timestamps_pass(self, sample_events):
         """正常时间戳通过"""
@@ -310,7 +357,9 @@ class TestDataGuardian:
         ]
         result = validate_agent_identity(events)
         assert result["status"] == "error"
-        assert any("空" in i["message"] or "empty" in i["message"].lower() for i in result["issues"])
+        assert any(
+            "空" in i["message"] or "empty" in i["message"].lower() for i in result["issues"]
+        )
 
     def test_injection_in_agent_name(self):
         """检测注入风险"""
@@ -319,7 +368,9 @@ class TestDataGuardian:
         ]
         result = validate_agent_identity(events)
         assert result["status"] == "error"
-        assert any("注入" in i["message"] or "injection" in i["message"].lower() for i in result["issues"])
+        assert any(
+            "注入" in i["message"] or "injection" in i["message"].lower() for i in result["issues"]
+        )
 
     def test_valid_agent_identity_pass(self, sample_events):
         """正常 Agent 身份通过"""

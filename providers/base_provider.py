@@ -11,30 +11,33 @@ Provider抽象基类
 from __future__ import annotations
 
 import abc
-import time
 import logging
+import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 class ProviderType(Enum):
     """Provider类型"""
-    LOCAL = "local"     # 本地模型（llama.cpp/Ollama等）
-    API = "api"         # 云端API（GLM/DeepSeek/OpenAI等）
+
+    LOCAL = "local"  # 本地模型（llama.cpp/Ollama等）
+    API = "api"  # 云端API（GLM/DeepSeek/OpenAI等）
 
 
 class ProviderTier(Enum):
     """Provider层级（对应渐进式复杂度三层）"""
-    L1 = "L1"   # 本地模型层（零配置，离线可用）
-    L2 = "L2"   # 免费API层（单API，增强能力）
-    L3 = "L3"   # 付费API层（多API，专业级）
+
+    L1 = "L1"  # 本地模型层（零配置，离线可用）
+    L2 = "L2"  # 免费API层（单API，增强能力）
+    L3 = "L3"  # 付费API层（多API，专业级）
 
 
 class ProviderStatus(Enum):
     """Provider健康状态"""
+
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     OFFLINE = "offline"
@@ -44,16 +47,18 @@ class ProviderStatus(Enum):
 @dataclass
 class ChatMessage:
     """统一消息格式"""
-    role: str           # "system" / "user" / "assistant"
+
+    role: str  # "system" / "user" / "assistant"
     content: str
 
-    def to_dict(self) -> Dict[str, str]:
+    def to_dict(self) -> dict[str, str]:
         return {"role": self.role, "content": self.content}
 
 
 @dataclass
 class ChatResponse:
     """统一响应格式"""
+
     content: str
     model: str
     provider: str
@@ -61,10 +66,10 @@ class ChatResponse:
     latency_ms: float
     tokens_in: int = 0
     tokens_out: int = 0
-    cost_estimate: float = 0.0    # 估算费用（元），本地为0
-    raw: Optional[Dict] = None    # 原始响应（调试用）
+    cost_estimate: float = 0.0  # 估算费用（元），本地为0
+    raw: dict | None = None  # 原始响应（调试用）
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "content": self.content,
             "model": self.model,
@@ -80,23 +85,24 @@ class ChatResponse:
 @dataclass
 class ProviderConfig:
     """Provider配置"""
-    name: str                           # Provider唯一名称
-    display_name: str                   # 显示名称
-    provider_type: ProviderType         # LOCAL / API
-    tier: ProviderTier                  # L1 / L2 / L3
-    enabled: bool = True                # 是否启用
-    priority: int = 100                 # 优先级（数字越小优先级越高）
-    api_base: str = ""                  # API地址
-    api_key: str = ""                   # API密钥
-    model_name: str = ""                # 模型名称
-    max_tokens: int = 512               # 最大输出token
-    temperature: float = 0.7            # 温度
-    timeout: int = 30                   # 超时秒数
-    extra: Dict[str, Any] = field(default_factory=dict)  # 额外配置
+
+    name: str  # Provider唯一名称
+    display_name: str  # 显示名称
+    provider_type: ProviderType  # LOCAL / API
+    tier: ProviderTier  # L1 / L2 / L3
+    enabled: bool = True  # 是否启用
+    priority: int = 100  # 优先级（数字越小优先级越高）
+    api_base: str = ""  # API地址
+    api_key: str = ""  # API密钥
+    model_name: str = ""  # 模型名称
+    max_tokens: int = 512  # 最大输出token
+    temperature: float = 0.7  # 温度
+    timeout: int = 30  # 超时秒数
+    extra: dict[str, Any] = field(default_factory=dict)  # 额外配置
 
     # 费用估算（API类用）
-    cost_per_1k_input: float = 0.0      # 每1K输入token费用（元）
-    cost_per_1k_output: float = 0.0     # 每1K输出token费用（元）
+    cost_per_1k_input: float = 0.0  # 每1K输入token费用（元）
+    cost_per_1k_output: float = 0.0  # 每1K输出token费用（元）
 
 
 class BaseProvider(abc.ABC):
@@ -128,7 +134,7 @@ class BaseProvider(abc.ABC):
         )
 
     @property
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         avg_latency = self._total_latency_ms / max(self._request_count, 1)
         return {
             "name": self.name,
@@ -141,9 +147,9 @@ class BaseProvider(abc.ABC):
     @abc.abstractmethod
     async def chat(
         self,
-        messages: List[ChatMessage],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
+        messages: list[ChatMessage],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> ChatResponse:
         """
         发送聊天请求（核心方法）
@@ -168,10 +174,9 @@ class BaseProvider(abc.ABC):
 
     def _estimate_cost(self, tokens_in: int, tokens_out: int) -> float:
         """估算单次请求费用"""
-        cost = (
-            (tokens_in / 1000.0) * self.config.cost_per_1k_input
-            + (tokens_out / 1000.0) * self.config.cost_per_1k_output
-        )
+        cost = (tokens_in / 1000.0) * self.config.cost_per_1k_input + (
+            tokens_out / 1000.0
+        ) * self.config.cost_per_1k_output
         return round(cost, 6)
 
     def _record_request(self, latency_ms: float, success: bool):
@@ -200,6 +205,7 @@ class BaseProvider(abc.ABC):
 
 class ProviderError(Exception):
     """Provider错误"""
+
     def __init__(self, provider: str, message: str, status_code: int = 0):
         self.provider = provider
         self.status_code = status_code

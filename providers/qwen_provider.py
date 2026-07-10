@@ -25,15 +25,20 @@ Qwen Provider - 通义千问 API适配器（国内备选，防卡脖）
 from __future__ import annotations
 
 import json
-import time
 import logging
-import urllib.request
+import time
 import urllib.error
-from typing import Optional, List
+import urllib.request
 
 from .base_provider import (
-    BaseProvider, ProviderConfig, ProviderType, ProviderTier,
-    ChatMessage, ChatResponse, ProviderError, ProviderStatus,
+    BaseProvider,
+    ChatMessage,
+    ChatResponse,
+    ProviderConfig,
+    ProviderError,
+    ProviderStatus,
+    ProviderTier,
+    ProviderType,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,9 +57,9 @@ class QwenProvider(BaseProvider):
 
     async def chat(
         self,
-        messages: List[ChatMessage],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
+        messages: list[ChatMessage],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> ChatResponse:
         """调用通义千问 API（OpenAI兼容格式）"""
         url = f"{self.config.api_base}/chat/completions"
@@ -114,10 +119,10 @@ class QwenProvider(BaseProvider):
                 pass
             if e.code == 401:
                 self._mark_status(ProviderStatus.OFFLINE)
-                raise ProviderError(self.name, f"API Key无效 (401)", 401) from e
+                raise ProviderError(self.name, "API Key无效 (401)", 401) from e
             elif e.code == 429:
                 self._mark_status(ProviderStatus.DEGRADED)
-                raise ProviderError(self.name, f"请求频率超限 (429)", 429) from e
+                raise ProviderError(self.name, "请求频率超限 (429)", 429) from e
             else:
                 self._mark_status(ProviderStatus.DEGRADED)
                 raise ProviderError(self.name, f"HTTP {e.code}: {error_body}", e.code) from e
@@ -157,6 +162,7 @@ class QwenProvider(BaseProvider):
 
 # ==================== 工厂函数 ====================
 
+
 def create_qwen_turbo_provider(api_key: str) -> QwenProvider:
     """创建通义千问Turbo Provider（轻量快速，适合L2备选）
 
@@ -167,14 +173,14 @@ def create_qwen_turbo_provider(api_key: str) -> QwenProvider:
         display_name="通义千问 Turbo (国产备选API)",
         provider_type=ProviderType.API,
         tier=ProviderTier.L2,
-        priority=25,               # 优先级略低于GLM，作为L2备选
+        priority=25,  # 优先级略低于GLM，作为L2备选
         api_base=QwenProvider.DEFAULT_API_BASE,
         api_key=api_key,
         model_name="qwen-turbo",
         max_tokens=2048,
         temperature=0.7,
         timeout=30,
-        cost_per_1k_input=0.0005,   # ¥0.5/百万token（极低）
+        cost_per_1k_input=0.0005,  # ¥0.5/百万token（极低）
         cost_per_1k_output=0.001,
     )
     return QwenProvider(config)
@@ -190,7 +196,7 @@ def create_qwen_plus_provider(api_key: str) -> QwenProvider:
         display_name="通义千问 Plus (国产备选API)",
         provider_type=ProviderType.API,
         tier=ProviderTier.L3,
-        priority=35,               # L3层备选
+        priority=35,  # L3层备选
         api_base=QwenProvider.DEFAULT_API_BASE,
         api_key=api_key,
         model_name="qwen-plus",

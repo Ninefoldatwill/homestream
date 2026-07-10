@@ -23,15 +23,12 @@ Compaction 策略：
 
 import os
 import re
-import json
 import time
-from enum import Enum
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
-from pathlib import Path
+from enum import Enum
 
-from pydantic import BaseModel, Field, ConfigDict
 import structlog
+from pydantic import BaseModel, ConfigDict, Field
 
 logger = structlog.get_logger("bridge_v7.soul_config")
 
@@ -40,17 +37,20 @@ logger = structlog.get_logger("bridge_v7.soul_config")
 # 四层记忆层级定义
 # ============================================================
 
+
 class MemoryLayer(str, Enum):
     """四层记忆层级"""
-    SOUL = "soul"       # 第一层：人格·角色·风格·原则
-    USER = "user"       # 第二层：用户画像·偏好·禁忌
-    TOOLS = "tools"     # 第三层：工具·技能·权限·协作
-    SESSION = "session" # 第四层：对话上下文·临时决策
+
+    SOUL = "soul"  # 第一层：人格·角色·风格·原则
+    USER = "user"  # 第二层：用户画像·偏好·禁忌
+    TOOLS = "tools"  # 第三层：工具·技能·权限·协作
+    SESSION = "session"  # 第四层：对话上下文·临时决策
 
 
 # ============================================================
 # 人格模板系统（pydantic 模型）
 # ============================================================
+
 
 class PersonalityTemplate(BaseModel):
     """Agent 人格模板 — SOUL.md 的结构化表示。
@@ -60,11 +60,12 @@ class PersonalityTemplate(BaseModel):
     - 交流风格（communication_style）
     - 行为原则（behavior_rules + boundaries）
     """
+
     model_config = ConfigDict(extra="allow")  # 允许扩展字段
 
     # === 角色定位 ===
     role: str = Field(default="assistant", description="Agent角色定位")
-    core_traits: List[str] = Field(
+    core_traits: list[str] = Field(
         default_factory=lambda: ["专业", "严谨", "高效"],
         description="核心性格特质列表",
     )
@@ -78,7 +79,7 @@ class PersonalityTemplate(BaseModel):
     tone: str = Field(default="professional", description="语气基调")
 
     # === 行为原则 ===
-    behavior_rules: List[str] = Field(
+    behavior_rules: list[str] = Field(
         default_factory=lambda: [
             "本地文件操作可直接执行",
             "对外发送必须先确认",
@@ -86,7 +87,7 @@ class PersonalityTemplate(BaseModel):
         ],
         description="行为原则列表",
     )
-    boundaries: List[str] = Field(
+    boundaries: list[str] = Field(
         default_factory=lambda: [
             "不执行危险操作(rm -rf等)",
             "不泄露系统配置和密钥",
@@ -98,7 +99,7 @@ class PersonalityTemplate(BaseModel):
     # === 元数据 ===
     version: str = Field(default="1.0.0", description="模板版本")
     author: str = Field(default="system", description="模板作者")
-    tags: List[str] = Field(default_factory=list, description="标签")
+    tags: list[str] = Field(default_factory=list, description="标签")
 
 
 class UserProfile(BaseModel):
@@ -109,6 +110,7 @@ class UserProfile(BaseModel):
     - 偏好禁忌（preferences + taboos）
     - 互动历史摘要（interaction_summary）
     """
+
     model_config = ConfigDict(extra="allow")
 
     # === 身份场景 ===
@@ -116,21 +118,23 @@ class UserProfile(BaseModel):
     scenario: str = Field(default="通用", description="使用场景")
 
     # === 偏好 ===
-    preferences: Dict[str, str] = Field(
+    preferences: dict[str, str] = Field(
         default_factory=dict,
         description="偏好映射（如 language: zh-CN, style: 表格化）",
     )
-    taboos: List[str] = Field(
+    taboos: list[str] = Field(
         default_factory=list,
         description="禁忌/雷区列表",
     )
 
     # === 互动历史 ===
     interaction_summary: str = Field(
-        default="", description="与Agent的互动历史摘要",
+        default="",
+        description="与Agent的互动历史摘要",
     )
-    frequent_topics: List[str] = Field(
-        default_factory=list, description="高频话题列表",
+    frequent_topics: list[str] = Field(
+        default_factory=list,
+        description="高频话题列表",
     )
 
     # === 元数据 ===
@@ -145,31 +149,35 @@ class ToolsProfile(BaseModel):
     - 可用技能和权限边界
     - Agent协作网络
     """
+
     model_config = ConfigDict(extra="allow")
 
     # === 技能清单 ===
-    available_skills: List[str] = Field(
-        default_factory=list, description="可用技能列表",
+    available_skills: list[str] = Field(
+        default_factory=list,
+        description="可用技能列表",
     )
-    skill_priorities: Dict[str, int] = Field(
-        default_factory=dict, description="技能优先级映射",
+    skill_priorities: dict[str, int] = Field(
+        default_factory=dict,
+        description="技能优先级映射",
     )
 
     # === 权限边界 ===
     permission_level: str = Field(
-        default="L1_PUBLIC", description="权限等级",
+        default="L1_PUBLIC",
+        description="权限等级",
     )
-    allowed_actions: List[str] = Field(
+    allowed_actions: list[str] = Field(
         default_factory=lambda: ["READ"],
         description="允许的操作范围",
     )
 
     # === 协作网络 ===
-    collaborators: Dict[str, str] = Field(
+    collaborators: dict[str, str] = Field(
         default_factory=dict,
         description="协作Agent映射（agent_id → role描述）",
     )
-    workflow_sequence: List[str] = Field(
+    workflow_sequence: list[str] = Field(
         default_factory=list,
         description="工作流程启动顺序",
     )
@@ -180,7 +188,7 @@ class ToolsProfile(BaseModel):
 # ============================================================
 
 # 通用角色模板（用户可自定义扩展）
-BUILTIN_TEMPLATES: Dict[str, PersonalityTemplate] = {
+BUILTIN_TEMPLATES: dict[str, PersonalityTemplate] = {
     "leader": PersonalityTemplate(
         role="Team leader · strategy",
         core_traits=["warm", "structured", "outcome-driven"],
@@ -284,18 +292,20 @@ DEFAULT_TEMPLATE = PersonalityTemplate(
 # 四层加载链
 # ============================================================
 
+
 @dataclass
 class LayeredContext:
     """四层上下文加载结果。
 
     按加载顺序组装，用于注入到LLM prompt或Agent决策上下文。
     """
+
     soul: PersonalityTemplate = field(default_factory=lambda: DEFAULT_TEMPLATE)
     user: UserProfile = field(default_factory=UserProfile)
     tools: ToolsProfile = field(default_factory=ToolsProfile)
     session: str = ""  # 近期对话摘要
 
-    def to_prompt_sections(self) -> Dict[str, str]:
+    def to_prompt_sections(self) -> dict[str, str]:
         """将四层上下文转为可注入prompt的段落字典。"""
         sections = {}
 
@@ -307,7 +317,7 @@ class LayeredContext:
             f"## 交流风格\n{soul.communication_style}\n"
             f"## 行为原则\n"
             + "\n".join(f"- {r}" for r in soul.behavior_rules)
-            + f"\n## 行为边界\n"
+            + "\n## 行为边界\n"
             + "\n".join(f"- {b}" for b in soul.boundaries)
         )
 
@@ -318,7 +328,8 @@ class LayeredContext:
             f"## 用户身份\n{user.identity}·场景:{user.scenario}\n"
             f"## 偏好\n{prefs}\n"
             f"## 禁忌\n" + "\n".join(f"- {t}" for t in user.taboos)
-            if user.taboos else ""
+            if user.taboos
+            else ""
         )
 
         # Layer 3: TOOLS
@@ -326,8 +337,7 @@ class LayeredContext:
         sections["tools"] = (
             f"## 可用技能\n{'·'.join(tools.available_skills)}\n"
             f"## 权限等级\n{tools.permission_level}\n"
-            f"## 协作网络\n"
-            + "\n".join(f"- {k}: {v}" for k, v in tools.collaborators.items())
+            f"## 协作网络\n" + "\n".join(f"- {k}: {v}" for k, v in tools.collaborators.items())
         )
 
         # Layer 4: SESSION
@@ -386,6 +396,7 @@ class LayeredContext:
 # 四层加载器
 # ============================================================
 
+
 class SoulConfigLoader:
     """四层记忆加载器 — 从文件/数据库/内存加载四层上下文。
 
@@ -399,7 +410,7 @@ class SoulConfigLoader:
     def __init__(self, workspace_root: str = "", db_path: str = ":memory:"):
         self.workspace_root = workspace_root
         self.db_path = db_path
-        self._context_cache: Optional[LayeredContext] = None
+        self._context_cache: LayeredContext | None = None
 
     def load_all(self, agent_id: str = "", session_summary: str = "") -> LayeredContext:
         """按四层顺序加载完整上下文。"""
@@ -409,17 +420,22 @@ class SoulConfigLoader:
         session = session_summary or self._load_session()
 
         context = LayeredContext(
-            soul=soul, user=user, tools=tools, session=session,
+            soul=soul,
+            user=user,
+            tools=tools,
+            session=session,
         )
         self._context_cache = context
 
-        logger.info("soul_config.loaded",
-                    agent_id=agent_id,
-                    layers=4,
-                    soul_role=soul.role,
-                    user_identity=user.identity,
-                    tools_count=len(tools.available_skills),
-                    session_len=len(session))
+        logger.info(
+            "soul_config.loaded",
+            agent_id=agent_id,
+            layers=4,
+            soul_role=soul.role,
+            user_identity=user.identity,
+            tools_count=len(tools.available_skills),
+            session_len=len(session),
+        )
 
         return context
 
@@ -472,6 +488,7 @@ class SoulConfigLoader:
         # 从 permission_guard 提取权限信息
         try:
             from permission_guard import REGISTERED_AGENTS, PermissionLevel
+
             if agent_id in REGISTERED_AGENTS:
                 ap = REGISTERED_AGENTS[agent_id]
                 tools.permission_level = ap.level.value
@@ -486,6 +503,7 @@ class SoulConfigLoader:
         # 从 skill_router_v2 提取技能清单
         try:
             from skill_router_v2 import SkillRouterV2
+
             router = SkillRouterV2()
             tools.available_skills = list(router._skills.keys())[:20]
         except (ImportError, AttributeError):
@@ -509,6 +527,7 @@ class SoulConfigLoader:
         """加载近期对话摘要：从 memory_evolution 提取。"""
         try:
             from memory_evolution import MemoryEvolutionOrchestra
+
             orchestra = MemoryEvolutionOrchestra(db_path=self.db_path)
             records = orchestra.forgetting.list_active(limit=10)
             summaries = [r.content[:100] for r in records[:5]]
@@ -520,7 +539,7 @@ class SoulConfigLoader:
             return ""
 
     # --- 辅助方法 ---
-    def _find_layer_file(self, filename: str) -> Optional[str]:
+    def _find_layer_file(self, filename: str) -> str | None:
         """在工作区目录树中查找分层文件。"""
         if not self.workspace_root:
             return None
@@ -536,21 +555,21 @@ class SoulConfigLoader:
 
         return None
 
-    def _parse_markdown_layers(self, filepath: str) -> Dict[str, str]:
+    def _parse_markdown_layers(self, filepath: str) -> dict[str, str]:
         """解析 Markdown 文件为 key-value 层段字典。
 
         以 ## 标题段为 key，段下内容为 value。
         简单解析，不依赖外部库。
         """
         try:
-            with open(filepath, "r", encoding="utf-8") as f:
+            with open(filepath, encoding="utf-8") as f:
                 content = f.read()
         except Exception:
             return {}
 
-        sections: Dict[str, str] = {}
+        sections: dict[str, str] = {}
         current_key = ""
-        current_lines: List[str] = []
+        current_lines: list[str] = []
 
         for line in content.splitlines():
             if line.startswith("## "):
@@ -566,8 +585,9 @@ class SoulConfigLoader:
 
         return sections
 
-    def _apply_overrides(self, template: PersonalityTemplate,
-                         overrides: Dict[str, str]) -> PersonalityTemplate:
+    def _apply_overrides(
+        self, template: PersonalityTemplate, overrides: dict[str, str]
+    ) -> PersonalityTemplate:
         """将 SOUL.md 的段覆盖到人格模板。"""
         data = template.model_dump()
 
@@ -586,24 +606,19 @@ class SoulConfigLoader:
         if "行为原则" in overrides or "Behavior" in overrides:
             rules_text = overrides.get("行为原则", overrides.get("Behavior", ""))
             data["behavior_rules"] = [
-                r.lstrip("- ").strip()
-                for r in rules_text.split("\n")
-                if r.strip().startswith("-")
+                r.lstrip("- ").strip() for r in rules_text.split("\n") if r.strip().startswith("-")
             ]
 
         # 行为边界 → boundaries
         if "行为边界" in overrides or "Boundaries" in overrides:
             bounds_text = overrides.get("行为边界", overrides.get("Boundaries", ""))
             data["boundaries"] = [
-                b.lstrip("- ").strip()
-                for b in bounds_text.split("\n")
-                if b.strip().startswith("-")
+                b.lstrip("- ").strip() for b in bounds_text.split("\n") if b.strip().startswith("-")
             ]
 
         return PersonalityTemplate(**data)
 
-    def _apply_user_overrides(self, user: UserProfile,
-                              overrides: Dict[str, str]) -> UserProfile:
+    def _apply_user_overrides(self, user: UserProfile, overrides: dict[str, str]) -> UserProfile:
         """将 USER.md 的段覆盖到用户画像。"""
         data = user.model_dump()
 
@@ -626,9 +641,7 @@ class SoulConfigLoader:
         if "禁忌" in overrides or "Taboos" in overrides:
             taboos_text = overrides.get("禁忌", overrides.get("Taboos", ""))
             data["taboos"] = [
-                t.lstrip("- ").strip()
-                for t in taboos_text.split("\n")
-                if t.strip().startswith("-")
+                t.lstrip("- ").strip() for t in taboos_text.split("\n") if t.strip().startswith("-")
             ]
 
         return UserProfile(**data)
@@ -637,6 +650,7 @@ class SoulConfigLoader:
 # ============================================================
 # Compaction 压缩引擎
 # ============================================================
+
 
 class CompactionEngine:
     """对话压缩引擎 — 防止上下文爆炸。
@@ -652,9 +666,9 @@ class CompactionEngine:
     """
 
     # 压缩触发阈值
-    TOKEN_THRESHOLD = 4000        # 超过此token数触发压缩
-    TURN_THRESHOLD = 20           # 超过此对话轮次触发压缩
-    CRITICAL_PATTERNS = [         # 关键信息模式
+    TOKEN_THRESHOLD = 4000  # 超过此token数触发压缩
+    TURN_THRESHOLD = 20  # 超过此对话轮次触发压缩
+    CRITICAL_PATTERNS = [  # 关键信息模式
         r"决定|决策|commit|决定了",
         r"偏好|preference|更喜欢|习惯",
         r"禁止|禁忌|taboo|不能|不要|never",
@@ -665,10 +679,10 @@ class CompactionEngine:
     def __init__(self, memory_db_path: str = ":memory:"):
         self.token_count = 0
         self.turn_count = 0
-        self._critical_buffer: List[str] = []  # 关键信息暂存
-        self._topic_buffer: List[str] = []     # 主题段暂存
+        self._critical_buffer: list[str] = []  # 关键信息暂存
+        self._topic_buffer: list[str] = []  # 主题段暂存
 
-    def observe(self, message: str, is_user: bool = True) -> Optional[str]:
+    def observe(self, message: str, is_user: bool = True) -> str | None:
         """观察一条消息，识别关键信息并计数。
 
         Returns:
@@ -680,10 +694,7 @@ class CompactionEngine:
         self.turn_count += 1
 
         # 识别关键信息
-        is_critical = any(
-            re.search(p, message, re.IGNORECASE)
-            for p in self.CRITICAL_PATTERNS
-        )
+        is_critical = any(re.search(p, message, re.IGNORECASE) for p in self.CRITICAL_PATTERNS)
         if is_critical and is_user:
             self._critical_buffer.append(message[:200])
 
@@ -720,15 +731,13 @@ class CompactionEngine:
         self.token_count = 0
         self.turn_count = 0
 
-        logger.info("soul_config.compacted",
-                    result_len=len(result))
+        logger.info("soul_config.compacted", result_len=len(result))
 
         return result
 
     def should_compact(self) -> bool:
         """判断是否应该触发压缩。"""
-        return (self.token_count >= self.TOKEN_THRESHOLD
-                or self.turn_count >= self.TURN_THRESHOLD)
+        return self.token_count >= self.TOKEN_THRESHOLD or self.turn_count >= self.TURN_THRESHOLD
 
     def reset(self):
         """重置计数器（新对话开始时）。"""
@@ -742,23 +751,22 @@ class CompactionEngine:
 # 便捷API
 # ============================================================
 
-def get_agent_context(agent_id: str = "",
-                      workspace_root: str = "",
-                      session_summary: str = "") -> LayeredContext:
+
+def get_agent_context(
+    agent_id: str = "", workspace_root: str = "", session_summary: str = ""
+) -> LayeredContext:
     """快捷获取Agent的四层上下文。"""
     loader = SoulConfigLoader(workspace_root=workspace_root)
     return loader.load_all(agent_id=agent_id, session_summary=session_summary)
 
 
-def get_system_prompt(agent_id: str = "",
-                      workspace_root: str = "",
-                      max_chars: int = 2000) -> str:
+def get_system_prompt(agent_id: str = "", workspace_root: str = "", max_chars: int = 2000) -> str:
     """快捷组装Agent的系统提示词。"""
     context = get_agent_context(agent_id, workspace_root)
     return context.assemble_system_prompt(max_chars=max_chars)
 
 
-def list_available_templates() -> Dict[str, str]:
+def list_available_templates() -> dict[str, str]:
     """列出所有可用的人格模板。"""
     result = {}
     for key, tmpl in BUILTIN_TEMPLATES.items():

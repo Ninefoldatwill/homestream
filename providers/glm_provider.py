@@ -19,15 +19,20 @@ GLM-4.7-Flash: 免费，30B参数(3B激活)，适合日常任务
 from __future__ import annotations
 
 import json
-import time
 import logging
-import urllib.request
+import time
 import urllib.error
-from typing import Optional, List
+import urllib.request
 
 from .base_provider import (
-    BaseProvider, ProviderConfig, ProviderType, ProviderTier,
-    ChatMessage, ChatResponse, ProviderError, ProviderStatus,
+    BaseProvider,
+    ChatMessage,
+    ChatResponse,
+    ProviderConfig,
+    ProviderError,
+    ProviderStatus,
+    ProviderTier,
+    ProviderType,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,9 +50,9 @@ class GLMProvider(BaseProvider):
 
     async def chat(
         self,
-        messages: List[ChatMessage],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
+        messages: list[ChatMessage],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> ChatResponse:
         """调用GLM API"""
         url = f"{self.config.api_base}/chat/completions"
@@ -163,7 +168,7 @@ def create_glm_flash_provider(api_key: str) -> GLMProvider:
         max_tokens=1024,
         temperature=0.7,
         timeout=30,
-        cost_per_1k_input=0.0,     # Flash免费
+        cost_per_1k_input=0.0,  # Flash免费
         cost_per_1k_output=0.0,
     )
     return GLMProvider(config)
@@ -183,7 +188,7 @@ def create_glm_plus_provider(api_key: str) -> GLMProvider:
         max_tokens=2048,
         temperature=0.7,
         timeout=30,
-        cost_per_1k_input=0.05,    # 约0.05元/千token
+        cost_per_1k_input=0.05,  # 约0.05元/千token
         cost_per_1k_output=0.05,
     )
     return GLMProvider(config)

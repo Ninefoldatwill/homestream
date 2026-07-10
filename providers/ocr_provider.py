@@ -10,15 +10,11 @@ V8多模态生态·视觉入口
 
 from __future__ import annotations
 
-import os
-import io
-import json
 import base64
 import logging
+import os
 import subprocess
 import tempfile
-from pathlib import Path
-from typing import Optional, List, Dict, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -27,41 +23,46 @@ logger = logging.getLogger(__name__)
 
 class OCREngine(Enum):
     """OCR引擎"""
-    PADDLE_OCR = "paddle_ocr"      # 本地·离线·零费用（推荐）
-    TESSERACT = "tesseract"         # 本地备选
-    CLOUD_FALLBACK = "cloud"        # 云端备选
+
+    PADDLE_OCR = "paddle_ocr"  # 本地·离线·零费用（推荐）
+    TESSERACT = "tesseract"  # 本地备选
+    CLOUD_FALLBACK = "cloud"  # 云端备选
 
 
 class OCRMode(Enum):
     """识别模式"""
-    TEXT_ONLY = "text_only"          # 纯文本
-    STRUCTURED = "structured"        # 带位置信息
-    TABLE = "table"                  # 表格提取
+
+    TEXT_ONLY = "text_only"  # 纯文本
+    STRUCTURED = "structured"  # 带位置信息
+    TABLE = "table"  # 表格提取
 
 
 @dataclass
 class OCRConfig:
     """OCR配置"""
+
     engine: OCREngine = OCREngine.PADDLE_OCR
     mode: OCRMode = OCRMode.TEXT_ONLY
-    language: str = "ch"             # ch / en / ch_en
-    offline_only: bool = True        # 开源线默认脱网
+    language: str = "ch"  # ch / en / ch_en
+    offline_only: bool = True  # 开源线默认脱网
     dpi: int = 300
 
 
 @dataclass
 class OCRBlock:
     """OCR文字块"""
+
     text: str
     confidence: float = 0.0
-    bbox: Optional[Tuple[int, int, int, int]] = None  # (x, y, w, h)
+    bbox: tuple[int, int, int, int] | None = None  # (x, y, w, h)
 
 
 @dataclass
 class OCRResult:
     """OCR结果"""
-    text: str                       # 全部文字（换行分隔）
-    blocks: List[OCRBlock] = field(default_factory=list)
+
+    text: str  # 全部文字（换行分隔）
+    blocks: list[OCRBlock] = field(default_factory=list)
     engine_used: str = "paddle_ocr"
     processing_ms: float = 0.0
 
@@ -69,7 +70,7 @@ class OCRResult:
 class OCRProvider:
     """图片文字提取 Provider"""
 
-    def __init__(self, config: Optional[OCRConfig] = None):
+    def __init__(self, config: OCRConfig | None = None):
         self.config = config or OCRConfig()
         self._paddle_available = self._check_paddle()
         self._tesseract_available = self._check_tesseract()
@@ -86,6 +87,7 @@ class OCRProvider:
             OCRResult: 识别结果
         """
         import time
+
         start = time.time()
 
         if self.config.engine == OCREngine.PADDLE_OCR and self._paddle_available:
@@ -127,6 +129,7 @@ class OCRProvider:
     def _check_paddle(self) -> bool:
         try:
             from paddleocr import PaddleOCR
+
             return True
         except ImportError:
             logger.debug("PaddleOCR 未安装（pip install paddleocr）")
@@ -135,8 +138,7 @@ class OCRProvider:
     def _check_tesseract(self) -> bool:
         try:
             result = subprocess.run(
-                ["tesseract", "--version"],
-                capture_output=True, text=True, timeout=5
+                ["tesseract", "--version"], capture_output=True, text=True, timeout=5
             )
             return result.returncode == 0
         except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -147,6 +149,7 @@ class OCRProvider:
         """使用 PaddleOCR 提取"""
         try:
             from paddleocr import PaddleOCR
+
             ocr = PaddleOCR(lang=self.config.language, use_angle_cls=True)
             results = ocr.ocr(image_path)
 
@@ -161,11 +164,13 @@ class OCRProvider:
                     y = min(p[1] for p in bbox_points)
                     w = max(p[0] for p in bbox_points) - x
                     h = max(p[1] for p in bbox_points) - y
-                    blocks.append(OCRBlock(
-                        text=text,
-                        confidence=confidence,
-                        bbox=(int(x), int(y), int(w), int(h)),
-                    ))
+                    blocks.append(
+                        OCRBlock(
+                            text=text,
+                            confidence=confidence,
+                            bbox=(int(x), int(y), int(w), int(h)),
+                        )
+                    )
                     full_text.append(text)
 
             return OCRResult(
@@ -179,8 +184,13 @@ class OCRProvider:
 
     def _extract_tesseract(self, image_path: str) -> OCRResult:
         """使用 Tesseract 提取"""
-        lang = "chi_sim+eng" if self.config.language == "ch_en" else \
-               "chi_sim" if self.config.language == "ch" else "eng"
+        lang = (
+            "chi_sim+eng"
+            if self.config.language == "ch_en"
+            else "chi_sim"
+            if self.config.language == "ch"
+            else "eng"
+        )
         cmd = ["tesseract", image_path, "stdout", "-l", lang]
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
@@ -198,9 +208,12 @@ class OCRProvider:
 
 # ── 便捷工厂 ──────────────────────────────────
 
+
 def create_ocr_provider(offline_only: bool = True) -> OCRProvider:
     """创建OCR Provider（开源线·默认离线）"""
-    return OCRProvider(OCRConfig(
-        engine=OCREngine.PADDLE_OCR,
-        offline_only=offline_only,
-    ))
+    return OCRProvider(
+        OCRConfig(
+            engine=OCREngine.PADDLE_OCR,
+            offline_only=offline_only,
+        )
+    )

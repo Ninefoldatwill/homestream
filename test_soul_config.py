@@ -12,27 +12,26 @@ soul_config.py 测试 — 四层记忆系统验证
 
 import os
 import tempfile
-import pytest
 
 from soul_config import (
-    MemoryLayer,
-    PersonalityTemplate,
-    UserProfile,
-    ToolsProfile,
-    LayeredContext,
-    SoulConfigLoader,
-    CompactionEngine,
     BUILTIN_TEMPLATES,
     DEFAULT_TEMPLATE,
+    CompactionEngine,
+    LayeredContext,
+    MemoryLayer,
+    PersonalityTemplate,
+    SoulConfigLoader,
+    ToolsProfile,
+    UserProfile,
     get_agent_context,
     get_system_prompt,
     list_available_templates,
 )
 
-
 # ============================================================
 # 人格模板系统测试
 # ============================================================
+
 
 class TestPersonalityTemplate:
     """人格模板 pydantic 模型测试。"""
@@ -98,6 +97,7 @@ class TestPersonalityTemplate:
 # 用户画像与工具画像测试
 # ============================================================
 
+
 class TestUserProfile:
     """用户画像模型测试。"""
 
@@ -146,6 +146,7 @@ class TestToolsProfile:
 # ============================================================
 # 四层加载链测试
 # ============================================================
+
 
 class TestSoulConfigLoader:
     """四层加载器测试。"""
@@ -284,6 +285,7 @@ OpenBridge V8架构决策
 # LayeredContext 组装测试
 # ============================================================
 
+
 class TestLayeredContext:
     """四层上下文组装与裁剪测试。"""
 
@@ -340,6 +342,7 @@ class TestLayeredContext:
 # ============================================================
 # Compaction 压缩引擎测试
 # ============================================================
+
 
 class TestCompactionEngine:
     """对话压缩引擎测试。"""
@@ -412,6 +415,7 @@ class TestCompactionEngine:
 # ============================================================
 # 便捷API测试
 # ============================================================
+
 
 class TestConvenienceAPI:
     """便捷API测试。"""

@@ -5,9 +5,8 @@
 特性：输入过滤 + 输出验证 + 安全Prompt构建
 """
 
-import re
 import json
-
+import re
 
 DANGEROUS_PATTERNS = [
     r"ignore\s+(previous|above|all)\s+instructions",

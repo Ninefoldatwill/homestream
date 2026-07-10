@@ -22,12 +22,13 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any, Dict, Optional, Set
+from typing import Any
 
 logger = logging.getLogger("ws_manager")
 
 
 # ==================== 连接管理器 ====================
+
 
 class ConnectionManager:
     """
@@ -42,19 +43,19 @@ class ConnectionManager:
     线程安全：所有写操作通过 asyncio 事件循环保证串行。
     """
 
-    HEARTBEAT_INTERVAL: float = 30.0   # 发送 ping 的间隔（秒）
-    HEARTBEAT_TIMEOUT: float = 60.0    # 超过此时间无 pong → 断开（秒）
-    DEFAULT_CHANNELS: Set[str] = frozenset({"#general"})
+    HEARTBEAT_INTERVAL: float = 30.0  # 发送 ping 的间隔（秒）
+    HEARTBEAT_TIMEOUT: float = 60.0  # 超过此时间无 pong → 断开（秒）
+    DEFAULT_CHANNELS: set[str] = frozenset({"#general"})
 
     def __init__(self) -> None:
         # agent_name → WebSocket 对象
-        self._connections: Dict[str, Any] = {}
+        self._connections: dict[str, Any] = {}
         # agent_name → 已订阅频道集合
-        self._subscriptions: Dict[str, Set[str]] = {}
+        self._subscriptions: dict[str, set[str]] = {}
         # agent_name → 最近一次收到 pong 的时间戳
-        self._last_pong: Dict[str, float] = {}
+        self._last_pong: dict[str, float] = {}
         # 心跳后台任务句柄
-        self._heartbeat_task: Optional[asyncio.Task] = None
+        self._heartbeat_task: asyncio.Task | None = None
 
     # ---------- 连接生命周期 ----------
 
@@ -67,11 +68,14 @@ class ConnectionManager:
         logger.info(f"[WS] {agent_name} 已连接，当前连接数: {len(self._connections)}")
 
         # 发送欢迎消息
-        await self._send_raw(agent_name, {
-            "type": "connected",
-            "agent": agent_name,
-            "channels": sorted(self._subscriptions[agent_name]),
-        })
+        await self._send_raw(
+            agent_name,
+            {
+                "type": "connected",
+                "agent": agent_name,
+                "channels": sorted(self._subscriptions[agent_name]),
+            },
+        )
 
     def disconnect(self, agent_name: str) -> None:
         """移除 WebSocket 连接"""
@@ -100,7 +104,7 @@ class ConnectionManager:
         logger.debug(f"[WS] {agent_name} 取消订阅 {channel}")
         return True
 
-    def get_subscriptions(self, agent_name: str) -> Set[str]:
+    def get_subscriptions(self, agent_name: str) -> set[str]:
         """获取指定 Agent 的订阅频道集合"""
         return set(self._subscriptions.get(agent_name, set()))
 
@@ -167,7 +171,8 @@ class ConnectionManager:
 
                 # 检查超时，清理死连接
                 timed_out = [
-                    agent for agent, last in self._last_pong.items()
+                    agent
+                    for agent, last in self._last_pong.items()
                     if now - last > self.HEARTBEAT_TIMEOUT
                 ]
                 for agent in timed_out:
@@ -195,10 +200,8 @@ class ConnectionManager:
         return {
             "total_connections": len(self._connections),
             "agents": sorted(self._connections.keys()),
-            "subscriptions": {
-                k: sorted(v) for k, v in self._subscriptions.items()
-            },
-            "uptime_seconds": None,   # 由调用方填写
+            "subscriptions": {k: sorted(v) for k, v in self._subscriptions.items()},
+            "uptime_seconds": None,  # 由调用方填写
         }
 
     def is_connected(self, agent_name: str) -> bool:
@@ -207,6 +210,7 @@ class ConnectionManager:
 
 
 # ==================== EventStream → WebSocket 桥接器 ====================
+
 
 class EventStreamWSBridge:
     """
@@ -225,7 +229,7 @@ class EventStreamWSBridge:
 
     def __init__(
         self,
-        stream: Any,            # EventStream 实例（避免循环导入用 Any）
+        stream: Any,  # EventStream 实例（避免循环导入用 Any）
         manager: ConnectionManager,
         default_channel: str = "#general",
     ) -> None:
@@ -240,6 +244,7 @@ class EventStreamWSBridge:
         """注册对 EventStream 所有 EventType 的订阅"""
         try:
             from event_stream import EventType
+
             for etype in EventType:
                 self.stream.subscribe_by_type(etype, self._on_event)
         except ImportError:
@@ -304,16 +309,17 @@ class EventStreamWSBridge:
 
 # ==================== FastAPI 路由工厂函数 ====================
 
+
 def create_ws_router(manager: ConnectionManager, get_agent_token_fn=None):
     """创建 WebSocket FastAPI Router（可挂载到现有 app）
 
     Args:
         manager: ConnectionManager 实例
         get_agent_token_fn: (agent_name: str) → str，获取 agent token 的回调
-    
+
     Returns:
         FastAPI APIRouter，包含 /ws/{agent_name} 端点和统计端点
-    
+
     用法:
         from fastapi import FastAPI
         app = FastAPI()
@@ -352,10 +358,7 @@ def create_ws_router(manager: ConnectionManager, get_agent_token_fn=None):
                 try:
                     msg = json.loads(raw)
                 except json.JSONDecodeError:
-                    await manager.send_to(agent_name, {
-                        "type": "error",
-                        "reason": "invalid JSON"
-                    })
+                    await manager.send_to(agent_name, {"type": "error", "reason": "invalid JSON"})
                     continue
 
                 msg_type = msg.get("type", "")
@@ -367,34 +370,41 @@ def create_ws_router(manager: ConnectionManager, get_agent_token_fn=None):
                     channel = msg.get("channel", "")
                     if channel:
                         manager.subscribe(agent_name, channel)
-                        await manager.send_to(agent_name, {
-                            "type": "subscribed",
-                            "channel": channel,
-                        })
+                        await manager.send_to(
+                            agent_name,
+                            {
+                                "type": "subscribed",
+                                "channel": channel,
+                            },
+                        )
 
                 elif msg_type == "unsubscribe":
                     channel = msg.get("channel", "")
                     if channel:
                         manager.unsubscribe(agent_name, channel)
-                        await manager.send_to(agent_name, {
-                            "type": "unsubscribed",
-                            "channel": channel,
-                        })
+                        await manager.send_to(
+                            agent_name,
+                            {
+                                "type": "unsubscribed",
+                                "channel": channel,
+                            },
+                        )
 
                 elif msg_type == "send":
                     # 通过桥 v6 REST API 转发（保持兼容）
                     channel = msg.get("channel", "#general")
                     content = msg.get("content", "")
                     if content:
-                        await _forward_to_bridge(
-                            agent_name, channel, content, get_agent_token_fn
-                        )
+                        await _forward_to_bridge(agent_name, channel, content, get_agent_token_fn)
 
                 else:
-                    await manager.send_to(agent_name, {
-                        "type": "error",
-                        "reason": f"unknown message type: {msg_type}",
-                    })
+                    await manager.send_to(
+                        agent_name,
+                        {
+                            "type": "error",
+                            "reason": f"unknown message type: {msg_type}",
+                        },
+                    )
 
         except WebSocketDisconnect:
             manager.disconnect(agent_name)
@@ -423,6 +433,7 @@ async def _forward_to_bridge(
     """将前端发送的消息通过桥 v6 REST API 转发"""
     try:
         import aiohttp  # 优先用异步 HTTP
+
         token = get_token_fn(agent_name) if get_token_fn else ""
         async with aiohttp.ClientSession() as session:
             await session.post(
@@ -436,8 +447,10 @@ async def _forward_to_bridge(
             )
     except ImportError:
         # aiohttp 不可用时降级到同步 requests（在 executor 中运行）
-        import requests
         import functools
+
+        import requests
+
         loop = asyncio.get_event_loop()
         token = get_token_fn(agent_name) if get_token_fn else ""
         await loop.run_in_executor(
@@ -460,6 +473,7 @@ async def _forward_to_bridge(
 
 # ==================== 集成到现有 bridge_v7_server 的挂载函数 ====================
 
+
 def mount_websocket_to_app(
     app: Any,
     event_stream: Any = None,
@@ -476,7 +490,7 @@ def mount_websocket_to_app(
         app:                现有 FastAPI 实例
         event_stream:       EventStream 实例（可选，传入后自动桥接）
         get_agent_token_fn: (agent_name) → token，用于转发消息
-    
+
     Returns:
         ConnectionManager 实例（可用于在业务逻辑中主动推送）
     """
@@ -503,5 +517,5 @@ def mount_websocket_to_app(
         manager.stop_heartbeat()
         logger.info("[WS] WebSocket 服务已停止")
 
-    logger.info(f"[WS] WebSocket 模块已挂载到 app")
+    logger.info("[WS] WebSocket 模块已挂载到 app")
     return manager

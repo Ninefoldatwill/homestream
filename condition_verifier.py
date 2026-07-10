@@ -18,25 +18,24 @@
 
 from __future__ import annotations
 
-import time
-import uuid
 import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from event_stream import (
     Event,
+    EventSource,
     EventStream,
     EventType,
-    EventSource,
     Observation,
     _gen_event_id,
 )
 
-
 # ==================== 枚举 & 数据类 ====================
+
 
 class StopCondition(Enum):
     """Agent 循环停止条件 — 对标 Claude Code Stop Hook
@@ -49,6 +48,7 @@ class StopCondition(Enum):
     - MAX_ITER: 循环上限（防止无限循环）
     - EXPERIMENT: 实验完成（Ratchet Loop实验目标达成，v7.3新增）
     """
+
     KAPPA = "kappa"
     PHI = "phi"
     EMPTY = "empty"
@@ -62,39 +62,42 @@ class VerifierConfig:
     """验证器配置 — Per-Worktree 独立，可通过 API 热更新"""
 
     # Kappa — 输出收敛
-    kappa_window: int = 3             # 连续 N 次输出无变化则停止
-    kappa_threshold: float = 0.95     # Jaccard 相似度阈值 (0-1)
+    kappa_window: int = 3  # 连续 N 次输出无变化则停止
+    kappa_threshold: float = 0.95  # Jaccard 相似度阈值 (0-1)
 
     # Phi — 目标达成
-    phi_required: bool = True         # 是否要求目标显式达成
+    phi_required: bool = True  # 是否要求目标显式达成
 
     # Error — 错误兜底
-    max_consecutive_errors: int = 3   # 连续 N 次错误则停止
+    max_consecutive_errors: int = 3  # 连续 N 次错误则停止
 
     # MaxIter — 循环上限
-    max_iterations: int = 50          # 最大迭代次数 (0=不限)
+    max_iterations: int = 50  # 最大迭代次数 (0=不限)
 
     # Empty — 空闲超时
-    empty_timeout: float = 30.0       # 无新 Action 超时秒数 (0=不启用)
+    empty_timeout: float = 30.0  # 无新 Action 超时秒数 (0=不启用)
 
     # 验证链开关
-    enable_deep_check: bool = True    # 是否执行深度检查
-    require_human_confirm: bool = False   # 高危操作需要人工确认
+    enable_deep_check: bool = True  # 是否执行深度检查
+    require_human_confirm: bool = False  # 高危操作需要人工确认
 
     # v7.3: Ratchet Loop实验模式
-    experiment_mode: bool = False              # 是否为实验模式
-    experiment_success_keywords: List[str] = field(default_factory=list)  # 实验成功关键词
-    experiment_fail_keywords: List[str] = field(default_factory=lambda: ["error", "failed", "exception"])  # 实验失败关键词
+    experiment_mode: bool = False  # 是否为实验模式
+    experiment_success_keywords: list[str] = field(default_factory=list)  # 实验成功关键词
+    experiment_fail_keywords: list[str] = field(
+        default_factory=lambda: ["error", "failed", "exception"]
+    )  # 实验失败关键词
 
 
 @dataclass
 class VerificationResult:
     """单次验证结果"""
+
     condition: StopCondition
-    should_stop: bool               # True → 允许停止，False → 强制继续
-    confidence: float               # 停止置信度 (0-1)
-    reason: str                     # 人类可读说明
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    should_stop: bool  # True → 允许停止，False → 强制继续
+    confidence: float  # 停止置信度 (0-1)
+    reason: str  # 人类可读说明
+    metadata: dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
 
     def __repr__(self) -> str:
@@ -106,6 +109,7 @@ class VerificationResult:
 
 
 # ==================== 核心验证器 ====================
+
 
 class ConditionVerifier:
     """
@@ -126,17 +130,17 @@ class ConditionVerifier:
       _state["last_outputs"]        # 最近 N 次内容（Kappa 检测）
     """
 
-    def __init__(self, config: Optional[VerifierConfig] = None):
+    def __init__(self, config: VerifierConfig | None = None):
         self.config = config or VerifierConfig()
-        self._state: Dict[str, Any] = self._initial_state()
-        self._custom_checkers: List[Callable] = []
+        self._state: dict[str, Any] = self._initial_state()
+        self._custom_checkers: list[Callable] = []
         self._lock = threading.Lock()
 
     # ---------- 公开 API ----------
 
     def register_checker(self, checker: Callable) -> None:
         """注册自定义验证器（可扩展钩子）
-        
+
         签名: checker(stream: EventStream, state: dict) -> Optional[VerificationResult]
         返回 None 表示该检查器未命中，继续下一个
         """
@@ -146,10 +150,10 @@ class ConditionVerifier:
     def check(
         self,
         stream: EventStream,
-        worktree_name: Optional[str] = None,
+        worktree_name: str | None = None,
     ) -> VerificationResult:
         """执行完整验证链 — 每次 DONE Action 后调用
-        
+
         Returns:
             VerificationResult:
               - should_stop=True  → Agent 可以停止
@@ -192,7 +196,7 @@ class ConditionVerifier:
 
     def notify_action(self, action_type: str, content: str = "") -> None:
         """Agent 循环中每次 Action 执行后调用 — 更新内部状态
-        
+
         - action_type="ERROR"  → 连续错误计数 +1
         - 其他                 → 清零连续错误计数
         - content 非空         → 追加到最近输出窗口（Kappa 检测用）
@@ -213,7 +217,7 @@ class ConditionVerifier:
         with self._lock:
             self._state = self._initial_state()
 
-    def dump_state(self) -> Dict[str, Any]:
+    def dump_state(self) -> dict[str, Any]:
         """导出可序列化的状态快照（用于 WAL 持久化）"""
         with self._lock:
             return {
@@ -223,20 +227,18 @@ class ConditionVerifier:
                 "last_action_time": self._state["last_action_time"],
             }
 
-    def load_state(self, snapshot: Dict[str, Any]) -> None:
+    def load_state(self, snapshot: dict[str, Any]) -> None:
         """从 WAL 快照恢复状态（重启后调用）"""
         with self._lock:
             self._state["iteration"] = snapshot.get("iteration", 0)
             self._state["consecutive_errors"] = snapshot.get("consecutive_errors", 0)
-            self._state["last_action_time"] = snapshot.get(
-                "last_action_time", time.time()
-            )
+            self._state["last_action_time"] = snapshot.get("last_action_time", time.time())
             # last_outputs 不持久化（内容较长，仅恢复计数即可）
 
     # ---------- 内部方法 ----------
 
     @staticmethod
-    def _initial_state() -> Dict[str, Any]:
+    def _initial_state() -> dict[str, Any]:
         return {
             "iteration": 0,
             "consecutive_errors": 0,
@@ -244,7 +246,7 @@ class ConditionVerifier:
             "last_outputs": [],
         }
 
-    def _quick_check(self) -> Optional[VerificationResult]:
+    def _quick_check(self) -> VerificationResult | None:
         """快速检查 — O(1)，检查迭代计数 / 错误计数 / 空闲超时"""
         with self._lock:
             iteration = self._state["iteration"]
@@ -283,24 +285,19 @@ class ConditionVerifier:
 
         return None
 
-    def _deep_check(self, stream: EventStream) -> Optional[VerificationResult]:
+    def _deep_check(self, stream: EventStream) -> VerificationResult | None:
         """深度检查 — O(n)，分析 EventStream 历史"""
         recent = stream.events[-20:] if stream.events else []
 
         # PHI — 目标达成：最近事件中有 DONE 且无未完成 TASK/ASK
         done_events = [e for e in recent if e.event_type == EventType.DONE]
-        pending_tasks = [
-            e for e in recent
-            if e.event_type in (EventType.TASK, EventType.ASK)
-        ]
+        pending_tasks = [e for e in recent if e.event_type in (EventType.TASK, EventType.ASK)]
         # 检查 DONE 后是否有新 TASK（即新任务已分配）
         done_after_task = False
         if done_events and pending_tasks:
             last_done_ts = max(e.timestamp for e in done_events)
             # 如果所有 TASK 都早于最后一个 DONE，说明均已被 DONE 覆盖
-            pending_after_done = [
-                e for e in pending_tasks if e.timestamp > last_done_ts
-            ]
+            pending_after_done = [e for e in pending_tasks if e.timestamp > last_done_ts]
             done_after_task = len(pending_after_done) == 0
 
         if done_events and (not pending_tasks or done_after_task):
@@ -316,7 +313,7 @@ class ConditionVerifier:
         with self._lock:
             last_outputs = list(self._state["last_outputs"])
         if len(last_outputs) >= self.config.kappa_window:
-            window = last_outputs[-self.config.kappa_window:]
+            window = last_outputs[-self.config.kappa_window :]
             if self._check_convergence(window):
                 return VerificationResult(
                     condition=StopCondition.KAPPA,
@@ -337,7 +334,7 @@ class ConditionVerifier:
 
         return None
 
-    def _check_experiment(self, outputs: List[str]) -> Optional[VerificationResult]:
+    def _check_experiment(self, outputs: list[str]) -> VerificationResult | None:
         """实验模式检查 — 检测实验成功/失败关键词
 
         v7.3新增：Ratchet Loop实验工坊专用
@@ -373,7 +370,7 @@ class ConditionVerifier:
 
         return None
 
-    def _check_convergence(self, outputs: List[str]) -> bool:
+    def _check_convergence(self, outputs: list[str]) -> bool:
         """检测输出列表是否已收敛（相邻两条相似度均高于阈值）"""
         if len(outputs) < 2:
             return False
@@ -398,6 +395,7 @@ class ConditionVerifier:
 
 # ==================== EventStream 订阅集成 ====================
 
+
 class VerifierSubscriber:
     """
     验证器订阅者 — 监听 EventStream 中的 DONE 事件，触发条件验证
@@ -415,8 +413,8 @@ class VerifierSubscriber:
     def __init__(
         self,
         stream: EventStream,
-        verifier: Optional[ConditionVerifier] = None,
-        config: Optional[VerifierConfig] = None,
+        verifier: ConditionVerifier | None = None,
+        config: VerifierConfig | None = None,
     ):
         self.stream = stream
         self.verifier = verifier or ConditionVerifier(config)
@@ -480,9 +478,7 @@ class VerifierSubscriber:
                 sender=self.VERIFIER_AGENT_NAME,
                 recipient=event.sender,
                 source=EventSource.ENVIRONMENT,
-                content=(
-                    f"[CONTINUE] {result.reason}，请继续执行"
-                ),
+                content=(f"[CONTINUE] {result.reason}，请继续执行"),
                 cause=event.event_id,
                 confidence=1.0 - result.confidence,
             )
@@ -491,6 +487,7 @@ class VerifierSubscriber:
 
 
 # ==================== WAL 集成混入 ====================
+
 
 class WALVerifierMixin:
     """WAL 验证器混入 — 为持有 WAL 的类提供验证器状态持久化能力
@@ -508,7 +505,7 @@ class WALVerifierMixin:
         update_fn: Callable[[str, str, Any], None],
     ) -> None:
         """将验证器状态写入 WAL session_state 字段
-        
+
         Args:
             session_id: WAL Session ID
             verifier:   ConditionVerifier 实例
@@ -520,15 +517,15 @@ class WALVerifierMixin:
         self,
         session_id: str,
         verifier: ConditionVerifier,
-        get_fn: Callable[[str, str], Optional[Dict]],
+        get_fn: Callable[[str, str], dict | None],
     ) -> bool:
         """从 WAL 恢复验证器状态
-        
+
         Args:
             session_id: WAL Session ID
             verifier:   ConditionVerifier 实例（原地修改）
             get_fn:     (session_id, field_name) → Any，调用方提供
-        
+
         Returns:
             True 如果成功恢复，False 如果无记录
         """
@@ -540,6 +537,7 @@ class WALVerifierMixin:
 
 
 # ==================== 便捷工厂函数 ====================
+
 
 def create_default_verifier() -> ConditionVerifier:
     """创建默认配置的条件验证器"""
@@ -577,8 +575,8 @@ def create_lenient_verifier() -> ConditionVerifier:
 def create_experiment_verifier(
     max_iterations: int = 10,
     timeout: float = 300.0,
-    success_keywords: Optional[List[str]] = None,
-    fail_keywords: Optional[List[str]] = None,
+    success_keywords: list[str] | None = None,
+    fail_keywords: list[str] | None = None,
 ) -> ConditionVerifier:
     """创建Ratchet Loop实验模式验证器（v7.3新增）
 
@@ -611,10 +609,10 @@ def create_experiment_verifier(
 
 def attach_verifier_to_stream(
     stream: EventStream,
-    config: Optional[VerifierConfig] = None,
+    config: VerifierConfig | None = None,
 ) -> VerifierSubscriber:
     """将验证器绑定到 EventStream（一行搞定集成）
-    
+
     用法:
         stream = EventStream("session-001")
         subscriber = attach_verifier_to_stream(stream)

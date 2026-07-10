@@ -12,17 +12,21 @@ SkillRouter v2 双层路由测试
   8. 空查询处理
 """
 
-import pytest
 import os
-from skill_router_v2 import (
-    SkillRouterV2, RouteResultV2, create_router_v2,
-    CATEGORY_MODEL_MAP, CATEGORY_REASON,
-)
-from skill_router import SkillEntry
-from providers.base_provider import ProviderTier
 
+import pytest
+
+from providers.base_provider import ProviderTier
+from skill_router_v2 import (
+    CATEGORY_MODEL_MAP,
+    CATEGORY_REASON,
+    RouteResultV2,
+    SkillRouterV2,
+    create_router_v2,
+)
 
 # ─── Fixtures ───────────────────────────────────────────────
+
 
 @pytest.fixture
 def router():
@@ -35,24 +39,45 @@ def router():
 def empty_router():
     """空Router（手动注入Skill）"""
     r = SkillRouterV2()
-    r.load_dict({
-        "version": "2.0.0-test",
-        "skills": [
-            {"id": "test-research", "name": "Test Research", "category": "research",
-             "priority": 0, "role": "灵犀", "triggers": ["调研", "research"],
-             "description": "测试用研究技能"},
-            {"id": "test-auto", "name": "Test Auto", "category": "automation",
-             "priority": 0, "role": "澜舟", "triggers": ["自动化", "browser"],
-             "description": "测试用自动化技能"},
-            {"id": "test-content", "name": "Test Content", "category": "content",
-             "priority": 1, "role": "澜澜", "triggers": ["写作", "article"],
-             "description": "测试用内容技能"},
-        ],
-    })
+    r.load_dict(
+        {
+            "version": "2.0.0-test",
+            "skills": [
+                {
+                    "id": "test-research",
+                    "name": "Test Research",
+                    "category": "research",
+                    "priority": 0,
+                    "role": "灵犀",
+                    "triggers": ["调研", "research"],
+                    "description": "测试用研究技能",
+                },
+                {
+                    "id": "test-auto",
+                    "name": "Test Auto",
+                    "category": "automation",
+                    "priority": 0,
+                    "role": "澜舟",
+                    "triggers": ["自动化", "browser"],
+                    "description": "测试用自动化技能",
+                },
+                {
+                    "id": "test-content",
+                    "name": "Test Content",
+                    "category": "content",
+                    "priority": 1,
+                    "role": "澜澜",
+                    "triggers": ["写作", "article"],
+                    "description": "测试用内容技能",
+                },
+            ],
+        }
+    )
     return r
 
 
 # ─── 1. 基础路由测试 ────────────────────────────────────────
+
 
 class TestBasicRouting:
     """基础双层路由"""
@@ -88,22 +113,26 @@ class TestBasicRouting:
 
 # ─── 2. 分类→模型映射测试 ──────────────────────────────────
 
+
 class TestCategoryModelMap:
     """分类到模型的映射覆盖"""
 
-    @pytest.mark.parametrize("category,expected_tier", [
-        ("automation", ProviderTier.L1),
-        ("research", ProviderTier.L3),
-        ("content", ProviderTier.L2),
-        ("knowledge", ProviderTier.L1),
-        ("meta", ProviderTier.L1),
-        ("media", ProviderTier.L1),
-        ("design", ProviderTier.L2),
-        ("education", ProviderTier.L3),
-        ("collaboration", ProviderTier.L1),
-        ("information", ProviderTier.L2),
-        ("productivity", ProviderTier.L1),
-    ])
+    @pytest.mark.parametrize(
+        "category,expected_tier",
+        [
+            ("automation", ProviderTier.L1),
+            ("research", ProviderTier.L3),
+            ("content", ProviderTier.L2),
+            ("knowledge", ProviderTier.L1),
+            ("meta", ProviderTier.L1),
+            ("media", ProviderTier.L1),
+            ("design", ProviderTier.L2),
+            ("education", ProviderTier.L3),
+            ("collaboration", ProviderTier.L1),
+            ("information", ProviderTier.L2),
+            ("productivity", ProviderTier.L1),
+        ],
+    )
     def test_all_categories_mapped(self, category, expected_tier):
         """所有分类都有正确的tier映射"""
         assert CATEGORY_MODEL_MAP[category] == expected_tier
@@ -123,6 +152,7 @@ class TestCategoryModelMap:
 
 
 # ─── 3. 角色过滤测试 ────────────────────────────────────────
+
 
 class TestRoleFiltering:
     """角色过滤确保只推荐该角色可用的Skill"""
@@ -149,6 +179,7 @@ class TestRoleFiltering:
 
 # ─── 4. 全局锁定 + 分类覆盖测试 ────────────────────────────
 
+
 class TestModelOverride:
     """模型层级覆盖机制"""
 
@@ -172,14 +203,13 @@ class TestModelOverride:
 
     def test_force_tier_in_call(self, router):
         """调用时强制指定tier"""
-        result = router.route_with_model(
-            "调研", role="all", force_tier=ProviderTier.L1
-        )
+        result = router.route_with_model("调研", role="all", force_tier=ProviderTier.L1)
         assert result.model_tier == ProviderTier.L1
         assert result.model_tier_locked is True
 
 
 # ─── 5. 批量路由测试 ────────────────────────────────────────
+
 
 class TestBatchRouting:
     """批量路由"""
@@ -200,6 +230,7 @@ class TestBatchRouting:
 
 
 # ─── 6. 序列化测试 ──────────────────────────────────────────
+
 
 class TestSerialization:
     """to_dict序列化"""
@@ -239,6 +270,7 @@ class TestSerialization:
 
 # ─── 7. 降级策略测试 ────────────────────────────────────────
 
+
 class TestFallback:
     """降级策略"""
 
@@ -257,6 +289,7 @@ class TestFallback:
 
 
 # ─── 8. explain方法测试 ────────────────────────────────────
+
 
 class TestExplain:
     """explain方法"""

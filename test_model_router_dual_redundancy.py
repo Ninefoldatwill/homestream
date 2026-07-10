@@ -8,19 +8,23 @@
   4. 正常流程：主线路成功，不触发复线
 """
 
-import os
-import sys
 import asyncio
 import logging
-from unittest.mock import AsyncMock, patch
+import os
+import sys
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(__file__))
 
-from model_router import ModelRouter, RouterStrategy, DualRedundancyConfig, ProviderTier
+from model_router import DualRedundancyConfig, ModelRouter, ProviderTier
 from providers.base_provider import (
-    BaseProvider, ProviderConfig, ProviderType, ProviderTier,
-    ChatMessage, ChatResponse, ProviderError, ProviderStatus,
+    BaseProvider,
+    ChatMessage,
+    ChatResponse,
+    ProviderConfig,
+    ProviderError,
+    ProviderTier,
+    ProviderType,
 )
 
 logging.basicConfig(level=logging.DEBUG)
@@ -29,7 +33,9 @@ logging.basicConfig(level=logging.DEBUG)
 class MockProvider(BaseProvider):
     """模拟Provider，用于测试"""
 
-    def __init__(self, name: str, tier: ProviderTier, should_fail: bool = False, should_timeout: bool = False):
+    def __init__(
+        self, name: str, tier: ProviderTier, should_fail: bool = False, should_timeout: bool = False
+    ):
         config = ProviderConfig(
             name=name,
             display_name=name,

@@ -6,16 +6,15 @@ skill_validator.py — SKILL.md 标准校验器
 
 九重生态 · 澜舟开发 · 2026-07-02
 """
+
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
 import yaml
-
 
 # ─── 常量 ─────────────────────────────────────────────────────
 
@@ -31,6 +30,7 @@ OPTIONAL_FIELDS = {"license", "compatibility", "metadata", "allowed-tools"}
 
 # ─── 数据模型 ──────────────────────────────────────────────────
 
+
 @dataclass
 class SkillValidationIssue:
     level: str  # error | warning | info
@@ -41,14 +41,15 @@ class SkillValidationIssue:
 @dataclass
 class SkillManifest:
     """SKILL.md 的 YAML frontmatter 元数据"""
+
     name: str
     description: str
-    license: Optional[str] = None
-    compatibility: Optional[str] = None
+    license: str | None = None
+    compatibility: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
-    allowed_tools: Optional[List[str]] = None
+    allowed_tools: list[str] | None = None
     body: str = ""  # YAML 之后的 markdown 正文
-    path: Optional[Path] = None
+    path: Path | None = None
 
     @property
     def estimated_tokens(self) -> int:
@@ -66,9 +67,11 @@ class SkillValidator:
 
     def __init__(self, strict: bool = False):
         self.strict = strict
-        self.issues: List[SkillValidationIssue] = []
+        self.issues: list[SkillValidationIssue] = []
 
-    def validate(self, skill_path: Path | str) -> tuple[SkillManifest | None, List[SkillValidationIssue]]:
+    def validate(
+        self, skill_path: Path | str
+    ) -> tuple[SkillManifest | None, list[SkillValidationIssue]]:
         """校验一个 SKILL.md 文件，返回 (manifest, issues)"""
         self.issues = []
         path = Path(skill_path)
@@ -97,7 +100,9 @@ class SkillValidator:
 
         parts = raw.split("---", 2)
         if len(parts) < 3:
-            self.issues.append(SkillValidationIssue("error", "frontmatter", "缺少 YAML frontmatter 结束标记"))
+            self.issues.append(
+                SkillValidationIssue("error", "frontmatter", "缺少 YAML frontmatter 结束标记")
+            )
             return None
 
         yaml_text = parts[1].strip()
@@ -133,23 +138,31 @@ class SkillValidator:
         if not manifest.name:
             self.issues.append(SkillValidationIssue("error", "name", "name 必填"))
         elif not RE_NAME.match(manifest.name):
-            self.issues.append(SkillValidationIssue(
-                "error", "name",
-                f"name '{manifest.name}' 必须是小写字母/数字/连字符，且不能首尾连字符"
-            ))
+            self.issues.append(
+                SkillValidationIssue(
+                    "error",
+                    "name",
+                    f"name '{manifest.name}' 必须是小写字母/数字/连字符，且不能首尾连字符",
+                )
+            )
         elif len(manifest.name) > MAX_NAME_LEN:
-            self.issues.append(SkillValidationIssue("error", "name", f"name 长度超过 {MAX_NAME_LEN}"))
+            self.issues.append(
+                SkillValidationIssue("error", "name", f"name 长度超过 {MAX_NAME_LEN}")
+            )
 
         # description
         if not manifest.description:
             self.issues.append(SkillValidationIssue("error", "description", "description 必填"))
         elif len(manifest.description) > MAX_DESC_LEN:
-            self.issues.append(SkillValidationIssue("error", "description", f"description 长度超过 {MAX_DESC_LEN}"))
+            self.issues.append(
+                SkillValidationIssue("error", "description", f"description 长度超过 {MAX_DESC_LEN}")
+            )
         elif "做什么" not in manifest.description and "when" not in manifest.description.lower():
-            self.issues.append(SkillValidationIssue(
-                "warning", "description",
-                "description 建议包含'做什么'和'何时使用'"
-            ))
+            self.issues.append(
+                SkillValidationIssue(
+                    "warning", "description", "description 建议包含'做什么'和'何时使用'"
+                )
+            )
 
         # license
         if manifest.license and len(manifest.license) > 64:
@@ -157,55 +170,74 @@ class SkillValidator:
 
         # compatibility
         if manifest.compatibility and len(manifest.compatibility) > MAX_COMPAT_LEN:
-            self.issues.append(SkillValidationIssue("error", "compatibility", f"compatibility 超过 {MAX_COMPAT_LEN}"))
+            self.issues.append(
+                SkillValidationIssue(
+                    "error", "compatibility", f"compatibility 超过 {MAX_COMPAT_LEN}"
+                )
+            )
 
         # metadata
         if not isinstance(manifest.metadata, dict):
-            self.issues.append(SkillValidationIssue("error", "metadata", "metadata 必须是 key-value 对象"))
+            self.issues.append(
+                SkillValidationIssue("error", "metadata", "metadata 必须是 key-value 对象")
+            )
 
         # allowed-tools
         if manifest.allowed_tools is not None and not isinstance(manifest.allowed_tools, list):
-            self.issues.append(SkillValidationIssue("error", "allowed-tools", "allowed-tools 必须是列表"))
+            self.issues.append(
+                SkillValidationIssue("error", "allowed-tools", "allowed-tools 必须是列表")
+            )
 
         # 未知字段警告
         known = REQUIRED_FIELDS | OPTIONAL_FIELDS
-        for key in (manifest.metadata.keys() if isinstance(manifest.metadata, dict) else []):
+        for key in manifest.metadata.keys() if isinstance(manifest.metadata, dict) else []:
             pass  # metadata 内任意
         # 这里只校验 frontmatter 顶层，已由 yaml 解析为 dict
 
     def _validate_body(self, manifest: SkillManifest) -> None:
         """校验 markdown 正文"""
         if not manifest.body.strip():
-            self.issues.append(SkillValidationIssue("warning", "body", "正文为空，建议补充 Instructions"))
+            self.issues.append(
+                SkillValidationIssue("warning", "body", "正文为空，建议补充 Instructions")
+            )
             return
 
         if "# " not in manifest.body and "## " not in manifest.body:
-            self.issues.append(SkillValidationIssue("warning", "body", "正文缺少 Markdown 标题层级"))
+            self.issues.append(
+                SkillValidationIssue("warning", "body", "正文缺少 Markdown 标题层级")
+            )
 
         tokens = manifest.estimated_tokens
         if tokens > MAX_BODY_TOKENS_ESTIMATE:
-            self.issues.append(SkillValidationIssue(
-                "warning", "body",
-                f"正文估算约 {tokens} tokens，建议拆分到 references/ 子目录（主文件 <5000 tokens）"
-            ))
+            self.issues.append(
+                SkillValidationIssue(
+                    "warning",
+                    "body",
+                    f"正文估算约 {tokens} tokens，建议拆分到 references/ 子目录（主文件 <5000 tokens）",
+                )
+            )
 
     def _validate_directory_structure(self, path: Path, manifest: SkillManifest) -> None:
         """校验目录结构是否符合 agentskills.io 标准"""
         skill_dir = path.parent
         expected_name = skill_dir.name
         if manifest.name != expected_name:
-            self.issues.append(SkillValidationIssue(
-                "error", "directory",
-                f"name '{manifest.name}' 必须匹配目录名 '{expected_name}'"
-            ))
+            self.issues.append(
+                SkillValidationIssue(
+                    "error", "directory", f"name '{manifest.name}' 必须匹配目录名 '{expected_name}'"
+                )
+            )
 
         # 建议存在 scripts/ 或 references/ 或 assets/ 中的一个，不强求
         has_subdir = any((skill_dir / d).is_dir() for d in ("scripts", "references", "assets"))
         if self.strict and not has_subdir:
-            self.issues.append(SkillValidationIssue(
-                "warning", "directory",
-                "严格模式下建议包含 scripts/、references/ 或 assets/ 子目录"
-            ))
+            self.issues.append(
+                SkillValidationIssue(
+                    "warning",
+                    "directory",
+                    "严格模式下建议包含 scripts/、references/ 或 assets/ 子目录",
+                )
+            )
 
 
 class SkillRegistryScanner:
@@ -216,9 +248,9 @@ class SkillRegistryScanner:
     def __init__(self, skills_root: Path | str, strict: bool = False):
         self.skills_root = Path(skills_root)
         self.validator = SkillValidator(strict=strict)
-        self.results: dict[str, tuple[SkillManifest | None, List[SkillValidationIssue]]] = {}
+        self.results: dict[str, tuple[SkillManifest | None, list[SkillValidationIssue]]] = {}
 
-    def scan(self) -> dict[str, tuple[SkillManifest | None, List[SkillValidationIssue]]]:
+    def scan(self) -> dict[str, tuple[SkillManifest | None, list[SkillValidationIssue]]]:
         """扫描并返回所有结果"""
         self.results = {}
         if not self.skills_root.exists():
@@ -238,16 +270,13 @@ class SkillRegistryScanner:
     def summary(self) -> dict[str, int]:
         """返回统计信息"""
         error_count = sum(
-            1 for _, issues in self.results.values()
-            for issue in issues if issue.level == "error"
+            1 for _, issues in self.results.values() for issue in issues if issue.level == "error"
         )
         warning_count = sum(
-            1 for _, issues in self.results.values()
-            for issue in issues if issue.level == "warning"
+            1 for _, issues in self.results.values() for issue in issues if issue.level == "warning"
         )
         valid_count = sum(
-            1 for _, issues in self.results.values()
-            if not any(i.level == "error" for i in issues)
+            1 for _, issues in self.results.values() if not any(i.level == "error" for i in issues)
         )
         return {
             "total": len(self.results),
@@ -259,12 +288,17 @@ class SkillRegistryScanner:
 
 # ─── 便捷函数 ──────────────────────────────────────────────────
 
-def validate_skill(skill_path: Path | str, strict: bool = False) -> tuple[SkillManifest | None, List[SkillValidationIssue]]:
+
+def validate_skill(
+    skill_path: Path | str, strict: bool = False
+) -> tuple[SkillManifest | None, list[SkillValidationIssue]]:
     """便捷函数：校验单个 SKILL.md"""
     return SkillValidator(strict=strict).validate(skill_path)
 
 
-def scan_skills(skills_root: Path | str, strict: bool = False) -> dict[str, tuple[SkillManifest | None, List[SkillValidationIssue]]]:
+def scan_skills(
+    skills_root: Path | str, strict: bool = False
+) -> dict[str, tuple[SkillManifest | None, list[SkillValidationIssue]]]:
     """便捷函数：扫描 skills 目录"""
     return SkillRegistryScanner(skills_root, strict=strict).scan()
 

@@ -14,15 +14,15 @@
 作者: 澜舟
 """
 
-import sys
 import os
-import json
-import re
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi.testclient import TestClient
-from bridge_v7_server import app, CHANNELS, _detect_task_intent
-from config import AGENT_TOKENS, AGENT_NAMES
+
+from bridge_v7_server import _detect_task_intent, app
+from config import AGENT_NAMES, AGENT_TOKENS
 
 client = TestClient(app)
 
@@ -32,12 +32,15 @@ _REAL_TOKEN_MAP = dict(AGENT_TOKENS)  # {token: agent_name}
 # 反向映射：agent_name → token
 _AGENT_TOKEN_BY_NAME = dict(AGENT_NAMES)  # {agent_name: token}
 
+
 # 获取特定Agent的真实token
 def _get_token(agent_name: str) -> str:
     """获取指定Agent的真实token，若无则用sender字段兜底"""
     return _AGENT_TOKEN_BY_NAME.get(agent_name, "")
 
+
 # ==================== 测试1: 频道列表 ====================
+
 
 def test_list_channels():
     """GET /api/v7/channels — 频道列表"""
@@ -58,6 +61,7 @@ def test_list_channels():
 
 
 # ==================== 测试2: 频道广播发送 ====================
+
 
 def test_channel_send_basic():
     """POST /api/v7/channels/send — 频道广播"""
@@ -155,19 +159,23 @@ def test_channel_send_with_mention():
 
 # ==================== 测试3: Kanban回调 ====================
 
+
 def test_kanban_callback():
     """POST /api/v7/callback/kanban — Kanban状态变更回调"""
-    resp = client.post("/api/v7/callback/kanban", json={
-        "event": "task.status_changed",
-        "task": {
-            "id": "task-001",
-            "title": "会议室闭环",
-            "status": "done",
-            "assignee": "澜舟",
-            "result": "3端点130行，完成!",
+    resp = client.post(
+        "/api/v7/callback/kanban",
+        json={
+            "event": "task.status_changed",
+            "task": {
+                "id": "task-001",
+                "title": "会议室闭环",
+                "status": "done",
+                "assignee": "澜舟",
+                "result": "3端点130行，完成!",
+            },
+            "channel": "#tech",
         },
-        "channel": "#tech",
-    })
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "processed"
@@ -181,16 +189,19 @@ def test_kanban_callback():
 
 def test_kanban_callback_created():
     """Kanban回调 — 任务创建"""
-    resp = client.post("/api/v7/callback/kanban", json={
-        "event": "task.created",
-        "task": {
-            "id": "task-002",
-            "title": "GLM-5.2调研",
-            "status": "triage",
-            "assignee": "灵犀",
+    resp = client.post(
+        "/api/v7/callback/kanban",
+        json={
+            "event": "task.created",
+            "task": {
+                "id": "task-002",
+                "title": "GLM-5.2调研",
+                "status": "triage",
+                "assignee": "灵犀",
+            },
+            "channel": "#tech",
         },
-        "channel": "#tech",
-    })
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "processed"
@@ -211,6 +222,7 @@ def test_kanban_callback_history():
 
 # ==================== 测试4: 会议室前端 ====================
 
+
 def test_meeting_room_page():
     """GET /meeting — 会议室前端页面"""
     resp = client.get("/meeting")
@@ -222,6 +234,7 @@ def test_meeting_room_page():
 
 
 # ==================== 测试5: 任务意图检测 ====================
+
 
 def test_detect_task_intent():
     """任务意图检测（复用v6逻辑）"""
@@ -247,6 +260,7 @@ def test_detect_task_intent():
 
 # ==================== 测试6: 根端点更新验证 ====================
 
+
 def test_root_endpoints():
     """根端点返回V8仪表盘HTML（含会议室/书阁入口）"""
     resp = client.get("/")
@@ -261,15 +275,19 @@ def test_root_endpoints():
 
 # ==================== 测试7: Agent识别+频道路由组合 ====================
 
+
 def test_agent_token_in_channel_send():
     """各Agent Token在频道发送中的识别"""
     # 从config动态获取真实token→agent映射
     for token, expected_agent in _REAL_TOKEN_MAP.items():
-        resp = client.post("/api/v7/channels/send", json={
-            "token": token,
-            "content": f"测试消息 from {expected_agent}",
-            "channel": "#general",
-        })
+        resp = client.post(
+            "/api/v7/channels/send",
+            json={
+                "token": token,
+                "content": f"测试消息 from {expected_agent}",
+                "channel": "#general",
+            },
+        )
         assert resp.status_code == 200
         assert resp.json()["sender"] == expected_agent
 

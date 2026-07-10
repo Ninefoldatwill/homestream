@@ -11,25 +11,29 @@ test_event_store.py — EventStore SQLite 持久化层单元测试
 - 统计信息
 """
 
-import pytest
-import tempfile
 import os
+import tempfile
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from event_stream import (
-    EventStream, Event, Action, Observation,
-    EventType, EventSource,
-    create_action, create_task_action, create_done_action,
-    create_observation, _gen_event_id,
-)
+import pytest
+
 from event_store import (
-    EventStore, PersistentEventStreamMixin, make_persistent_stream,
-    DEFAULT_PAGE_SIZE,
+    EventStore,
+    make_persistent_stream,
 )
-
+from event_stream import (
+    Action,
+    EventStream,
+    EventType,
+    Observation,
+    create_action,
+    create_done_action,
+    create_observation,
+)
 
 # ==================== fixtures ====================
+
 
 @pytest.fixture
 def tmp_db():
@@ -51,19 +55,16 @@ def stream(tmp_db):
     return make_persistent_stream("test", db_path=tmp_db, replay=False)
 
 
-def _make_action(sender="澜舟", recipient="澜澜",
-                 etype=EventType.INFO, content="测试") -> Action:
-    return create_action(sender=sender, recipient=recipient,
-                         event_type=etype, content=content)
+def _make_action(sender="澜舟", recipient="澜澜", etype=EventType.INFO, content="测试") -> Action:
+    return create_action(sender=sender, recipient=recipient, event_type=etype, content=content)
 
 
-def _make_obs(sender="System", recipient="澜舟",
-              etype=EventType.ACK, content="ok") -> Observation:
-    return create_observation(sender=sender, recipient=recipient,
-                              event_type=etype, content=content)
+def _make_obs(sender="System", recipient="澜舟", etype=EventType.ACK, content="ok") -> Observation:
+    return create_observation(sender=sender, recipient=recipient, event_type=etype, content=content)
 
 
 # ==================== 1. 初始化 ====================
+
 
 class TestInit:
     def test_db_file_created(self, store, tmp_db):
@@ -71,20 +72,18 @@ class TestInit:
 
     def test_table_exists(self, store, tmp_db):
         import sqlite3
+
         conn = sqlite3.connect(tmp_db)
-        tables = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         names = {t[0] for t in tables}
         assert "events" in names
         conn.close()
 
     def test_indexes_created(self, store, tmp_db):
         import sqlite3
+
         conn = sqlite3.connect(tmp_db)
-        idxs = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='index'"
-        ).fetchall()
+        idxs = conn.execute("SELECT name FROM sqlite_master WHERE type='index'").fetchall()
         idx_names = {i[0] for i in idxs}
         assert "idx_events_session" in idx_names
         assert "idx_events_recipient" in idx_names
@@ -100,6 +99,7 @@ class TestInit:
 
 
 # ==================== 2. 写入 ====================
+
 
 class TestWrite:
     def test_write_action(self, store):
@@ -129,7 +129,8 @@ class TestWrite:
 
     def test_write_with_handoff(self, store):
         event = create_done_action(
-            sender="澜舟", recipient="澜澜",
+            sender="澜舟",
+            recipient="澜澜",
             task_id="T001",
             what_done="完成测试",
             where_artifacts=["test.py"],
@@ -158,6 +159,7 @@ class TestWrite:
 
 
 # ==================== 3. 查询 ====================
+
 
 class TestQuery:
     def _fill(self, store, n=5, session="default"):
@@ -250,6 +252,7 @@ class TestQuery:
 
 # ==================== 4. 因果链 ====================
 
+
 class TestCauseChain:
     def test_chain_single(self, store):
         e = _make_action()
@@ -294,6 +297,7 @@ class TestCauseChain:
 
 # ==================== 5. 回放 ====================
 
+
 class TestReplay:
     def test_replay_empty(self, store, tmp_db):
         """DB 空时回放不报错"""
@@ -335,6 +339,7 @@ class TestReplay:
 
 
 # ==================== 6. PersistentEventStreamMixin ====================
+
 
 class TestPersistentMixin:
     def test_publish_auto_persists(self, tmp_db):
@@ -387,6 +392,7 @@ class TestPersistentMixin:
 
 # ==================== 7. 统计 ====================
 
+
 class TestStats:
     def test_stats_empty(self, store):
         s = store.stats()
@@ -429,7 +435,9 @@ class TestStats:
 # ==================== 入口 ====================
 
 if __name__ == "__main__":
-    import subprocess, sys
+    import subprocess
+    import sys
+
     result = subprocess.run(
         [sys.executable, "-m", "pytest", __file__, "-v", "--tb=short"],
         cwd=os.path.dirname(__file__) or ".",

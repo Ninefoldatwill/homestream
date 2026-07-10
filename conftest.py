@@ -7,8 +7,8 @@ conftest.py — pytest 全局配置与共享 fixture
 3. 提供 `work_dir` fixture — 项目内临时目录（绕过 sandbox rmtree 拦截）
 """
 
-import sys
 import os
+import sys
 import uuid
 from pathlib import Path
 
@@ -24,6 +24,7 @@ import pytest
 def r():
     """为 day3 集成测试提供 TestResult 实例"""
     from test_day3_integration import TestResult
+
     return TestResult()
 
 

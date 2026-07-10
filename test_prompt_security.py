@@ -5,12 +5,12 @@ Prompt安全模块测试。
 """
 
 import json
-import pytest
+
 from prompt_security import (
-    sanitize_user_input,
-    validate_llm_output,
     build_safe_prompt,
+    sanitize_user_input,
     validate_icp_content,
+    validate_llm_output,
 )
 
 

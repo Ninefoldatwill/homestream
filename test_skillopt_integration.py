@@ -9,30 +9,33 @@
 
 输出: JSON 报告 + 控制台摘要
 """
+
 import json
 import os
 import sys
 import tempfile
 import time
-from dataclasses import asdict
 
 # ── 1. 包导入验证 ────────────────────────────────────────────────────────
+
 
 def verify_imports():
     """验证 SkillOpt 核心模块可导入"""
     results = {}
 
     try:
-        from skillopt import (
-            BatchSpec, Edit, EditOp, FailureSummaryEntry,
-            GateAction, GateResult, Patch, RawPatch,
-            RolloutResult, SlowUpdateResult,
-        )
         results["types_import"] = True
         results["types_list"] = [
-            "BatchSpec", "Edit", "EditOp", "FailureSummaryEntry",
-            "GateAction", "GateResult", "Patch", "RawPatch",
-            "RolloutResult", "SlowUpdateResult",
+            "BatchSpec",
+            "Edit",
+            "EditOp",
+            "FailureSummaryEntry",
+            "GateAction",
+            "GateResult",
+            "Patch",
+            "RawPatch",
+            "RolloutResult",
+            "SlowUpdateResult",
         ]
     except Exception as e:
         results["types_import"] = False
@@ -40,49 +43,42 @@ def verify_imports():
         return results
 
     try:
-        from skillopt.config import load_config, flatten_config, is_structured
         results["config_import"] = True
     except Exception as e:
         results["config_import"] = False
         results["config_error"] = str(e)
 
     try:
-        from skillopt.evaluation.gate import evaluate_gate, select_gate_score, GateResult, GateAction
         results["gate_import"] = True
     except Exception as e:
         results["gate_import"] = False
         results["gate_error"] = str(e)
 
     try:
-        from skillopt.envs.base import EnvAdapter
         results["env_adapter_import"] = True
     except Exception as e:
         results["env_adapter_import"] = False
         results["env_adapter_error"] = str(e)
 
     try:
-        from skillopt.engine.trainer import _normalise_patches
         results["trainer_import"] = True
     except Exception as e:
         results["trainer_import"] = False
         results["trainer_error"] = str(e)
 
     try:
-        from skillopt.optimizer.clip import rank_and_select
         results["optimizer_import"] = True
     except Exception as e:
         results["optimizer_import"] = False
         results["optimizer_error"] = str(e)
 
     try:
-        from skillopt.gradient.aggregate import merge_patches
         results["gradient_import"] = True
     except Exception as e:
         results["gradient_import"] = False
         results["gradient_error"] = str(e)
 
     try:
-        from skillopt.model import configure_qwen_chat
         results["model_import"] = True
     except Exception as e:
         results["model_import"] = False
@@ -93,13 +89,14 @@ def verify_imports():
 
 # ── 2. Gate 门控机制验证 ─────────────────────────────────────────────────
 
+
 def verify_gate():
     """验证 Gate 纯函数门控逻辑
 
     Gate 是 SkillOpt 的验证核心，对应桥v7 ConditionVerifier 的停止条件。
     三种决策: accept_new_best / accept / reject
     """
-    from skillopt.evaluation.gate import evaluate_gate, select_gate_score, GateResult
+    from skillopt.evaluation.gate import evaluate_gate, select_gate_score
 
     results = {"tests": [], "all_passed": True}
 
@@ -115,12 +112,14 @@ def verify_gate():
         global_step=1,
     )
     t1_pass = r1.action == "accept_new_best" and r1.best_skill == "skill_v2"
-    results["tests"].append({
-        "name": "accept_new_best (candidate > best)",
-        "passed": t1_pass,
-        "action": r1.action,
-        "best_score": r1.best_score,
-    })
+    results["tests"].append(
+        {
+            "name": "accept_new_best (candidate > best)",
+            "passed": t1_pass,
+            "action": r1.action,
+            "best_score": r1.best_score,
+        }
+    )
 
     # Test 2: candidate 优于 current 但不优于 best → accept
     r2 = evaluate_gate(
@@ -134,12 +133,14 @@ def verify_gate():
         global_step=2,
     )
     t2_pass = r2.action == "accept" and r2.best_skill == "skill_v0"
-    results["tests"].append({
-        "name": "accept (current < candidate < best)",
-        "passed": t2_pass,
-        "action": r2.action,
-        "best_skill": r2.best_skill,
-    })
+    results["tests"].append(
+        {
+            "name": "accept (current < candidate < best)",
+            "passed": t2_pass,
+            "action": r2.action,
+            "best_skill": r2.best_skill,
+        }
+    )
 
     # Test 3: candidate 不如 current → reject
     r3 = evaluate_gate(
@@ -153,12 +154,14 @@ def verify_gate():
         global_step=3,
     )
     t3_pass = r3.action == "reject" and r3.current_skill == "skill_v1"
-    results["tests"].append({
-        "name": "reject (candidate < current)",
-        "passed": t3_pass,
-        "action": r3.action,
-        "current_skill": r3.current_skill,
-    })
+    results["tests"].append(
+        {
+            "name": "reject (candidate < current)",
+            "passed": t3_pass,
+            "action": r3.action,
+            "current_skill": r3.current_skill,
+        }
+    )
 
     # Test 4: mixed metric
     r4 = evaluate_gate(
@@ -176,30 +179,35 @@ def verify_gate():
     )
     expected_score = (1 - 0.5) * 0.80 + 0.5 * 0.90  # 0.85
     t4_pass = abs(r4.best_score - expected_score) < 0.001
-    results["tests"].append({
-        "name": "mixed metric (hard=0.80, soft=0.90, w=0.5 → 0.85)",
-        "passed": t4_pass,
-        "action": r4.action,
-        "expected_score": expected_score,
-        "actual_score": r4.best_score,
-    })
+    results["tests"].append(
+        {
+            "name": "mixed metric (hard=0.80, soft=0.90, w=0.5 → 0.85)",
+            "passed": t4_pass,
+            "action": r4.action,
+            "expected_score": expected_score,
+            "actual_score": r4.best_score,
+        }
+    )
 
     # Test 5: select_gate_score 辅助函数
     s_hard = select_gate_score(0.9, 0.5, "hard")
     s_soft = select_gate_score(0.9, 0.5, "soft")
     s_mixed = select_gate_score(0.9, 0.5, "mixed", 0.3)
     t5_pass = s_hard == 0.9 and s_soft == 0.5 and abs(s_mixed - 0.78) < 0.001
-    results["tests"].append({
-        "name": "select_gate_score (hard/soft/mixed)",
-        "passed": t5_pass,
-        "scores": {"hard": s_hard, "soft": s_soft, "mixed_0.3": s_mixed},
-    })
+    results["tests"].append(
+        {
+            "name": "select_gate_score (hard/soft/mixed)",
+            "passed": t5_pass,
+            "scores": {"hard": s_hard, "soft": s_soft, "mixed_0.3": s_mixed},
+        }
+    )
 
     results["all_passed"] = all(t["passed"] for t in results["tests"])
     return results
 
 
 # ── 3. 自定义 EnvAdapter 验证 ────────────────────────────────────────────
+
 
 def verify_env_adapter():
     """验证可以继承 EnvAdapter 并实现桥v7适配器
@@ -231,31 +239,37 @@ def verify_env_adapter():
             # 实际实现会发 ACTION 事件 → 执行 → 收集 Observation
             results = []
             for i in range(env_manager["batch_size"]):
-                results.append({
-                    "id": f"task-{i}",
-                    "hard": 1 if i % 2 == 0 else 0,
-                    "soft": 0.5 + 0.1 * (i % 5),
-                    "n_turns": 3 + (i % 3),
-                    "task_type": "bridge_action",
-                    "fail_reason": "" if i % 2 == 0 else "timeout",
-                })
+                results.append(
+                    {
+                        "id": f"task-{i}",
+                        "hard": 1 if i % 2 == 0 else 0,
+                        "soft": 0.5 + 0.1 * (i % 5),
+                        "n_turns": 3 + (i % 3),
+                        "task_type": "bridge_action",
+                        "fail_reason": "" if i % 2 == 0 else "timeout",
+                    }
+                )
             return results
 
         def reflect(self, results, skill_content, out_dir, **kwargs):
             # 原型: 模拟分析结果生成 patch
             failures = [r for r in results if not r["hard"]]
-            return [{
-                "patch": {
-                    "reasoning": f"Found {len(failures)} failures, suggest timeout handling",
-                    "edits": [{
-                        "op": "append",
-                        "content": "When timeout occurs, retry with simplified approach.",
-                        "target": "error_handling",
-                    }],
-                },
-                "source_type": "failure",
-                "batch_size": len(results),
-            }]
+            return [
+                {
+                    "patch": {
+                        "reasoning": f"Found {len(failures)} failures, suggest timeout handling",
+                        "edits": [
+                            {
+                                "op": "append",
+                                "content": "When timeout occurs, retry with simplified approach.",
+                                "target": "error_handling",
+                            }
+                        ],
+                    },
+                    "source_type": "failure",
+                    "batch_size": len(results),
+                }
+            ]
 
         def get_task_types(self):
             return ["bridge_action", "bridge_review"]
@@ -291,11 +305,13 @@ def verify_env_adapter():
         assert len(rollout_results) == 5
         assert all("hard" in r and "soft" in r for r in rollout_results)
         hard_count = sum(r["hard"] for r in rollout_results)
-        results["tests"].append({
-            "name": "rollout (5 episodes)",
-            "passed": True,
-            "details": f"{hard_count}/5 success",
-        })
+        results["tests"].append(
+            {
+                "name": "rollout (5 episodes)",
+                "passed": True,
+                "details": f"{hard_count}/5 success",
+            }
+        )
     except Exception as e:
         results["tests"].append({"name": "rollout", "passed": False, "error": str(e)})
 
@@ -305,11 +321,13 @@ def verify_env_adapter():
         assert len(patches) == 1
         assert patches[0]["source_type"] == "failure"
         assert "edits" in patches[0]["patch"]
-        results["tests"].append({
-            "name": "reflect (generate patches)",
-            "passed": True,
-            "details": f"{len(patches[0]['patch']['edits'])} edits generated",
-        })
+        results["tests"].append(
+            {
+                "name": "reflect (generate patches)",
+                "passed": True,
+                "details": f"{len(patches[0]['patch']['edits'])} edits generated",
+            }
+        )
     except Exception as e:
         results["tests"].append({"name": "reflect", "passed": False, "error": str(e)})
 
@@ -327,13 +345,17 @@ def verify_env_adapter():
         selected = adapter.select_representative_items(
             rollout_results, items, n_failures=2, n_successes=1, seed=42
         )
-        results["tests"].append({
-            "name": "select_representative_items (inherited)",
-            "passed": len(selected) > 0,
-            "selected_count": len(selected),
-        })
+        results["tests"].append(
+            {
+                "name": "select_representative_items (inherited)",
+                "passed": len(selected) > 0,
+                "selected_count": len(selected),
+            }
+        )
     except Exception as e:
-        results["tests"].append({"name": "select_representative_items", "passed": False, "error": str(e)})
+        results["tests"].append(
+            {"name": "select_representative_items", "passed": False, "error": str(e)}
+        )
 
     results["all_passed"] = all(t["passed"] for t in results["tests"])
     return results
@@ -341,9 +363,10 @@ def verify_env_adapter():
 
 # ── 4. Config YAML 验证 ──────────────────────────────────────────────────
 
+
 def verify_config():
     """验证 YAML 配置加载 + _base_ 继承"""
-    from skillopt.config import load_config, flatten_config, is_structured
+    from skillopt.config import flatten_config, is_structured, load_config
 
     results = {"tests": [], "all_passed": True}
 
@@ -401,6 +424,7 @@ env:
 
         # Test 3: overrides
         from skillopt.config import apply_overrides
+
         apply_overrides(cfg, ["train.num_epochs=5", "optimizer.learning_rate=5"])
         assert cfg["train"]["num_epochs"] == 5
         assert cfg["optimizer"]["learning_rate"] == 5
@@ -417,9 +441,10 @@ env:
 
 # ── 5. 类型系统验证 ──────────────────────────────────────────────────────
 
+
 def verify_types():
     """验证 SkillOpt 类型系统的序列化/反序列化"""
-    from skillopt import Edit, Patch, RolloutResult, RawPatch, FailureSummaryEntry
+    from skillopt import Edit, FailureSummaryEntry, Patch, RawPatch, RolloutResult
 
     results = {"tests": [], "all_passed": True}
 
@@ -464,7 +489,9 @@ def verify_types():
         assert rollout2.soft == 0.85
         results["tests"].append({"name": "RolloutResult serialization", "passed": True})
     except Exception as e:
-        results["tests"].append({"name": "RolloutResult serialization", "passed": False, "error": str(e)})
+        results["tests"].append(
+            {"name": "RolloutResult serialization", "passed": False, "error": str(e)}
+        )
 
     # Test 4: RawPatch (Reflect 阶段输出)
     try:
@@ -481,13 +508,16 @@ def verify_types():
         assert len(raw2.failure_summary) == 1
         results["tests"].append({"name": "RawPatch serialization", "passed": True})
     except Exception as e:
-        results["tests"].append({"name": "RawPatch serialization", "passed": False, "error": str(e)})
+        results["tests"].append(
+            {"name": "RawPatch serialization", "passed": False, "error": str(e)}
+        )
 
     results["all_passed"] = all(t["passed"] for t in results["tests"])
     return results
 
 
 # ── 6. 集成路径映射 ──────────────────────────────────────────────────────
+
 
 def verify_integration_mapping():
     """验证 SkillOpt 6阶段 ↔ 桥v7 模块的映射关系"""
@@ -556,6 +586,7 @@ def verify_integration_mapping():
 
 # ── 主函数 ──────────────────────────────────────────────────────────────
 
+
 def main():
     print("=" * 70)
     print("  SkillOpt × 桥v7 融合可行性验证")
@@ -578,17 +609,21 @@ def main():
     report["imports"] = import_results
     report["import_time_ms"] = round(import_time * 1000, 1)
 
-    all_imports = all([
-        import_results.get("types_import", False),
-        import_results.get("config_import", False),
-        import_results.get("gate_import", False),
-        import_results.get("env_adapter_import", False),
-        import_results.get("trainer_import", False),
-        import_results.get("optimizer_import", False),
-        import_results.get("gradient_import", False),
-        import_results.get("model_import", False),
-    ])
-    print(f"  {'✅ PASS' if all_imports else '❌ FAIL'} — 8/8 模块导入 ({import_time*1000:.0f}ms)")
+    all_imports = all(
+        [
+            import_results.get("types_import", False),
+            import_results.get("config_import", False),
+            import_results.get("gate_import", False),
+            import_results.get("env_adapter_import", False),
+            import_results.get("trainer_import", False),
+            import_results.get("optimizer_import", False),
+            import_results.get("gradient_import", False),
+            import_results.get("model_import", False),
+        ]
+    )
+    print(
+        f"  {'✅ PASS' if all_imports else '❌ FAIL'} — 8/8 模块导入 ({import_time * 1000:.0f}ms)"
+    )
     print()
 
     # 2. Gate 门控验证
@@ -640,20 +675,22 @@ def main():
     print()
 
     # 总结
-    all_passed = all([
-        all_imports,
-        gate_results["all_passed"],
-        adapter_results["all_passed"],
-        config_results["all_passed"],
-        types_results["all_passed"],
-        mapping_results["all_passed"],
-    ])
+    all_passed = all(
+        [
+            all_imports,
+            gate_results["all_passed"],
+            adapter_results["all_passed"],
+            config_results["all_passed"],
+            types_results["all_passed"],
+            mapping_results["all_passed"],
+        ]
+    )
 
     total_tests = (
-        len(gate_results["tests"]) +
-        len(adapter_results["tests"]) +
-        len(config_results["tests"]) +
-        len(types_results["tests"])
+        len(gate_results["tests"])
+        + len(adapter_results["tests"])
+        + len(config_results["tests"])
+        + len(types_results["tests"])
     )
 
     report["summary"] = {
@@ -671,11 +708,13 @@ def main():
     print("=" * 70)
     if all_passed:
         print(f"  ✅ 融合可行性: CONFIRMED — {total_tests} 项测试全部通过")
-        print(f"  📦 SkillOpt v0.1.0 (MIT) 已安装，可直接用于桥v7")
-        print(f"  🔗 集成路径: EnvAdapter 自定义子类 → 桥v7 EventStream")
-        print(f"  🏗️ 分层归属: {mapping_results['open_source_layers']}项开源 + {mapping_results['proprietary_layers']}项自留")
+        print("  📦 SkillOpt v0.1.0 (MIT) 已安装，可直接用于桥v7")
+        print("  🔗 集成路径: EnvAdapter 自定义子类 → 桥v7 EventStream")
+        print(
+            f"  🏗️ 分层归属: {mapping_results['open_source_layers']}项开源 + {mapping_results['proprietary_layers']}项自留"
+        )
     else:
-        print(f"  ⚠️ 融合可行性: ISSUES_FOUND — 部分测试未通过")
+        print("  ⚠️ 融合可行性: ISSUES_FOUND — 部分测试未通过")
     print("=" * 70)
 
     # 保存报告

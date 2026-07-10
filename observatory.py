@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from prometheus_client import REGISTRY
 
@@ -29,12 +29,14 @@ if TYPE_CHECKING:
 # 延迟导入架构可视化和数据质量模块（避免循环依赖）
 try:
     from arch_visualizer import collect_architecture_data
+
     _HAS_ARCH_VIZ = True
 except ImportError:
     _HAS_ARCH_VIZ = False
 
 try:
     from data_guardian import run_full_audit
+
     _HAS_DATA_GUARDIAN = True
 except ImportError:
     _HAS_DATA_GUARDIAN = False
@@ -43,6 +45,7 @@ logger = logging.getLogger(__name__)
 
 
 # ==================== Prometheus 指标读取 ====================
+
 
 def _read_counter_total(name: str) -> float:
     """读取 Prometheus Counter 总值（所有 label 合计）"""
@@ -54,11 +57,9 @@ def _read_counter_total(name: str) -> float:
     return total
 
 
-def _read_counter_by_label(
-    name: str, label_key: str
-) -> Dict[str, float]:
+def _read_counter_by_label(name: str, label_key: str) -> dict[str, float]:
     """读取 Counter 按某个 label 分组的值"""
-    result: Dict[str, float] = {}
+    result: dict[str, float] = {}
     for metric in REGISTRY.collect():
         for sample in metric.samples:
             if sample.name == name or sample.name == name + "_total":
@@ -69,22 +70,20 @@ def _read_counter_by_label(
 
 def _read_counter_multi_label(
     name: str,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """读取 Counter 所有 label 组合，key='k=v|k=v' 格式"""
-    result: Dict[str, float] = {}
+    result: dict[str, float] = {}
     for metric in REGISTRY.collect():
         for sample in metric.samples:
             if sample.name == name or sample.name == name + "_total":
-                label_str = "|".join(
-                    f"{k}={v}" for k, v in sorted(sample.labels.items())
-                )
+                label_str = "|".join(f"{k}={v}" for k, v in sorted(sample.labels.items()))
                 result[label_str] = result.get(label_str, 0) + sample.value
     return result
 
 
-def _read_histogram(name: str) -> Dict[str, Any]:
+def _read_histogram(name: str) -> dict[str, Any]:
     """读取 Histogram 的 bucket/count/sum"""
-    buckets: Dict[str, float] = {}
+    buckets: dict[str, float] = {}
     total_count = 0.0
     total_sum = 0.0
     for metric in REGISTRY.collect():
@@ -113,9 +112,7 @@ def _read_gauge(name: str) -> float:
     return 0.0
 
 
-def _calc_percentiles(
-    buckets: Dict[str, float], total: float
-) -> Dict[str, float]:
+def _calc_percentiles(buckets: dict[str, float], total: float) -> dict[str, float]:
     """从 Histogram bucket 计算百分位延迟（秒）"""
     if not buckets or total <= 0:
         return {"p50": 0, "p75": 0, "p90": 0, "p95": 0, "p99": 0}
@@ -139,7 +136,8 @@ def _calc_percentiles(
 
 # ==================== 分组辅助 ====================
 
-def _parse_label_str(label_str: str) -> Dict[str, str]:
+
+def _parse_label_str(label_str: str) -> dict[str, str]:
     """解析 'k=v|k=v' 格式的 label 字符串"""
     result = {}
     for part in label_str.split("|"):
@@ -149,11 +147,9 @@ def _parse_label_str(label_str: str) -> Dict[str, str]:
     return result
 
 
-def _group_http_by_endpoint(
-    raw: Dict[str, float]
-) -> List[Dict[str, Any]]:
+def _group_http_by_endpoint(raw: dict[str, float]) -> list[dict[str, Any]]:
     """按端点分组 HTTP 请求统计"""
-    endpoint_map: Dict[str, Dict[str, float]] = {}
+    endpoint_map: dict[str, dict[str, float]] = {}
     for label_str, val in raw.items():
         labels = _parse_label_str(label_str)
         endpoint = labels.get("endpoint", "unknown")
@@ -166,18 +162,13 @@ def _group_http_by_endpoint(
         else:
             endpoint_map[endpoint]["error"] += val
     return [
-        {"endpoint": k, **v}
-        for k, v in sorted(
-            endpoint_map.items(), key=lambda x: -x[1]["total"]
-        )
+        {"endpoint": k, **v} for k, v in sorted(endpoint_map.items(), key=lambda x: -x[1]["total"])
     ]
 
 
-def _group_skill_invocations(
-    raw: Dict[str, float]
-) -> List[Dict[str, Any]]:
+def _group_skill_invocations(raw: dict[str, float]) -> list[dict[str, Any]]:
     """按技能名分组调用统计"""
-    skill_map: Dict[str, Dict[str, float]] = {}
+    skill_map: dict[str, dict[str, float]] = {}
     for label_str, val in raw.items():
         labels = _parse_label_str(label_str)
         skill = labels.get("skill_name", "unknown")
@@ -189,19 +180,17 @@ def _group_skill_invocations(
             skill_map[skill]["success"] += val
         else:
             skill_map[skill]["error"] += val
-    return [
-        {"skill": k, **v}
-        for k, v in sorted(skill_map.items(), key=lambda x: -x[1]["total"])
-    ]
+    return [{"skill": k, **v} for k, v in sorted(skill_map.items(), key=lambda x: -x[1]["total"])]
 
 
 # ==================== 核心聚合函数 ====================
 
+
 def collect_observatory_data(
-    event_store: Optional["EventStore"] = None,
-    model_router: Optional["ModelRouter"] = None,
+    event_store: EventStore | None = None,
+    model_router: ModelRouter | None = None,
     session_id: str = "default",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """聚合所有可观测性数据源，返回8面板仪表盘数据。
 
     Args:
@@ -216,29 +205,21 @@ def collect_observatory_data(
 
     # === Panel 1: HTTP 成功率 ===
     http_raw = _read_counter_multi_label("bridge_http_requests_total")
-    success_count = sum(
-        v for k, v in http_raw.items()
-        if "status=2" in k or "status=3" in k
-    )
-    error_count = sum(
-        v for k, v in http_raw.items()
-        if "status=4" in k or "status=5" in k
-    )
+    success_count = sum(v for k, v in http_raw.items() if "status=2" in k or "status=3" in k)
+    error_count = sum(v for k, v in http_raw.items() if "status=4" in k or "status=5" in k)
     total_http = success_count + error_count
     success_rate = success_count / max(total_http, 1)
 
     # === Panel 2: 延迟百分位 ===
     latency_data = _read_histogram("bridge_http_request_duration_seconds")
-    percentiles = _calc_percentiles(
-        latency_data["buckets"], latency_data["count"]
-    )
+    percentiles = _calc_percentiles(latency_data["buckets"], latency_data["count"])
 
     # === Panel 3 & 7: Token & 成本估算 ===
-    providers_stats: List[Dict[str, Any]] = []
+    providers_stats: list[dict[str, Any]] = []
     total_tokens_in = 0
     total_tokens_out = 0
     total_cost = 0.0
-    cost_by_tier: Dict[str, float] = {"L1": 0.0, "L2": 0.0, "L3": 0.0}
+    cost_by_tier: dict[str, float] = {"L1": 0.0, "L2": 0.0, "L3": 0.0}
     hardware_info = None
     strategy = "unknown"
 
@@ -272,10 +253,9 @@ def collect_observatory_data(
                 est_tokens_out = requests * (max_tok // 2)
 
                 # 估算成本
-                est_cost = (
-                    (est_tokens_in / 1000.0) * cost_in_rate
-                    + (est_tokens_out / 1000.0) * cost_out_rate
-                )
+                est_cost = (est_tokens_in / 1000.0) * cost_in_rate + (
+                    est_tokens_out / 1000.0
+                ) * cost_out_rate
 
                 total_tokens_in += est_tokens_in
                 total_tokens_out += est_tokens_out
@@ -283,28 +263,30 @@ def collect_observatory_data(
                 if tier in cost_by_tier:
                     cost_by_tier[tier] += est_cost
 
-                providers_stats.append({
-                    "name": p["name"],
-                    "display_name": p.get("display_name", p["name"]),
-                    "tier": tier,
-                    "model": p.get("model", ""),
-                    "status": p.get("status", "unknown"),
-                    "enabled": p.get("enabled", True),
-                    "requests": requests,
-                    "errors": errors,
-                    "error_rate": round(errors / max(requests, 1), 4),
-                    "avg_latency_ms": avg_latency,
-                    "est_tokens_in": est_tokens_in,
-                    "est_tokens_out": est_tokens_out,
-                    "est_cost": round(est_cost, 6),
-                    "cost_per_1k_input": cost_in_rate,
-                    "cost_per_1k_output": cost_out_rate,
-                })
+                providers_stats.append(
+                    {
+                        "name": p["name"],
+                        "display_name": p.get("display_name", p["name"]),
+                        "tier": tier,
+                        "model": p.get("model", ""),
+                        "status": p.get("status", "unknown"),
+                        "enabled": p.get("enabled", True),
+                        "requests": requests,
+                        "errors": errors,
+                        "error_rate": round(errors / max(requests, 1), 4),
+                        "avg_latency_ms": avg_latency,
+                        "est_tokens_in": est_tokens_in,
+                        "est_tokens_out": est_tokens_out,
+                        "est_cost": round(est_cost, 6),
+                        "cost_per_1k_input": cost_in_rate,
+                        "cost_per_1k_output": cost_out_rate,
+                    }
+                )
         except Exception as e:
             logger.warning(f"ModelRouter 数据聚合失败: {e}")
 
     # === Panel 4: 事件类型分布 ===
-    event_stats: Dict[str, Any] = {}
+    event_stats: dict[str, Any] = {}
     if event_store:
         try:
             event_stats = event_store.stats(session_id)
@@ -312,40 +294,30 @@ def collect_observatory_data(
             logger.warning(f"EventStore stats 失败: {e}")
 
     # === Panel 5: ICP 消息统计 ===
-    icp_by_type = _read_counter_by_label(
-        "bridge_icp_messages_sent_total", "message_type"
-    )
+    icp_by_type = _read_counter_by_label("bridge_icp_messages_sent_total", "message_type")
 
     # === Panel 6: 技能调用统计 ===
-    skill_raw = _read_counter_multi_label(
-        "bridge_skill_router_invocations_total"
-    )
-    skill_success = sum(
-        v for k, v in skill_raw.items() if "status=success" in k
-    )
+    skill_raw = _read_counter_multi_label("bridge_skill_router_invocations_total")
+    skill_success = sum(v for k, v in skill_raw.items() if "status=success" in k)
     skill_total = sum(skill_raw.values())
     skill_error = skill_total - skill_success
 
     # === Panel 8: 活跃连接 & 事件吞吐 ===
     active_connections = _read_gauge("bridge_active_connections")
-    events_by_type = _read_counter_by_label(
-        "bridge_events_processed_total", "event_type"
-    )
+    events_by_type = _read_counter_by_label("bridge_events_processed_total", "event_type")
     events_total = sum(events_by_type.values())
 
     # === Panel 9: 架构可视化 ===
-    arch_data: Dict[str, Any] = {}
+    arch_data: dict[str, Any] = {}
     if _HAS_ARCH_VIZ:
         try:
-            arch_data = collect_architecture_data(
-                event_store, model_router, session_id
-            )
+            arch_data = collect_architecture_data(event_store, model_router, session_id)
         except Exception as e:
             logger.warning(f"\u67b6\u6784\u53ef\u89c6\u5316\u751f\u6210\u5931\u8d25: {e}")
             arch_data = {"error": str(e)[:200]}
 
     # === Panel 10: 数据质量审计 ===
-    quality_data: Dict[str, Any] = {}
+    quality_data: dict[str, Any] = {}
     if _HAS_DATA_GUARDIAN:
         try:
             quality_data = run_full_audit(event_store, session_id)
@@ -366,9 +338,7 @@ def collect_observatory_data(
             "total_tokens_in": total_tokens_in,
             "total_tokens_out": total_tokens_out,
             "total_cost": round(total_cost, 6),
-            "skill_success_rate": round(
-                skill_success / max(skill_total, 1), 4
-            ),
+            "skill_success_rate": round(skill_success / max(skill_total, 1), 4),
             "strategy": strategy,
         },
         "panels": {
@@ -382,12 +352,8 @@ def collect_observatory_data(
             "latency": {
                 "avg_ms": round(latency_data["avg_seconds"] * 1000, 1),
                 "total_count": int(latency_data["count"]),
-                "buckets": {
-                    k: v for k, v in latency_data["buckets"].items()
-                },
-                "percentiles_ms": {
-                    k: round(v * 1000, 1) for k, v in percentiles.items()
-                },
+                "buckets": {k: v for k, v in latency_data["buckets"].items()},
+                "percentiles_ms": {k: round(v * 1000, 1) for k, v in percentiles.items()},
             },
             "token_cost": {
                 "total_tokens_in": total_tokens_in,
@@ -407,9 +373,7 @@ def collect_observatory_data(
             "per_request_cost": {
                 "total_cost": round(total_cost, 6),
                 "total_requests": int(total_http),
-                "avg_cost_per_request": round(
-                    total_cost / max(total_http, 1), 6
-                ),
+                "avg_cost_per_request": round(total_cost / max(total_http, 1), 6),
             },
             "event_distribution": {
                 "total": event_stats.get("total_events", 0),
@@ -421,15 +385,11 @@ def collect_observatory_data(
                 "success": int(skill_success),
                 "error": int(skill_error),
                 "total": int(skill_total),
-                "rate": round(
-                    skill_success / max(skill_total, 1), 4
-                ),
+                "rate": round(skill_success / max(skill_total, 1), 4),
                 "by_skill": _group_skill_invocations(skill_raw),
             },
             "cost_breakdown": {
-                "by_tier": {
-                    k: round(v, 6) for k, v in cost_by_tier.items()
-                },
+                "by_tier": {k: round(v, 6) for k, v in cost_by_tier.items()},
                 "total": round(total_cost, 6),
             },
             "active_throughput": {

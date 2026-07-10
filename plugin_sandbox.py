@@ -19,14 +19,12 @@
 
 import ast
 import os
-import time
-import signal
-import threading
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple, Any
+from typing import Any
 
 import structlog
 
@@ -37,35 +35,64 @@ logger = structlog.get_logger("bridge_v7.plugin_sandbox")
 # 安全等级与危险模块列表
 # ============================================================
 
+
 class SandboxLevel(str, Enum):
     """沙箱安全等级。"""
-    STANDARD = "standard"      # 标准隔离（L2插件）
-    STRICT = "strict"          # 严格隔离（未签名插件）
-    MAXIMUM = "maximum"        # 最高隔离（首次执行/Canary）
+
+    STANDARD = "standard"  # 标准隔离（L2插件）
+    STRICT = "strict"  # 严格隔离（未签名插件）
+    MAXIMUM = "maximum"  # 最高隔离（首次执行/Canary）
 
 
 # 19+危险模块（来自 Microsoft Agent Governance）
-DANGEROUS_MODULES: Set[str] = {
-    "os", "sys", "subprocess", "shutil", "pathlib",
-    "socket", "http", "urllib", "requests",
-    "ctypes", "multiprocessing", "threading",
-    "signal", "resource", "fcntl",
-    "tempfile", "pickle", "marshal",
-    "importlib", "code", "codeop",
-    "compile", "compileall",
+DANGEROUS_MODULES: set[str] = {
+    "os",
+    "sys",
+    "subprocess",
+    "shutil",
+    "pathlib",
+    "socket",
+    "http",
+    "urllib",
+    "requests",
+    "ctypes",
+    "multiprocessing",
+    "threading",
+    "signal",
+    "resource",
+    "fcntl",
+    "tempfile",
+    "pickle",
+    "marshal",
+    "importlib",
+    "code",
+    "codeop",
+    "compile",
+    "compileall",
 }
 
 # 危险内置函数
-DANGEROUS_BUILTINS: Set[str] = {
-    "exec", "eval", "breakpoint", "compile",
-    "__import__", "open", "input",
-    "globals", "locals", "vars",
-    "dir", "getattr", "setattr", "delattr",
+DANGEROUS_BUILTINS: set[str] = {
+    "exec",
+    "eval",
+    "breakpoint",
+    "compile",
+    "__import__",
+    "open",
+    "input",
+    "globals",
+    "locals",
+    "vars",
+    "dir",
+    "getattr",
+    "setattr",
+    "delattr",
 }
 
 # 危险AST节点类型
-DANGEROUS_AST_NODES: Set[str] = {
-    "Import", "ImportFrom",  # 导入语句
+DANGEROUS_AST_NODES: set[str] = {
+    "Import",
+    "ImportFrom",  # 导入语句
 }
 
 
@@ -73,14 +100,16 @@ DANGEROUS_AST_NODES: Set[str] = {
 # Layer 2: 安装时静态AST扫描器
 # ============================================================
 
+
 @dataclass
 class ScanResult:
     """静态扫描结果。"""
+
     is_safe: bool = True
-    threats: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
-    blocked_modules: List[str] = field(default_factory=list)
-    blocked_functions: List[str] = field(default_factory=list)
+    threats: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    blocked_modules: list[str] = field(default_factory=list)
+    blocked_functions: list[str] = field(default_factory=list)
     scan_time_ms: float = 0.0
 
 
@@ -143,7 +172,7 @@ class ASTScanner:
     def scan_file(self, filepath: str, level: SandboxLevel = SandboxLevel.STANDARD) -> ScanResult:
         """扫描Python文件。"""
         try:
-            with open(filepath, "r", encoding="utf-8") as f:
+            with open(filepath, encoding="utf-8") as f:
                 code = f.read()
             return self.scan_code(code, level)
         except Exception as e:
@@ -165,6 +194,7 @@ class ASTScanner:
 # Layer 3: 运行时import hook阻断器
 # ============================================================
 
+
 class ImportBlocker:
     """运行时import hook阻断 — 动态拦截危险模块导入。
 
@@ -173,11 +203,11 @@ class ImportBlocker:
     - 阻断并记录日志
     """
 
-    def __init__(self, blocked_modules: Optional[Set[str]] = None):
+    def __init__(self, blocked_modules: set[str] | None = None):
         self.blocked = blocked_modules or DANGEROUS_MODULES
         self._original_meta_path = list(sys.meta_path)
         self._hook_installed = False
-        self._blocked_log: List[str] = []
+        self._blocked_log: list[str] = []
 
     def install(self):
         """安装import hook。"""
@@ -188,23 +218,18 @@ class ImportBlocker:
 
         class BlockingFinder:
             """meta_path finder that blocks dangerous imports (Python 3.12+ find_spec)."""
+
             def find_spec(self, fullname, path=None, target=None):
                 module = fullname.split(".")[0]
                 if module in blocker.blocked:
-                    blocker._blocked_log.append(
-                        f"[import_blocked] {fullname} at {time.time()}"
-                    )
-                    logger.warning("plugin_sandbox.import_blocked",
-                                   module=fullname)
-                    raise ImportError(
-                        f"[OpenBridge沙箱] 禁止导入模块: {fullname}"
-                    )
+                    blocker._blocked_log.append(f"[import_blocked] {fullname} at {time.time()}")
+                    logger.warning("plugin_sandbox.import_blocked", module=fullname)
+                    raise ImportError(f"[OpenBridge沙箱] 禁止导入模块: {fullname}")
                 return None
 
         sys.meta_path.insert(0, BlockingFinder())
         self._hook_installed = True
-        logger.info("plugin_sandbox.import_hook_installed",
-                     blocked_count=len(self.blocked))
+        logger.info("plugin_sandbox.import_hook_installed", blocked_count=len(self.blocked))
 
     def uninstall(self):
         """卸载import hook。"""
@@ -215,7 +240,7 @@ class ImportBlocker:
         self._hook_installed = False
         logger.info("plugin_sandbox.import_hook_removed")
 
-    def get_blocked_log(self) -> List[str]:
+    def get_blocked_log(self) -> list[str]:
         """获取阻断日志。"""
         return list(self._blocked_log)
 
@@ -224,22 +249,29 @@ class ImportBlocker:
 # Layer 4-5: 受控执行环境
 # ============================================================
 
+
 @dataclass
 class SandboxConfig:
     """沙箱配置。"""
+
     level: SandboxLevel = SandboxLevel.STANDARD
-    timeout_seconds: float = 30.0         # Layer 5: 超时限制
-    max_memory_mb: float = 512.0          # Layer 5: 内存限制
-    env_whitelist: List[str] = field(      # Layer 5: 允许的环境变量
+    timeout_seconds: float = 30.0  # Layer 5: 超时限制
+    max_memory_mb: float = 512.0  # Layer 5: 内存限制
+    env_whitelist: list[str] = field(  # Layer 5: 允许的环境变量
         default_factory=lambda: [
-            "PATH", "HOME", "USER", "TEMP", "TMP",
-            "OPENBRIDGE_MODE", "OPENBRIDGE_HOME",
+            "PATH",
+            "HOME",
+            "USER",
+            "TEMP",
+            "TMP",
+            "OPENBRIDGE_MODE",
+            "OPENBRIDGE_HOME",
         ]
     )
-    blocked_modules: Set[str] = field(
+    blocked_modules: set[str] = field(
         default_factory=lambda: DANGEROUS_MODULES,
     )
-    blocked_builtins: Set[str] = field(
+    blocked_builtins: set[str] = field(
         default_factory=lambda: DANGEROUS_BUILTINS,
     )
 
@@ -247,12 +279,13 @@ class SandboxConfig:
 @dataclass
 class ExecutionResult:
     """沙箱执行结果。"""
+
     success: bool = True
     output: str = ""
-    error: Optional[str] = None
+    error: str | None = None
     timed_out: bool = False
     duration_ms: float = 0.0
-    blocked_imports: List[str] = field(default_factory=list)
+    blocked_imports: list[str] = field(default_factory=list)
 
 
 class SandboxExecutor:
@@ -270,8 +303,9 @@ class SandboxExecutor:
         self._scanner = ASTScanner()
         self._import_blocker = ImportBlocker(config.blocked_modules if config else None)
 
-    def execute(self, code: str, inputs: Dict[str, Any] = None,
-                timeout: float = None) -> ExecutionResult:
+    def execute(
+        self, code: str, inputs: dict[str, Any] = None, timeout: float = None
+    ) -> ExecutionResult:
         """在沙箱中执行代码。"""
         inputs = inputs or {}
         timeout = timeout or self.config.timeout_seconds
@@ -342,8 +376,9 @@ class SandboxExecutor:
             # 卸载import hook
             self._import_blocker.uninstall()
 
-    def execute_subprocess(self, code: str, inputs: Dict[str, Any] = None,
-                           timeout: float = None) -> ExecutionResult:
+    def execute_subprocess(
+        self, code: str, inputs: dict[str, Any] = None, timeout: float = None
+    ) -> ExecutionResult:
         """Layer 1: 子进程隔离执行。"""
         inputs = inputs or {}
         timeout = timeout or self.config.timeout_seconds * 2  # 子进程允许更多时间
@@ -396,29 +431,49 @@ class SandboxExecutor:
             )
 
     # --- 辅助方法 ---
-    def _build_safe_builtins(self) -> Dict[str, Any]:
+    def _build_safe_builtins(self) -> dict[str, Any]:
         """Layer 4: 构建安全builtins字典（移除危险函数）。"""
         import builtins
+
         safe = {}
         for name in dir(builtins):
             if name not in self.config.blocked_builtins and not name.startswith("__"):
                 safe[name] = getattr(builtins, name)
         # 显式保留安全函数
-        safe.update({
-            "print": print, "len": len, "str": str, "int": int, "float": float,
-            "list": list, "dict": dict, "tuple": tuple, "set": set,
-            "sorted": sorted, "max": max, "min": min, "sum": sum,
-            "abs": abs, "round": round, "range": range,
-            "True": True, "False": False, "None": None,
-            "enumerate": enumerate, "zip": zip, "map": map, "filter": filter,
-        })
+        safe.update(
+            {
+                "print": print,
+                "len": len,
+                "str": str,
+                "int": int,
+                "float": float,
+                "list": list,
+                "dict": dict,
+                "tuple": tuple,
+                "set": set,
+                "sorted": sorted,
+                "max": max,
+                "min": min,
+                "sum": sum,
+                "abs": abs,
+                "round": round,
+                "range": range,
+                "True": True,
+                "False": False,
+                "None": None,
+                "enumerate": enumerate,
+                "zip": zip,
+                "map": map,
+                "filter": filter,
+            }
+        )
         # 显式移除危险函数
         for name in self.config.blocked_builtins:
             safe.pop(name, None)
 
         return safe
 
-    def _clean_environment(self) -> Dict[str, str]:
+    def _clean_environment(self) -> dict[str, str]:
         """Layer 5: 净化环境变量。"""
         clean = {}
         for key in self.config.env_whitelist:
@@ -427,9 +482,10 @@ class SandboxExecutor:
         # 不传递任何密钥或敏感配置
         return clean
 
-    def _build_subprocess_script(self, code: str, inputs: Dict[str, Any]) -> str:
+    def _build_subprocess_script(self, code: str, inputs: dict[str, Any]) -> str:
         """构建子进程执行的Python脚本。"""
         import json
+
         inputs_json = json.dumps(inputs)
         return f"""
 import json
@@ -452,14 +508,16 @@ elif 'output' in dir():
 # 便捷API
 # ============================================================
 
+
 def scan_plugin_code(code: str, level: SandboxLevel = SandboxLevel.STANDARD) -> ScanResult:
     """快捷扫描插件代码。"""
     scanner = ASTScanner()
     return scanner.scan_code(code, level)
 
 
-def run_in_sandbox(code: str, inputs: Dict[str, Any] = None,
-                   timeout: float = 30.0) -> ExecutionResult:
+def run_in_sandbox(
+    code: str, inputs: dict[str, Any] = None, timeout: float = 30.0
+) -> ExecutionResult:
     """快捷在沙箱中执行代码。"""
     executor = SandboxExecutor()
     return executor.execute(code, inputs, timeout)

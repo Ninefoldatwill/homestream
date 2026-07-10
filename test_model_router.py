@@ -11,31 +11,36 @@ ModelRouter 测试套件
   7. ModelRouter统一接口
 """
 
-import pytest
-import asyncio
 import os
 import sys
-from unittest.mock import Mock, patch, MagicMock
-from typing import List
+
+import pytest
 
 # 确保项目根目录在path中
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from hardware_profile import (
-    detect_hardware, recommend_tier, get_model_recommendation,
-    HardwareInfo, HardwareTier,
+    HardwareInfo,
+    HardwareTier,
+    detect_hardware,
+    get_model_recommendation,
+    recommend_tier,
 )
-from providers.base_provider import (
-    BaseProvider, ProviderConfig, ProviderType, ProviderTier,
-    ProviderStatus, ChatMessage, ChatResponse, ProviderError,
-)
-from providers.llama_cpp_provider import LlamaCppProvider, create_default_llama_cpp_provider
-from providers.glm_provider import GLMProvider, create_glm_flash_provider
-from providers.deepseek_provider import DeepSeekProvider, create_deepseek_flash_provider
 from model_router import ModelRouter, ProviderRegistry, RouterStrategy
-
+from providers.base_provider import (
+    BaseProvider,
+    ChatMessage,
+    ChatResponse,
+    ProviderConfig,
+    ProviderError,
+    ProviderStatus,
+    ProviderTier,
+    ProviderType,
+)
+from providers.llama_cpp_provider import create_default_llama_cpp_provider
 
 # ==================== 1. 硬件检测测试 ====================
+
 
 class TestHardwareProfile:
     """硬件检测测试"""
@@ -94,7 +99,7 @@ class TestHardwareProfile:
     def test_lite_recommendation_matches_jiuzhong_hardware(self):
         """测试九重硬件锚点应推荐Lite档位"""
         info = HardwareInfo(
-            total_ram_gb=15.7,   # 16GB物理内存实际显示15.7GB
+            total_ram_gb=15.7,  # 16GB物理内存实际显示15.7GB
             gpu_vram_total_mb=6141,  # 6GB VRAM
             gpu_name="NVIDIA GeForce RTX 4050 Laptop GPU",
         )
@@ -124,6 +129,7 @@ class TestHardwareProfile:
 
 
 # ==================== 2. Provider基类测试 ====================
+
 
 class TestBaseProvider:
     """Provider基类测试"""
@@ -178,6 +184,7 @@ class TestBaseProvider:
         class TestProvider(BaseProvider):
             async def chat(self, messages, max_tokens=None, temperature=None):
                 pass
+
             async def health_check(self):
                 return True
 
@@ -187,6 +194,7 @@ class TestBaseProvider:
 
 
 # ==================== 3. ProviderRegistry测试 ====================
+
 
 class TestProviderRegistry:
     """ProviderRegistry测试"""
@@ -204,6 +212,7 @@ class TestProviderRegistry:
         class DummyProvider(BaseProvider):
             async def chat(self, messages, max_tokens=None, temperature=None):
                 pass
+
             async def health_check(self):
                 return True
 
@@ -226,6 +235,7 @@ class TestProviderRegistry:
         class DummyProvider(BaseProvider):
             async def chat(self, messages, max_tokens=None, temperature=None):
                 pass
+
             async def health_check(self):
                 return True
 
@@ -252,6 +262,7 @@ class TestProviderRegistry:
             class DummyProvider(BaseProvider):
                 async def chat(self, messages, max_tokens=None, temperature=None):
                     pass
+
                 async def health_check(self):
                     return True
 
@@ -278,6 +289,7 @@ class TestProviderRegistry:
         class DummyProvider(BaseProvider):
             async def chat(self, messages, max_tokens=None, temperature=None):
                 pass
+
             async def health_check(self):
                 return True
 
@@ -288,6 +300,7 @@ class TestProviderRegistry:
 
 
 # ==================== 4. LlamaCppProvider测试 ====================
+
 
 class TestLlamaCppProvider:
     """LlamaCppProvider测试"""
@@ -355,6 +368,7 @@ class TestLlamaCppProvider:
 
 # ==================== 5. ModelRouter路由策略测试 ====================
 
+
 class TestModelRouterStrategy:
     """ModelRouter路由策略测试"""
 
@@ -379,6 +393,7 @@ class TestModelRouterStrategy:
                     tier=self.config.tier,
                     latency_ms=latency,
                 )
+
             async def health_check(self):
                 if available:
                     self._mark_status(ProviderStatus.HEALTHY)
@@ -396,11 +411,13 @@ class TestModelRouterStrategy:
     def test_cost_first_strategy(self):
         """测试成本优先策略（L1 > L2 > L3）"""
         router = ModelRouter(strategy=RouterStrategy.COST_FIRST)
-        router.init_for_testing([
-            self._create_mock_provider("l3_provider", ProviderTier.L3),
-            self._create_mock_provider("l1_provider", ProviderTier.L1),
-            self._create_mock_provider("l2_provider", ProviderTier.L2),
-        ])
+        router.init_for_testing(
+            [
+                self._create_mock_provider("l3_provider", ProviderTier.L3),
+                self._create_mock_provider("l1_provider", ProviderTier.L1),
+                self._create_mock_provider("l2_provider", ProviderTier.L2),
+            ]
+        )
 
         ordered = router._get_ordered_providers()
         assert ordered[0].name == "l1_provider"
@@ -410,11 +427,13 @@ class TestModelRouterStrategy:
     def test_quality_first_strategy(self):
         """测试质量优先策略（L3 > L2 > L1）"""
         router = ModelRouter(strategy=RouterStrategy.QUALITY_FIRST)
-        router.init_for_testing([
-            self._create_mock_provider("l1_provider", ProviderTier.L1),
-            self._create_mock_provider("l3_provider", ProviderTier.L3),
-            self._create_mock_provider("l2_provider", ProviderTier.L2),
-        ])
+        router.init_for_testing(
+            [
+                self._create_mock_provider("l1_provider", ProviderTier.L1),
+                self._create_mock_provider("l3_provider", ProviderTier.L3),
+                self._create_mock_provider("l2_provider", ProviderTier.L2),
+            ]
+        )
 
         ordered = router._get_ordered_providers()
         assert ordered[0].name == "l3_provider"
@@ -424,11 +443,13 @@ class TestModelRouterStrategy:
     def test_tier_specified_strategy(self):
         """测试指定层级策略"""
         router = ModelRouter()
-        router.init_for_testing([
-            self._create_mock_provider("l1_provider", ProviderTier.L1),
-            self._create_mock_provider("l2_provider", ProviderTier.L2),
-            self._create_mock_provider("l3_provider", ProviderTier.L3),
-        ])
+        router.init_for_testing(
+            [
+                self._create_mock_provider("l1_provider", ProviderTier.L1),
+                self._create_mock_provider("l2_provider", ProviderTier.L2),
+                self._create_mock_provider("l3_provider", ProviderTier.L3),
+            ]
+        )
 
         router.set_tier(ProviderTier.L2)
         ordered = router._get_ordered_providers()
@@ -438,10 +459,12 @@ class TestModelRouterStrategy:
     def test_get_available_tiers(self):
         """测试获取可用层级"""
         router = ModelRouter()
-        router.init_for_testing([
-            self._create_mock_provider("l1_provider", ProviderTier.L1),
-            self._create_mock_provider("l2_provider", ProviderTier.L2),
-        ])
+        router.init_for_testing(
+            [
+                self._create_mock_provider("l1_provider", ProviderTier.L1),
+                self._create_mock_provider("l2_provider", ProviderTier.L2),
+            ]
+        )
 
         tiers = router.get_available_tiers()
         assert "L1" in tiers
@@ -449,6 +472,7 @@ class TestModelRouterStrategy:
 
 
 # ==================== 6. ModelRouter降级机制测试 ====================
+
 
 class TestModelRouterFallback:
     """ModelRouter降级机制测试"""
@@ -468,6 +492,7 @@ class TestModelRouterFallback:
                 self._record_request(50, False)
                 self._mark_status(ProviderStatus.OFFLINE)
                 raise ProviderError(self.name, "模拟失败")
+
             async def health_check(self):
                 self._mark_status(ProviderStatus.HEALTHY)
                 return True
@@ -497,6 +522,7 @@ class TestModelRouterFallback:
                     tier=self.config.tier,
                     latency_ms=100,
                 )
+
             async def health_check(self):
                 self._mark_status(ProviderStatus.HEALTHY)
                 return True
@@ -509,10 +535,12 @@ class TestModelRouterFallback:
     async def test_fallback_to_next_provider(self):
         """测试L1失败后降级到L2"""
         router = ModelRouter(strategy=RouterStrategy.COST_FIRST)
-        router.init_for_testing([
-            self._create_failing_provider("l1_fail", ProviderTier.L1),
-            self._create_success_provider("l2_ok", ProviderTier.L2),
-        ])
+        router.init_for_testing(
+            [
+                self._create_failing_provider("l1_fail", ProviderTier.L1),
+                self._create_success_provider("l2_ok", ProviderTier.L2),
+            ]
+        )
 
         response = await router.chat([ChatMessage(role="user", content="test")])
         assert response.provider == "l2_ok"
@@ -522,23 +550,29 @@ class TestModelRouterFallback:
     async def test_all_providers_fail(self):
         """测试所有Provider都失败"""
         router = ModelRouter(strategy=RouterStrategy.COST_FIRST)
-        router.init_for_testing([
-            self._create_failing_provider("l1_fail", ProviderTier.L1),
-            self._create_failing_provider("l2_fail", ProviderTier.L2),
-        ])
+        router.init_for_testing(
+            [
+                self._create_failing_provider("l1_fail", ProviderTier.L1),
+                self._create_failing_provider("l2_fail", ProviderTier.L2),
+            ]
+        )
 
         with pytest.raises(ProviderError) as exc_info:
             await router.chat([ChatMessage(role="user", content="test")])
-        assert "双保障全部失败" in str(exc_info.value) or "所有Provider均失败" in str(exc_info.value)
+        assert "双保障全部失败" in str(exc_info.value) or "所有Provider均失败" in str(
+            exc_info.value
+        )
 
     @pytest.mark.asyncio
     async def test_prefer_tier_override(self):
         """测试临时指定层级"""
         router = ModelRouter(strategy=RouterStrategy.COST_FIRST)
-        router.init_for_testing([
-            self._create_success_provider("l1_ok", ProviderTier.L1),
-            self._create_success_provider("l2_ok", ProviderTier.L2),
-        ])
+        router.init_for_testing(
+            [
+                self._create_success_provider("l1_ok", ProviderTier.L1),
+                self._create_success_provider("l2_ok", ProviderTier.L2),
+            ]
+        )
 
         # 默认成本优先 → L1
         response = await router.chat([ChatMessage(role="user", content="test")])
@@ -565,16 +599,19 @@ class TestModelRouterFallback:
 
 # ==================== 7. ModelRouter状态测试 ====================
 
+
 class TestModelRouterStatus:
     """ModelRouter状态管理测试"""
 
     def test_get_status(self):
         """测试获取状态"""
         router = ModelRouter(strategy=RouterStrategy.COST_FIRST)
-        router.init_for_testing([
-            self._create_mock("l1", ProviderTier.L1),
-            self._create_mock("l2", ProviderTier.L2),
-        ])
+        router.init_for_testing(
+            [
+                self._create_mock("l1", ProviderTier.L1),
+                self._create_mock("l2", ProviderTier.L2),
+            ]
+        )
 
         status = router.get_status()
         assert status["strategy"] == "cost_first"
@@ -592,6 +629,7 @@ class TestModelRouterStatus:
         class MockP(BaseProvider):
             async def chat(self, messages, max_tokens=None, temperature=None):
                 pass
+
             async def health_check(self):
                 return True
 
@@ -603,10 +641,12 @@ class TestModelRouterStatus:
     async def test_health_check_all(self):
         """测试批量健康检查"""
         router = ModelRouter()
-        router.init_for_testing([
-            self._create_mock("l1", ProviderTier.L1),
-            self._create_mock("l2", ProviderTier.L2),
-        ])
+        router.init_for_testing(
+            [
+                self._create_mock("l1", ProviderTier.L1),
+                self._create_mock("l2", ProviderTier.L2),
+            ]
+        )
 
         results = await router.health_check_all()
         assert "l1" in results
@@ -623,6 +663,7 @@ class TestModelRouterStatus:
 
 # ==================== 8. 实际集成测试（需llama-server在线） ====================
 
+
 class TestModelRouterIntegration:
     """ModelRouter实际集成测试"""
 
@@ -633,6 +674,7 @@ class TestModelRouterIntegration:
 
         # 手动注入（模拟.env配置）
         from providers.llama_cpp_provider import create_default_llama_cpp_provider
+
         provider = create_default_llama_cpp_provider(
             api_base="http://localhost:1342/v1",
             api_key="jan-local",

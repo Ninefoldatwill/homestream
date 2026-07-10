@@ -32,15 +32,14 @@
   )
 """
 
-import sqlite3
 import json
 import os
+import sqlite3
 import threading
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import Any, Optional
 
-from event_stream import Event, EventType, EventSource, Action, Observation
-
+from event_stream import Action, Event, EventType, Observation
 
 # ==================== 配置 ====================
 
@@ -55,6 +54,7 @@ MAX_PAGE_SIZE = 200
 
 
 # ==================== EventStore 核心类 ====================
+
 
 class EventStore:
     """SQLite 事件持久化存储
@@ -81,7 +81,7 @@ class EventStore:
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")   # 性能/安全平衡
+        conn.execute("PRAGMA synchronous=NORMAL")  # 性能/安全平衡
         conn.execute("PRAGMA foreign_keys=ON")
         return conn
 
@@ -143,19 +143,9 @@ class EventStore:
             True 成功 / False 失败（不抛异常，让 EventStream 继续运行）
         """
         try:
-            full_json = json.dumps(
-                event.model_dump(mode="json"), ensure_ascii=False
-            )
-            handoff_json = (
-                json.dumps(event.handoff, ensure_ascii=False)
-                if event.handoff
-                else None
-            )
-            wal_json = (
-                json.dumps(event.wal_entry, ensure_ascii=False)
-                if event.wal_entry
-                else None
-            )
+            full_json = json.dumps(event.model_dump(mode="json"), ensure_ascii=False)
+            handoff_json = json.dumps(event.handoff, ensure_ascii=False) if event.handoff else None
+            wal_json = json.dumps(event.wal_entry, ensure_ascii=False) if event.wal_entry else None
 
             with self._lock:
                 conn = self._get_conn()
@@ -196,7 +186,7 @@ class EventStore:
 
     # ==================== 查询 ====================
 
-    def _row_to_event(self, row: sqlite3.Row) -> Optional[Event]:
+    def _row_to_event(self, row: sqlite3.Row) -> Event | None:
         """将数据库行反序列化为 Event 对象"""
         try:
             data = json.loads(row["full_json"])
@@ -216,7 +206,7 @@ class EventStore:
         limit: int = DEFAULT_PAGE_SIZE,
         offset: int = 0,
         newest_first: bool = True,
-    ) -> List[Event]:
+    ) -> list[Event]:
         """查询指定 session 的所有事件（支持分页）"""
         limit = min(limit, MAX_PAGE_SIZE)
         order = "DESC" if newest_first else "ASC"
@@ -235,16 +225,16 @@ class EventStore:
     def query_by_agent(
         self,
         agent_name: str,
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
         as_sender: bool = True,
         as_recipient: bool = True,
         limit: int = DEFAULT_PAGE_SIZE,
-    ) -> List[Event]:
+    ) -> list[Event]:
         """查询指定 Agent 相关的事件（作为 sender 或 recipient）"""
         limit = min(limit, MAX_PAGE_SIZE)
 
         clauses = []
-        params: List[Any] = []
+        params: list[Any] = []
 
         if as_sender and as_recipient:
             clauses.append("(sender = ? OR recipient = ?)")
@@ -268,8 +258,7 @@ class EventStore:
         conn = self._get_conn()
         try:
             rows = conn.execute(
-                f"SELECT * FROM events WHERE {where} "
-                f"ORDER BY timestamp DESC LIMIT ?",
+                f"SELECT * FROM events WHERE {where} ORDER BY timestamp DESC LIMIT ?",
                 params,
             ).fetchall()
             return [e for e in (self._row_to_event(r) for r in rows) if e]
@@ -279,12 +268,12 @@ class EventStore:
     def query_by_type(
         self,
         event_type: EventType,
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
         limit: int = DEFAULT_PAGE_SIZE,
-    ) -> List[Event]:
+    ) -> list[Event]:
         """查询指定类型的事件"""
         limit = min(limit, MAX_PAGE_SIZE)
-        params: List[Any] = [event_type.value]
+        params: list[Any] = [event_type.value]
 
         sql = "SELECT * FROM events WHERE event_type = ?"
         if session_id:
@@ -300,23 +289,21 @@ class EventStore:
         finally:
             conn.close()
 
-    def query_cause_chain(self, event_id: str) -> List[Event]:
+    def query_cause_chain(self, event_id: str) -> list[Event]:
         """从 SQLite 重建因果链（从根事件到指定事件）
 
         用于跨会话追溯；内存 EventStream 已有同名方法，
         此方法是其持久化版本。
         """
-        chain: List[Event] = []
-        current_id: Optional[str] = event_id
+        chain: list[Event] = []
+        current_id: str | None = event_id
 
         conn = self._get_conn()
         try:
             seen: set = set()
             while current_id and current_id not in seen:
                 seen.add(current_id)
-                row = conn.execute(
-                    "SELECT * FROM events WHERE id = ?", (current_id,)
-                ).fetchone()
+                row = conn.execute("SELECT * FROM events WHERE id = ?", (current_id,)).fetchone()
                 if not row:
                     break
                 event = self._row_to_event(row)
@@ -333,14 +320,14 @@ class EventStore:
     def query_range(
         self,
         session_id: str,
-        start: Optional[str] = None,  # ISO8601
-        end: Optional[str] = None,    # ISO8601
+        start: str | None = None,  # ISO8601
+        end: str | None = None,  # ISO8601
         limit: int = DEFAULT_PAGE_SIZE,
-    ) -> List[Event]:
+    ) -> list[Event]:
         """按时间范围查询"""
         limit = min(limit, MAX_PAGE_SIZE)
         clauses = ["session_id = ?"]
-        params: List[Any] = [session_id]
+        params: list[Any] = [session_id]
 
         if start:
             clauses.append("timestamp >= ?")
@@ -355,21 +342,18 @@ class EventStore:
         conn = self._get_conn()
         try:
             rows = conn.execute(
-                f"SELECT * FROM events WHERE {where} "
-                f"ORDER BY timestamp ASC LIMIT ?",
+                f"SELECT * FROM events WHERE {where} ORDER BY timestamp ASC LIMIT ?",
                 params,
             ).fetchall()
             return [e for e in (self._row_to_event(r) for r in rows) if e]
         finally:
             conn.close()
 
-    def get_event_by_id(self, event_id: str) -> Optional[Event]:
+    def get_event_by_id(self, event_id: str) -> Event | None:
         """按 ID 获取单个事件"""
         conn = self._get_conn()
         try:
-            row = conn.execute(
-                "SELECT * FROM events WHERE id = ?", (event_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
             return self._row_to_event(row) if row else None
         finally:
             conn.close()
@@ -420,7 +404,7 @@ class EventStore:
 
     # ==================== 统计 ====================
 
-    def stats(self, session_id: Optional[str] = None) -> Dict[str, Any]:
+    def stats(self, session_id: str | None = None) -> dict[str, Any]:
         """返回存储统计信息"""
         conn = self._get_conn()
         try:
@@ -435,12 +419,9 @@ class EventStore:
                     (session_id,),
                 ).fetchall()
             else:
-                total_row = conn.execute(
-                    "SELECT COUNT(*) as cnt FROM events"
-                ).fetchone()
+                total_row = conn.execute("SELECT COUNT(*) as cnt FROM events").fetchone()
                 type_rows = conn.execute(
-                    "SELECT event_type, COUNT(*) as cnt FROM events "
-                    "GROUP BY event_type"
+                    "SELECT event_type, COUNT(*) as cnt FROM events GROUP BY event_type"
                 ).fetchall()
 
             agent_rows = conn.execute(
@@ -451,8 +432,7 @@ class EventStore:
             ).fetchall()
 
             session_rows = conn.execute(
-                "SELECT session_id, COUNT(*) as cnt FROM events "
-                "GROUP BY session_id"
+                "SELECT session_id, COUNT(*) as cnt FROM events GROUP BY session_id"
             ).fetchall()
 
             return {
@@ -466,7 +446,7 @@ class EventStore:
         finally:
             conn.close()
 
-    def count(self, session_id: Optional[str] = None) -> int:
+    def count(self, session_id: str | None = None) -> int:
         """快速获取事件总数"""
         conn = self._get_conn()
         try:
@@ -476,15 +456,14 @@ class EventStore:
                     (session_id,),
                 ).fetchone()
             else:
-                row = conn.execute(
-                    "SELECT COUNT(*) as cnt FROM events"
-                ).fetchone()
+                row = conn.execute("SELECT COUNT(*) as cnt FROM events").fetchone()
             return row["cnt"] if row else 0
         finally:
             conn.close()
 
 
 # ==================== 持久化感知 EventStream 混入 ====================
+
 
 class PersistentEventStreamMixin:
     """混入类：为 EventStream 添加自动持久化能力
@@ -500,7 +479,7 @@ class PersistentEventStreamMixin:
 
     def __init__(self, *args, store: Optional["EventStore"] = None, **kwargs):
         super().__init__(*args, **kwargs)
-        self._store: Optional[EventStore] = store
+        self._store: EventStore | None = store
 
     def publish(self, event: Event) -> str:
         """覆写 publish：先走父类发布/订阅，再持久化"""
@@ -532,6 +511,7 @@ class PersistentEventStreamMixin:
 
 # ==================== 便捷工厂 ====================
 
+
 def make_persistent_stream(
     session_id: str = "default",
     db_path: str = DEFAULT_DB_PATH,
@@ -556,11 +536,12 @@ def make_persistent_stream(
 
 if __name__ == "__main__":
     import sys
+
     sys.stdout.reconfigure(encoding="utf-8")
 
     from event_stream import (
-        create_action, create_task_action, create_done_action,
         EventType,
+        create_action,
     )
 
     print("=" * 60)
@@ -568,7 +549,9 @@ if __name__ == "__main__":
     print("=" * 60)
 
     # 用临时 DB 做测试
-    import tempfile, os as _os
+    import os as _os
+    import tempfile
+
     tmp = tempfile.mktemp(suffix=".db")
     store = EventStore(db_path=tmp)
 
@@ -580,7 +563,8 @@ if __name__ == "__main__":
     events_written = []
     for i in range(5):
         event = create_action(
-            sender="澜舟", recipient="澜澜",
+            sender="澜舟",
+            recipient="澜澜",
             event_type=EventType.INFO,
             content=f"测试消息 #{i}",
         )

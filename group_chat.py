@@ -22,18 +22,18 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import uuid
-import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("group_chat")
 
 
 # ==================== 群成员定义 ====================
 
-GROUP_MEMBERS: Dict[str, Dict[str, str]] = {
+GROUP_MEMBERS: dict[str, dict[str, str]] = {
     "九重": {"role": "总规划", "avatar": "JIU", "color": "#DAA520"},
     "澜澜": {"role": "总调度", "avatar": "LAN", "color": "#4A90D9"},
     "灵犀": {"role": "信息咨询", "avatar": "LIN", "color": "#9B59B6"},
@@ -44,15 +44,16 @@ GROUP_MEMBERS: Dict[str, Dict[str, str]] = {
 ALL_MEMBER_NAMES = list(GROUP_MEMBERS.keys())
 
 # 频道定义（与 bridge_v7_server CHANNELS 保持一致）
-CHANNELS: Dict[str, Dict[str, Any]] = {
-    "#general":  {"name": "综合大厅",  "members": ALL_MEMBER_NAMES, "assignee_default": None},
-    "#tech":     {"name": "技术研发",  "members": ["澜舟", "灵犀"],  "assignee_default": "澜舟"},
-    "#creative": {"name": "创意工坊",  "members": ["千寻", "澜澜"],  "assignee_default": "千寻"},
-    "#admin":    {"name": "行政管理",  "members": ["澜澜", "九重"],  "assignee_default": "澜澜"},
+CHANNELS: dict[str, dict[str, Any]] = {
+    "#general": {"name": "综合大厅", "members": ALL_MEMBER_NAMES, "assignee_default": None},
+    "#tech": {"name": "技术研发", "members": ["澜舟", "灵犀"], "assignee_default": "澜舟"},
+    "#creative": {"name": "创意工坊", "members": ["千寻", "澜澜"], "assignee_default": "千寻"},
+    "#admin": {"name": "行政管理", "members": ["澜澜", "九重"], "assignee_default": "澜澜"},
 }
 
 
 # ==================== 数据模型 ====================
+
 
 class GroupMessage:
     """群聊消息模型（统一版）"""
@@ -64,10 +65,10 @@ class GroupMessage:
         content: str,
         msg_type: str = "text",
         channel: str = "#general",
-        mentions: Optional[List[str]] = None,
-        meeting_data: Optional[Dict[str, Any]] = None,
+        mentions: list[str] | None = None,
+        meeting_data: dict[str, Any] | None = None,
         event_tag: str = "",
-        timestamp: Optional[str] = None,
+        timestamp: str | None = None,
     ):
         self.msg_id = msg_id
         self.sender = sender
@@ -97,6 +98,7 @@ class GroupMessage:
 
 
 # ==================== 群聊管理器 ====================
+
 
 class GroupChatManager:
     """
@@ -165,8 +167,8 @@ class GroupChatManager:
         content: str,
         msg_type: str = "text",
         channel: str = "#general",
-        mentions: Optional[List[str]] = None,
-        meeting_data: Optional[Dict[str, Any]] = None,
+        mentions: list[str] | None = None,
+        meeting_data: dict[str, Any] | None = None,
         event_tag: str = "",
     ) -> GroupMessage:
         """
@@ -236,15 +238,12 @@ class GroupChatManager:
         }
         try:
             import asyncio
+
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                asyncio.ensure_future(
-                    self.ws_manager.broadcast(msg.channel, ws_msg)
-                )
+                asyncio.ensure_future(self.ws_manager.broadcast(msg.channel, ws_msg))
             else:
-                loop.run_until_complete(
-                    self.ws_manager.broadcast(msg.channel, ws_msg)
-                )
+                loop.run_until_complete(self.ws_manager.broadcast(msg.channel, ws_msg))
         except Exception as e:
             logger.warning(f"[群聊] WebSocket广播失败: {e}")
 
@@ -258,7 +257,8 @@ class GroupChatManager:
         if not self.event_stream_fn:
             return
         try:
-            from event_stream import Action, EventType, EventSource, _gen_event_id
+            from event_stream import Action, EventSource, EventType, _gen_event_id
+
             stream = self.event_stream_fn()
 
             # 确定接收人列表
@@ -303,8 +303,8 @@ class GroupChatManager:
         sender: str,
         title: str,
         meeting_time: str,
-        agenda: List[str],
-        attendees: Optional[List[str]] = None,
+        agenda: list[str],
+        attendees: list[str] | None = None,
         location: str = "线上会议室",
         channel: str = "#general",
     ) -> GroupMessage:
@@ -320,7 +320,9 @@ class GroupChatManager:
             "location": location,
         }
 
-        content = f"会议通知: {title}\n时间: {meeting_time}\n地点: {location}\n议程: {'; '.join(agenda)}"
+        content = (
+            f"会议通知: {title}\n时间: {meeting_time}\n地点: {location}\n议程: {'; '.join(agenda)}"
+        )
 
         return self.send_message(
             sender=sender,
@@ -337,9 +339,9 @@ class GroupChatManager:
     def get_messages(
         self,
         limit: int = 50,
-        before: Optional[str] = None,
-        channel: Optional[str] = None,
-    ) -> List[dict]:
+        before: str | None = None,
+        channel: str | None = None,
+    ) -> list[dict]:
         """查询群聊历史消息（分页，最新在前，支持频道过滤）"""
         conn = self._get_conn()
 
@@ -350,7 +352,7 @@ class GroupChatManager:
                        WHERE timestamp < ? AND channel = ?
                        ORDER BY timestamp DESC
                        LIMIT ?""",
-                    (before, channel, limit)
+                    (before, channel, limit),
                 ).fetchall()
             else:
                 rows = conn.execute(
@@ -358,7 +360,7 @@ class GroupChatManager:
                        WHERE channel = ?
                        ORDER BY timestamp DESC
                        LIMIT ?""",
-                    (channel, limit)
+                    (channel, limit),
                 ).fetchall()
         else:
             if before:
@@ -367,14 +369,14 @@ class GroupChatManager:
                        WHERE timestamp < ?
                        ORDER BY timestamp DESC
                        LIMIT ?""",
-                    (before, limit)
+                    (before, limit),
                 ).fetchall()
             else:
                 rows = conn.execute(
                     """SELECT * FROM group_messages
                        ORDER BY timestamp DESC
                        LIMIT ?""",
-                    (limit,)
+                    (limit,),
                 ).fetchall()
 
         conn.close()
@@ -389,7 +391,9 @@ class GroupChatManager:
                 channel=row["channel"] if "channel" in row.keys() else "#general",
                 mentions=json.loads(row["mentions"]) if row["mentions"] else [],
                 meeting_data=json.loads(row["meeting_data"]) if row["meeting_data"] else None,
-                event_tag=row["event_tag"] if "event_tag" in row.keys() and row["event_tag"] else "",
+                event_tag=row["event_tag"]
+                if "event_tag" in row.keys() and row["event_tag"]
+                else "",
                 timestamp=row["timestamp"],
             )
             messages.append(msg.to_dict())
@@ -428,30 +432,31 @@ class GroupChatManager:
             "last_message": {
                 "sender": last_msg["sender"] if last_msg else None,
                 "timestamp": last_msg["timestamp"] if last_msg else None,
-            } if last_msg else None,
+            }
+            if last_msg
+            else None,
             "members": ALL_MEMBER_NAMES,
             "channels": list(CHANNELS.keys()),
         }
 
-    def get_online_members(self) -> List[dict]:
+    def get_online_members(self) -> list[dict]:
         """获取成员在线状态（依赖WebSocket连接管理器）"""
         result = []
         for name, info in GROUP_MEMBERS.items():
             is_online = False
             if self.ws_manager:
                 is_online = self.ws_manager.is_connected(name)
-            result.append({
-                "name": name,
-                "role": info["role"],
-                "avatar": info["avatar"],
-                "color": info["color"],
-                "online": is_online,
-            })
+            result.append(
+                {
+                    "name": name,
+                    "role": info["role"],
+                    "avatar": info["avatar"],
+                    "color": info["color"],
+                    "online": is_online,
+                }
+            )
         return result
 
-    def get_channels(self) -> List[dict]:
+    def get_channels(self) -> list[dict]:
         """获取频道列表"""
-        return [
-            {"id": k, "name": v["name"], "members": v["members"]}
-            for k, v in CHANNELS.items()
-        ]
+        return [{"id": k, "name": v["name"], "members": v["members"]} for k, v in CHANNELS.items()]

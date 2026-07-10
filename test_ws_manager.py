@@ -13,12 +13,12 @@ import asyncio
 import json
 import time
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from ws_manager import ConnectionManager, EventStreamWSBridge
 
-
 # ==================== 辅助工具 ====================
+
 
 def _make_mock_ws():
     """创建模拟 WebSocket 对象"""
@@ -39,8 +39,8 @@ def run_async(coro):
 
 # ==================== TestConnectionManager ====================
 
-class TestConnectionManager(unittest.TestCase):
 
+class TestConnectionManager(unittest.TestCase):
     def setUp(self):
         self.manager = ConnectionManager()
 
@@ -171,8 +171,8 @@ class TestConnectionManager(unittest.TestCase):
 
 # ==================== TestHeartbeat ====================
 
-class TestHeartbeat(unittest.TestCase):
 
+class TestHeartbeat(unittest.TestCase):
     def setUp(self):
         self.manager = ConnectionManager()
 
@@ -192,7 +192,7 @@ class TestHeartbeat(unittest.TestCase):
     def test_heartbeat_disconnects_timed_out_agents(self):
         """心跳循环应断开超时 Agent"""
         manager = ConnectionManager()
-        manager.HEARTBEAT_TIMEOUT = 0.05   # 50ms 超时（测试用）
+        manager.HEARTBEAT_TIMEOUT = 0.05  # 50ms 超时（测试用）
         manager.HEARTBEAT_INTERVAL = 0.02  # 20ms 间隔
 
         ws = _make_mock_ws()
@@ -204,7 +204,8 @@ class TestHeartbeat(unittest.TestCase):
         async def one_beat():
             now = time.time()
             timed_out = [
-                a for a, last in manager._last_pong.items()
+                a
+                for a, last in manager._last_pong.items()
                 if now - last > manager.HEARTBEAT_TIMEOUT
             ]
             for a in timed_out:
@@ -216,8 +217,8 @@ class TestHeartbeat(unittest.TestCase):
 
 # ==================== TestConnectionStats ====================
 
-class TestConnectionStats(unittest.TestCase):
 
+class TestConnectionStats(unittest.TestCase):
     def setUp(self):
         self.manager = ConnectionManager()
 
@@ -249,8 +250,8 @@ class TestConnectionStats(unittest.TestCase):
 
 # ==================== TestConcurrentConnections ====================
 
-class TestConcurrentConnections(unittest.TestCase):
 
+class TestConcurrentConnections(unittest.TestCase):
     def setUp(self):
         self.manager = ConnectionManager()
 
@@ -297,8 +298,8 @@ class TestConcurrentConnections(unittest.TestCase):
 
 # ==================== TestEventStreamWSBridge ====================
 
-class TestEventStreamWSBridge(unittest.TestCase):
 
+class TestEventStreamWSBridge(unittest.TestCase):
     def test_build_ws_message_basic_event(self):
         """_build_ws_message 正确构建基础消息"""
         from datetime import datetime

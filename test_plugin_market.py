@@ -12,22 +12,18 @@ L2③ 插件市场骨架测试 — plugin_registry + plugin_sandbox + plugin_sig
 - 可信发布者管理
 """
 
-import pytest
-import time
-
 from plugin_registry import (
-    PluginType,
-    PluginStatus,
     PluginManifest,
     PluginRegistry,
+    PluginType,
     SkillToManifestMapper,
     get_registry,
 )
 
-
 # ============================================================
 # PluginManifest 测试
 # ============================================================
+
 
 class TestPluginManifest:
     """Manifest模型测试。"""
@@ -74,6 +70,7 @@ class TestPluginManifest:
 # PluginRegistry 测试
 # ============================================================
 
+
 class TestPluginRegistry:
     """注册中心测试。"""
 
@@ -104,14 +101,20 @@ class TestPluginRegistry:
     def test_search_by_name(self):
         """按名称搜索。"""
         registry = PluginRegistry()
-        registry.register(PluginManifest(
-            name="sentiment-analyzer", version="1.0.0",
-            description="情感分析插件",
-        ))
-        registry.register(PluginManifest(
-            name="code-validator", version="1.0.0",
-            description="代码验证插件",
-        ))
+        registry.register(
+            PluginManifest(
+                name="sentiment-analyzer",
+                version="1.0.0",
+                description="情感分析插件",
+            )
+        )
+        registry.register(
+            PluginManifest(
+                name="code-validator",
+                version="1.0.0",
+                description="代码验证插件",
+            )
+        )
         results = registry.search(query="sentiment")
         assert len(results) >= 1
         assert results[0].name == "sentiment-analyzer"
@@ -119,14 +122,20 @@ class TestPluginRegistry:
     def test_search_by_type(self):
         """按类型搜索。"""
         registry = PluginRegistry()
-        registry.register(PluginManifest(
-            name="validator-1", version="1.0.0",
-            plugin_type=PluginType.VALIDATOR,
-        ))
-        registry.register(PluginManifest(
-            name="integration-1", version="1.0.0",
-            plugin_type=PluginType.INTEGRATION,
-        ))
+        registry.register(
+            PluginManifest(
+                name="validator-1",
+                version="1.0.0",
+                plugin_type=PluginType.VALIDATOR,
+            )
+        )
+        registry.register(
+            PluginManifest(
+                name="integration-1",
+                version="1.0.0",
+                plugin_type=PluginType.INTEGRATION,
+            )
+        )
         results = registry.search(plugin_type=PluginType.VALIDATOR)
         assert len(results) == 1
         assert results[0].name == "validator-1"
@@ -134,20 +143,26 @@ class TestPluginRegistry:
     def test_search_by_tag(self):
         """按标签搜索。"""
         registry = PluginRegistry()
-        registry.register(PluginManifest(
-            name="nlp-plugin", version="1.0.0",
-            tags=["nlp", "chinese"],
-        ))
+        registry.register(
+            PluginManifest(
+                name="nlp-plugin",
+                version="1.0.0",
+                tags=["nlp", "chinese"],
+            )
+        )
         results = registry.search(tag="nlp")
         assert len(results) == 1
 
     def test_search_by_capability(self):
         """按能力搜索。"""
         registry = PluginRegistry()
-        registry.register(PluginManifest(
-            name="multi-tool", version="1.0.0",
-            capabilities=["sentiment", "translation"],
-        ))
+        registry.register(
+            PluginManifest(
+                name="multi-tool",
+                version="1.0.0",
+                capabilities=["sentiment", "translation"],
+            )
+        )
         results = registry.search(capability="sentiment")
         assert len(results) == 1
 
@@ -155,7 +170,8 @@ class TestPluginRegistry:
         """安装 → 禁用 → 启用 → 卸载生命周期。"""
         registry = PluginRegistry()
         m = PluginManifest(
-            name="lifecycle-test", version="1.0.0",
+            name="lifecycle-test",
+            version="1.0.0",
             description="生命周期测试",
         )
         registry.register(m)
@@ -190,10 +206,13 @@ class TestPluginRegistry:
     def test_stats(self):
         """注册表统计。"""
         registry = PluginRegistry()
-        registry.register(PluginManifest(
-            name="stats-1", version="1.0.0",
-            plugin_type=PluginType.VALIDATOR,
-        ))
+        registry.register(
+            PluginManifest(
+                name="stats-1",
+                version="1.0.0",
+                plugin_type=PluginType.VALIDATOR,
+            )
+        )
         stats = registry.stats()
         assert stats["total_plugins"] == 1
         assert "validator" in stats["by_type"]
@@ -216,6 +235,7 @@ class TestPluginRegistry:
 # SkillToManifestMapper 测试
 # ============================================================
 
+
 class TestSkillToManifestMapper:
     """SKILL.md → Manifest 映射测试。"""
 
@@ -234,36 +254,44 @@ class TestSkillToManifestMapper:
     def test_infer_validator_type(self):
         """推断验证器类型。"""
         mapper = SkillToManifestMapper()
-        manifest = mapper.map_skill_to_manifest({
-            "name": "code-validator",
-            "description": "validate code security checker",
-        })
+        manifest = mapper.map_skill_to_manifest(
+            {
+                "name": "code-validator",
+                "description": "validate code security checker",
+            }
+        )
         assert manifest.plugin_type == PluginType.VALIDATOR
 
     def test_infer_agent_type(self):
         """推断Agent类型。"""
         mapper = SkillToManifestMapper()
-        manifest = mapper.map_skill_to_manifest({
-            "name": "chat-agent",
-            "description": "对话Agent插件",
-        })
+        manifest = mapper.map_skill_to_manifest(
+            {
+                "name": "chat-agent",
+                "description": "对话Agent插件",
+            }
+        )
         assert manifest.plugin_type == PluginType.AGENT
 
     def test_infer_permissions_from_tools(self):
         """从allowed-tools推断权限。"""
         mapper = SkillToManifestMapper()
         # 危险工具 → L3_CORE
-        manifest = mapper.map_skill_to_manifest({
-            "name": "system-tool",
-            "allowed-tools": "exec shell system",
-        })
+        manifest = mapper.map_skill_to_manifest(
+            {
+                "name": "system-tool",
+                "allowed-tools": "exec shell system",
+            }
+        )
         assert "L3_CORE" in manifest.permissions
 
         # 只读工具 → L1_PUBLIC
-        manifest = mapper.map_skill_to_manifest({
-            "name": "read-tool",
-            "allowed-tools": "search read",
-        })
+        manifest = mapper.map_skill_to_manifest(
+            {
+                "name": "read-tool",
+                "allowed-tools": "search read",
+            }
+        )
         assert "L1_PUBLIC" in manifest.permissions
 
 
@@ -272,17 +300,13 @@ class TestSkillToManifestMapper:
 # ============================================================
 
 from plugin_sandbox import (
-    SandboxLevel,
-    DANGEROUS_MODULES,
-    DANGEROUS_BUILTINS,
     ASTScanner,
-    ScanResult,
     ImportBlocker,
     SandboxConfig,
     SandboxExecutor,
-    ExecutionResult,
-    scan_plugin_code,
+    SandboxLevel,
     run_in_sandbox,
+    scan_plugin_code,
 )
 
 
@@ -364,8 +388,8 @@ class TestImportBlocker:
         assert blocker._hook_installed is True
         # 验证hook已添加到sys.meta_path
         import sys
-        has_finder = any(type(f).__name__ == "BlockingFinder"
-                         for f in sys.meta_path)
+
+        has_finder = any(type(f).__name__ == "BlockingFinder" for f in sys.meta_path)
         assert has_finder is True
         blocker.uninstall()
 
@@ -451,14 +475,13 @@ class TestSandboxExecutor:
 # ============================================================
 
 from plugin_signing import (
-    PluginSigner,
-    SignatureResult,
     TRUSTED_KEYS,
+    PluginSigner,
+    add_trusted_publisher,
+    list_trusted_publishers,
+    remove_trusted_publisher,
     sign_plugin_manifest,
     verify_plugin_signature,
-    add_trusted_publisher,
-    remove_trusted_publisher,
-    list_trusted_publishers,
 )
 
 

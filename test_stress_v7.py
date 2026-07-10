@@ -23,53 +23,40 @@ import gc
 import json
 import os
 import sys
-import time
 import tempfile
 import threading
+import time
 import tracemalloc
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 # 确保项目目录在 sys.path
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_DIR not in sys.path:
     sys.path.insert(0, PROJECT_DIR)
 
-from event_stream import (
-    Event,
-    EventStream,
-    EventType,
-    EventSource,
-    Action,
-    Observation,
-    create_action,
-    create_task_action,
-    create_done_action,
-    create_warn_action,
-    _gen_event_id,
+from condition_verifier import (
+    ConditionVerifier,
+    VerificationResult,
+    VerifierConfig,
 )
 from event_store import (
     EventStore,
-    PersistentEventStreamMixin,
     make_persistent_stream,
-    DEFAULT_DB_PATH,
 )
-from condition_verifier import (
-    ConditionVerifier,
-    VerifierConfig,
-    StopCondition,
-    VerificationResult,
+from event_stream import (
+    EventStream,
+    EventType,
+    create_action,
+    create_task_action,
 )
 from worktree_manager import (
+    CANONICAL_PORTS,
     PortManager,
     SQLiteManager,
-    WorktreeConfig,
-    WorktreeRole,
-    WorktreeStatus,
-    CANONICAL_PORTS,
 )
 
-
 # ==================== 测试框架 ====================
+
 
 class StressTestResult:
     """单项压强测试结果"""
@@ -79,8 +66,8 @@ class StressTestResult:
         self.dimension = dimension
         self.passed: bool = False
         self.duration_ms: float = 0.0
-        self.metrics: Dict[str, Any] = {}
-        self.error: Optional[str] = None
+        self.metrics: dict[str, Any] = {}
+        self.error: str | None = None
 
     def __repr__(self):
         status = "PASS" if self.passed else "FAIL"
@@ -91,7 +78,7 @@ class StressTestRunner:
     """压强测试运行器"""
 
     def __init__(self):
-        self.results: List[StressTestResult] = []
+        self.results: list[StressTestResult] = []
         self._lock = threading.Lock()
 
     def run(self, name: str, dimension: str, test_fn) -> StressTestResult:
@@ -114,12 +101,12 @@ class StressTestRunner:
             self.results.append(result)
         return result
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         """汇总结果"""
         total = len(self.results)
         passed = sum(1 for r in self.results if r.passed)
         failed = total - passed
-        dim_stats: Dict[str, Dict[str, int]] = {}
+        dim_stats: dict[str, dict[str, int]] = {}
         for r in self.results:
             d = r.dimension
             if d not in dim_stats:
@@ -133,7 +120,7 @@ class StressTestRunner:
             "total": total,
             "passed": passed,
             "failed": failed,
-            "pass_rate": f"{passed/total*100:.1f}%" if total > 0 else "N/A",
+            "pass_rate": f"{passed / total * 100:.1f}%" if total > 0 else "N/A",
             "by_dimension": dim_stats,
             "total_duration_s": sum(r.duration_ms for r in self.results) / 1000,
         }
@@ -167,6 +154,7 @@ class StressTestRunner:
 
 
 # ==================== 维度①: 高并发写入 ====================
+
 
 def test_concurrent_publish_5000():
     """5000事件并发publish(10线程)"""
@@ -207,7 +195,7 @@ def test_concurrent_publish_5000():
     return {
         "events": total,
         "throughput": f"{throughput:.0f}/s",
-        "avg_latency": f"{elapsed/total*1000:.3f}ms",
+        "avg_latency": f"{elapsed / total * 1000:.3f}ms",
         "received": len(received),
     }
 
@@ -215,16 +203,19 @@ def test_concurrent_publish_5000():
 def test_mixed_event_types_concurrent():
     """混合事件类型随机发布(9种类型)"""
     stream = EventStream(session_id="stress-mixed")
-    type_counts: Dict[str, int] = {}
+    type_counts: dict[str, int] = {}
     type_lock = threading.Lock()
 
     # 为每种类型注册订阅
     for et in EventType:
+
         def make_cb(etype):
             def cb(e):
                 with type_lock:
                     type_counts[etype.value] = type_counts.get(etype.value, 0) + 1
+
             return cb
+
         stream.subscribe_by_type(et, make_cb(et))
 
     total = 1000
@@ -234,6 +225,7 @@ def test_mixed_event_types_concurrent():
 
     def worker():
         import random
+
         for _ in range(per_thread):
             et = random.choice(types)
             evt = create_action(
@@ -270,7 +262,7 @@ def test_condition_verifier_concurrent():
     total = 500
     threads = 5
     per_thread = total // threads
-    results: List[VerificationResult] = []
+    results: list[VerificationResult] = []
     results_lock = threading.Lock()
 
     def worker():
@@ -318,7 +310,11 @@ def test_high_volume_single_thread():
     assert stream.event_count == 10000
     assert throughput > 5000, f"单线程吞吐不足: {throughput:.0f}/s"
 
-    return {"events": 10000, "throughput": f"{throughput:.0f}/s", "elapsed_ms": f"{elapsed*1000:.0f}"}
+    return {
+        "events": 10000,
+        "throughput": f"{throughput:.0f}/s",
+        "elapsed_ms": f"{elapsed * 1000:.0f}",
+    }
 
 
 def test_subscriber_exception_isolation():
@@ -350,6 +346,7 @@ def test_subscriber_exception_isolation():
 
 
 # ==================== 维度②: SQLite持久化 ====================
+
 
 def test_wal_concurrent_write():
     """WAL模式并发读写"""
@@ -419,7 +416,7 @@ def test_batch_insert_1000():
             "events": 1000,
             "db_count": db_count,
             "per_event_ms": f"{per_event_ms:.3f}ms",
-            "total_ms": f"{elapsed*1000:.0f}",
+            "total_ms": f"{elapsed * 1000:.0f}",
         }
     finally:
         if os.path.exists(tmp_db):
@@ -463,7 +460,9 @@ def test_replay_with_concurrent_write():
 
         # 验证回放幂等性: 不触发订阅者副作用
         side_effect_count = [0]
-        stream2.subscribe("store", lambda e: side_effect_count.__setitem__(0, side_effect_count[0] + 1))
+        stream2.subscribe(
+            "store", lambda e: side_effect_count.__setitem__(0, side_effect_count[0] + 1)
+        )
 
         # 再次回放
         stream3 = make_persistent_stream("stress-replay", db_path=tmp_db, replay=True)
@@ -520,6 +519,7 @@ def test_cause_chain_cross_session():
 
 
 # ==================== 维度③: WebSocket并发 ====================
+
 
 def test_connection_manager_many_connections():
     """ConnectionManager管理大量模拟连接"""
@@ -695,12 +695,13 @@ def test_reconnect_after_disconnect():
 
 # ==================== 维度④: Worktree并行 ====================
 
+
 def test_port_manager_concurrent_allocate():
     """5个Worktree并发端口分配"""
     pm = PortManager()
     threads = 5
     barrier = threading.Barrier(threads)
-    all_ports: Dict[str, Dict[str, int]] = {}
+    all_ports: dict[str, dict[str, int]] = {}
     all_ports_lock = threading.Lock()
     errors = []
 
@@ -857,6 +858,7 @@ def test_sqlite_manager_isolation():
     finally:
         sm.close_all()
         import shutil
+
         for d in tmp_dirs:
             shutil.rmtree(d, ignore_errors=True)
 
@@ -924,11 +926,13 @@ def test_worktree_concurrent_operations():
     finally:
         sm.close_all()
         import shutil
+
         for d in tmp_dirs:
             shutil.rmtree(d, ignore_errors=True)
 
 
 # ==================== 维度⑤: 长时运行稳定性 ====================
+
 
 def test_10000_events_memory():
     """连续10000事件内存增长"""
@@ -989,7 +993,7 @@ def test_long_running_30s():
     return {
         "duration_s": f"{elapsed:.1f}",
         "events_published": count,
-        "throughput": f"{count/elapsed:.0f}/s",
+        "throughput": f"{count / elapsed:.0f}/s",
     }
 
 
@@ -1069,6 +1073,7 @@ def test_full_regression_after_stress():
 
 # ==================== 辅助函数 ====================
 
+
 def _safe_append(lst: list, lock: threading.Lock, item):
     with lock:
         lst.append(item)
@@ -1076,8 +1081,10 @@ def _safe_append(lst: list, lock: threading.Lock, item):
 
 # ==================== 主入口 ====================
 
+
 def main():
     import sys
+
     sys.stdout.reconfigure(encoding="utf-8")
 
     runner = StressTestRunner()

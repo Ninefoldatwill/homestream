@@ -14,12 +14,12 @@
 作者: 澜舟
 """
 
-import sys
-import os
-import time
 import json
-import tempfile
+import os
 import shutil
+import sys
+import tempfile
+import time
 
 import pytest
 
@@ -28,34 +28,30 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_DIR not in sys.path:
     sys.path.insert(0, PROJECT_DIR)
 
+from condition_verifier import (
+    StopCondition,
+    create_experiment_verifier,
+)
+from event_stream import EventStream
+from experiment_archiver import ExperimentArchiver
 from ratchet_loop import (
-    ProgramParser,
     ExperimentConfig,
-    ExperimentResult,
     ExperimentStatus,
-    RatchetPhase,
+    ProgramParser,
     RatchetLoopEngine,
     create_experiment_config,
     create_ratchet_engine,
 )
-from condition_verifier import (
-    ConditionVerifier,
-    VerifierConfig,
-    StopCondition,
-    create_experiment_verifier,
-)
-from event_stream import EventStream, EventType, create_action
-from experiment_archiver import ExperimentArchiver
-
 
 # ==================== 1. ProgramParser 测试 ====================
+
 
 class TestProgramParser:
     """program.md 实验指令解析器测试"""
 
     def test_parse_full_frontmatter(self):
         """完整frontmatter解析"""
-        content = '''---
+        content = """---
 experiment:
   name: "test-skill-router"
   maker: "澜舟"
@@ -71,7 +67,7 @@ experiment:
 ---
 # 实验内容
 测试SkillRouter v2...
-'''
+"""
         config, desc = ProgramParser.parse(content)
 
         assert config.name == "test-skill-router"
@@ -88,12 +84,12 @@ experiment:
 
     def test_parse_minimal(self):
         """最小配置解析（只有name）"""
-        content = '''---
+        content = """---
 experiment:
   name: "minimal-test"
 ---
 简单实验
-'''
+"""
         config, desc = ProgramParser.parse(content)
 
         assert config.name == "minimal-test"
@@ -111,18 +107,18 @@ experiment:
 
     def test_parse_empty_success_criteria(self):
         """空成功标准列表"""
-        content = '''---
+        content = """---
 experiment:
   name: "no-criteria"
 ---
 无标准实验
-'''
+"""
         config, _ = ProgramParser.parse(content)
         assert config.success_criteria == []
 
     def test_parse_tags(self):
         """标签解析"""
-        content = '''---
+        content = """---
 experiment:
   name: "tagged-exp"
   tags:
@@ -130,7 +126,7 @@ experiment:
     - "routing"
 ---
 带标签的实验
-'''
+"""
         config, _ = ProgramParser.parse(content)
         # tags may or may not parse depending on YAML complexity
         # at minimum the name should be correct
@@ -145,6 +141,7 @@ experiment:
 
 
 # ==================== 2. RatchetLoopEngine 测试 ====================
+
 
 class TestRatchetLoopEngine:
     """Ratchet Loop引擎核心测试"""
@@ -335,8 +332,10 @@ class TestRatchetLoopEngine:
 
         # 失败实验
         config_fail = create_experiment_config(name="test-list-fail", max_iterations=1)
+
         def fail_maker(cfg):
             raise RuntimeError("故意失败")
+
         engine.run_experiment(config_fail, fail_maker)
 
         locked = engine.list_experiments(status=ExperimentStatus.LOCKED)
@@ -369,6 +368,7 @@ class TestRatchetLoopEngine:
 
 
 # ==================== 3. ConditionVerifier 实验模式测试 ====================
+
 
 class TestExperimentVerifier:
     """条件验证器实验模式测试"""
@@ -449,24 +449,27 @@ class TestExperimentVerifier:
 
 # ==================== 4. WorktreeManager 实验模式测试 ====================
 
+
 class TestExperimentWorktree:
     """Worktree实验模式测试"""
 
     def test_experiment_role_exists(self):
         """EXPERIMENTER角色存在"""
         from worktree_manager import WorktreeRole
+
         assert WorktreeRole.EXPERIMENTER == "experimenter"
 
     def test_experiment_status_exists(self):
         """实验状态值存在"""
         from worktree_manager import WorktreeStatus
+
         assert WorktreeStatus.EXPERIMENTING == "experimenting"
         assert WorktreeStatus.RATCHET_LOCKED == "ratchet_locked"
         assert WorktreeStatus.ROLLED_BACK == "rolled_back"
 
     def test_create_experiment_worktree_config(self):
         """实验Worktree配置创建"""
-        from worktree_manager import create_experiment_worktree, WorktreeRole
+        from worktree_manager import WorktreeRole, create_experiment_worktree
 
         config = create_experiment_worktree(
             name="test-exp-wt",
@@ -485,6 +488,7 @@ class TestExperimentWorktree:
 
 
 # ==================== 5. ExperimentArchiver 测试 ====================
+
 
 class TestExperimentArchiver:
     """千寻归档适配器测试"""
@@ -515,7 +519,7 @@ class TestExperimentArchiver:
         assert archive_path.endswith(".json")
 
         # JSON文件可读
-        with open(archive_path, "r", encoding="utf-8") as f:
+        with open(archive_path, encoding="utf-8") as f:
             data = json.load(f)
         assert data["experiment_id"] == result.experiment_id
 
@@ -536,7 +540,7 @@ class TestExperimentArchiver:
         md_path = os.path.join(temp_archive_dir, f"{result.experiment_id}.md")
         assert os.path.exists(md_path)
 
-        with open(md_path, "r", encoding="utf-8") as f:
+        with open(md_path, encoding="utf-8") as f:
             md_content = f.read()
         assert "实验报告" in md_content
         assert config.name in md_content
@@ -578,7 +582,7 @@ class TestExperimentArchiver:
         index_path = os.path.join(temp_archive_dir, "index.json")
         assert os.path.exists(index_path)
 
-        with open(index_path, "r", encoding="utf-8") as f:
+        with open(index_path, encoding="utf-8") as f:
             index = json.load(f)
         assert len(index["experiments"]) == 2
 
@@ -628,12 +632,13 @@ class TestExperimentArchiver:
 
         # 检查Markdown报告含教训
         md_path = os.path.join(temp_archive_dir, f"{result.experiment_id}.md")
-        with open(md_path, "r", encoding="utf-8") as f:
+        with open(md_path, encoding="utf-8") as f:
             md = f.read()
         assert "回滚" in md or "Rollback" in md or "rolled_back" in md
 
 
 # ==================== 6. 集成测试 ====================
+
 
 class TestRatchetLoopIntegration:
     """完整Ratchet Loop流程集成测试"""
@@ -647,7 +652,7 @@ class TestRatchetLoopIntegration:
     def test_full_flow_success(self, temp_archive_dir):
         """完整成功流程: 解析 → 执行 → 验证 → 锁定 → 归档"""
         # 1. 解析program.md
-        program = '''---
+        program = """---
 experiment:
   name: "integration-test-full"
   maker: "澜舟"
@@ -663,7 +668,7 @@ experiment:
   archive_to: "bookhouse"
 ---
 完整集成测试
-'''
+"""
         config, desc = ProgramParser.parse(program)
         assert config.name == "integration-test-full"
 
@@ -698,7 +703,7 @@ experiment:
 
     def test_full_flow_failure(self, temp_archive_dir):
         """完整失败流程: 解析 → 执行 → 验证失败 → 回滚 → 归档教训"""
-        program = '''---
+        program = """---
 experiment:
   name: "integration-test-fail"
   hypothesis: "失败流程测试"
@@ -708,7 +713,7 @@ experiment:
   rollback_on_fail: true
 ---
 失败集成测试
-'''
+"""
         config, _ = ProgramParser.parse(program)
 
         archiver = ExperimentArchiver(archive_base=temp_archive_dir)
@@ -768,6 +773,7 @@ experiment:
                 success_criteria=[f"条件{i}"],
                 max_iterations=1,
             )
+
             def maker_cb(cfg, _i=i):
                 return [f"条件{_i}满足"]
 

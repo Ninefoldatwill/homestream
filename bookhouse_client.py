@@ -11,11 +11,11 @@
 - 透明切换：环境变量 OPENBRIDGE_MODE 控制，向外暴露相同API签名
 """
 
-import os
 import json
+import os
+
 import httpx
 import structlog
-from typing import Optional, Dict, Any, List
 
 logger = structlog.get_logger("bookhouse.client")
 
@@ -31,13 +31,12 @@ BOOKHOUSE_BASE_URL = "http://127.0.0.1:3460"
 TIMEOUT = 5.0  # 秒
 
 # 开源模式静态知识库
-PUBLIC_KB_PATH = os.path.join(os.path.dirname(__file__),
-                               "open_knowledge", "public_knowledge.json")
+PUBLIC_KB_PATH = os.path.join(os.path.dirname(__file__), "open_knowledge", "public_knowledge.json")
 
 
 # ─── 静态知识库缓存 ──────────────────────────────────────
 
-_public_cache: Optional[dict] = None
+_public_cache: dict | None = None
 
 
 def _load_public_cache() -> dict:
@@ -45,10 +44,11 @@ def _load_public_cache() -> dict:
     global _public_cache
     if _public_cache is None:
         try:
-            with open(PUBLIC_KB_PATH, 'r', encoding='utf-8') as f:
+            with open(PUBLIC_KB_PATH, encoding="utf-8") as f:
                 _public_cache = json.load(f)
-            logger.info("bookhouse_opensource_loaded",
-                        books=_public_cache['_meta'].get('total_books', 0))
+            logger.info(
+                "bookhouse_opensource_loaded", books=_public_cache["_meta"].get("total_books", 0)
+            )
         except FileNotFoundError:
             logger.warning("bookhouse_opensource_missing", path=PUBLIC_KB_PATH)
             _public_cache = {
@@ -66,8 +66,10 @@ def is_opensource() -> bool:
 
 # ─── 内部工具 ────────────────────────────────────────────
 
-async def _fetch(endpoint: str, method: str = "GET", json_body: dict = None,
-                 params: dict = None) -> dict:
+
+async def _fetch(
+    endpoint: str, method: str = "GET", json_body: dict = None, params: dict = None
+) -> dict:
     """通用异步请求，带超时和降级（仅team/private模式）"""
     url = f"{BOOKHOUSE_BASE_URL}{endpoint}"
     try:
@@ -82,8 +84,7 @@ async def _fetch(endpoint: str, method: str = "GET", json_body: dict = None,
             return resp.json()
     except httpx.TimeoutException:
         logger.warning("bookhouse_timeout", endpoint=endpoint)
-        return {"status": "degraded", "message": f"书阁超时({TIMEOUT}s)",
-                "results": []}
+        return {"status": "degraded", "message": f"书阁超时({TIMEOUT}s)", "results": []}
     except httpx.ConnectError:
         logger.warning("bookhouse_unreachable", endpoint=endpoint)
         return {"status": "degraded", "message": "书阁服务不可用", "results": []}
@@ -99,7 +100,7 @@ def _opensource_search(query: str) -> dict:
     q = query.lower().strip()
     results = []
     for b in books:
-        text = f"{b.get('title','')} {b.get('summary','')} {b.get('tags','')} {b.get('author','')}".lower()
+        text = f"{b.get('title', '')} {b.get('summary', '')} {b.get('tags', '')} {b.get('author', '')}".lower()
         if q in text:
             results.append(b)
     return {
@@ -116,8 +117,7 @@ def _opensource_book(book_id: int) -> dict:
     for b in cache.get("books", []):
         if b.get("id") == book_id:
             return {"status": "ok", "book": b, "_source": "本地静态知识库·物理隔离"}
-    return {"status": "not_found", "message": f"公开知识库中未找到ID={book_id}的书籍",
-            "book": None}
+    return {"status": "not_found", "message": f"公开知识库中未找到ID={book_id}的书籍", "book": None}
 
 
 def _opensource_tags() -> dict:
@@ -147,6 +147,7 @@ def _opensource_stats() -> dict:
 
 # ─── 公开API ─────────────────────────────────────────────
 
+
 async def search(query: str) -> dict:
     """全文搜索
 
@@ -171,8 +172,7 @@ async def get_building(name: str) -> dict:
     """获取某阁楼下所有藏书"""
     if is_opensource():
         cache = _load_public_cache()
-        books = [b for b in cache.get("books", [])
-                 if b.get("building", "") == name]
+        books = [b for b in cache.get("books", []) if b.get("building", "") == name]
         return {
             "status": "ok",
             "building": name,
@@ -197,10 +197,17 @@ async def get_stats() -> dict:
     return await _fetch("/api/library/stats")
 
 
-async def add_book(title: str, building: str, token: str,
-                   category: str = "", author: str = "",
-                   source: str = "", file_path: str = "",
-                   summary: str = "", tags: str = "") -> dict:
+async def add_book(
+    title: str,
+    building: str,
+    token: str,
+    category: str = "",
+    author: str = "",
+    source: str = "",
+    file_path: str = "",
+    summary: str = "",
+    tags: str = "",
+) -> dict:
     """新增书籍
 
     开源模式：拒绝写入（只读知识库）

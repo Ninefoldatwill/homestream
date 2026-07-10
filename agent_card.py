@@ -6,28 +6,30 @@ agent_card.py — A2A AgentCard 自动发现模块
 
 九重生态 · 澜舟开发 · 2026-07-02
 """
+
 from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-
 # ─── 数据模型 ──────────────────────────────────────────────────
+
 
 class AgentInterface(BaseModel):
     """Agent 通信端点"""
+
     url: str
     protocolBinding: str = "a2a/v1"
-    authentication: Optional[Dict[str, Any]] = None
+    authentication: dict[str, Any] | None = None
 
 
 class AgentCapabilities(BaseModel):
     """Agent 能力声明"""
+
     streaming: bool = False
     pushNotifications: bool = False
     stateTransitionHistory: bool = False
@@ -36,46 +38,50 @@ class AgentCapabilities(BaseModel):
 
 class AgentSkill(BaseModel):
     """Agent 暴露的技能"""
+
     id: str
     name: str
     description: str
-    tags: List[str] = Field(default_factory=list)
-    examples: List[str] = Field(default_factory=list)
-    inputModes: List[str] = Field(default_factory=lambda: ["text/plain"])
-    outputModes: List[str] = Field(default_factory=lambda: ["text/plain"])
+    tags: list[str] = Field(default_factory=list)
+    examples: list[str] = Field(default_factory=list)
+    inputModes: list[str] = Field(default_factory=lambda: ["text/plain"])
+    outputModes: list[str] = Field(default_factory=lambda: ["text/plain"])
 
 
 class AgentProvider(BaseModel):
     """Agent 提供商信息"""
+
     name: str
-    url: Optional[str] = None
+    url: str | None = None
 
 
 class AgentCard(BaseModel):
     """A2A 标准 AgentCard（13核心字段）"""
-    protocolVersions: List[str] = Field(default_factory=lambda: ["v1"])
+
+    protocolVersions: list[str] = Field(default_factory=lambda: ["v1"])
     name: str
     description: str
-    supportedInterfaces: List[AgentInterface]
+    supportedInterfaces: list[AgentInterface]
     version: str
     capabilities: AgentCapabilities
-    skills: List[AgentSkill]
-    defaultInputModes: List[str] = Field(default_factory=lambda: ["text/plain"])
-    defaultOutputModes: List[str] = Field(default_factory=lambda: ["text/plain"])
-    provider: Optional[AgentProvider] = None
-    securitySchemes: Optional[Dict[str, Any]] = None
-    security: Optional[List[Dict[str, Any]]] = None
-    signatures: Optional[List[Dict[str, Any]]] = None
+    skills: list[AgentSkill]
+    defaultInputModes: list[str] = Field(default_factory=lambda: ["text/plain"])
+    defaultOutputModes: list[str] = Field(default_factory=lambda: ["text/plain"])
+    provider: AgentProvider | None = None
+    securitySchemes: dict[str, Any] | None = None
+    security: list[dict[str, Any]] | None = None
+    signatures: list[dict[str, Any]] | None = None
 
     @field_validator("protocolVersions")
     @classmethod
-    def _check_versions(cls, v: List[str]) -> List[str]:
+    def _check_versions(cls, v: list[str]) -> list[str]:
         if not v:
             raise ValueError("protocolVersions 不能为空")
         return v
 
 
 # ─── 自动生成 AgentCard ────────────────────────────────────────
+
 
 @dataclass
 class AgentCardBuilder:
@@ -89,12 +95,12 @@ class AgentCardBuilder:
         "Skill 调度、EventStream 因果链与书阁知识库。"
     )
     provider_name: str = "九重工作室 JiuChong Studio"
-    provider_url: Optional[str] = "https://github.com/Ninefoldatwill/OpenBridge"
+    provider_url: str | None = "https://github.com/Ninefoldatwill/OpenBridge"
 
     def build(
         self,
-        routes: Optional[List[Dict[str, Any]]] = None,
-        skills: Optional[List[AgentSkill]] = None,
+        routes: list[dict[str, Any]] | None = None,
+        skills: list[AgentSkill] | None = None,
     ) -> AgentCard:
         """构建 AgentCard"""
         if skills is None:
@@ -127,7 +133,7 @@ class AgentCardBuilder:
             security=[{"ApiKeyAuth": []}],
         )
 
-    def _default_skills(self) -> List[AgentSkill]:
+    def _default_skills(self) -> list[AgentSkill]:
         """OpenBridge 默认技能清单"""
         return [
             AgentSkill(
@@ -170,17 +176,19 @@ class AgentCardBuilder:
 
 # ─── JWS 签名（简化版，使用 Ed25519）────────────────────────────
 
+
 class AgentCardSigner:
     """
     使用 Ed25519 对 AgentCard 进行 JWS 签名。
     依赖 PyNaCl（可选），未安装时跳过签名。
     """
 
-    def __init__(self, private_key_b64: Optional[str] = None):
+    def __init__(self, private_key_b64: str | None = None):
         self._has_nacl = False
         try:
-            import nacl.signing
             import nacl.encoding
+            import nacl.signing
+
             self._has_nacl = True
             self._nacl_signing = nacl.signing
             self._nacl_encoding = nacl.encoding
@@ -192,12 +200,10 @@ class AgentCardSigner:
             seed = self._nacl_encoding.Base64Encoder.decode(private_key_b64)
             self._private_key = self._nacl_signing.SigningKey(seed)
 
-    def sign(self, card: AgentCard) -> Optional[str]:
+    def sign(self, card: AgentCard) -> str | None:
         """返回 Base64Url 编码的 JWS，未安装 PyNaCl 返回 None"""
         if not self._has_nacl or self._private_key is None:
             return None
-
-        import base64
 
         header = {"alg": "EdDSA", "crv": "Ed25519", "typ": "JWT"}
         payload = json.loads(card.model_dump_json())
@@ -215,9 +221,10 @@ class AgentCardSigner:
     @staticmethod
     def _b64url(data: bytes) -> str:
         import base64
+
         return base64.urlsafe_b64encode(data).decode().rstrip("=")
 
-    def verify(self, jws: str, public_key_b64: Optional[str] = None) -> bool:
+    def verify(self, jws: str, public_key_b64: str | None = None) -> bool:
         """验证 JWS 签名"""
         if not self._has_nacl:
             return False
@@ -238,6 +245,7 @@ class AgentCardSigner:
 
             signing_input = f"{parts[0]}.{parts[1]}".encode()
             import base64
+
             signature = base64.urlsafe_b64decode(parts[2] + "==")
             verify_key.verify(signing_input, signature)
             return True
@@ -247,11 +255,12 @@ class AgentCardSigner:
 
 # ─── 便捷函数 ──────────────────────────────────────────────────
 
+
 def generate_agent_card(
     base_url: str = "http://localhost:3458",
     server_version: str = "8.0.0",
-    routes: Optional[List[Dict[str, Any]]] = None,
-    skills: Optional[List[AgentSkill]] = None,
+    routes: list[dict[str, Any]] | None = None,
+    skills: list[AgentSkill] | None = None,
 ) -> AgentCard:
     """便捷函数：生成默认 AgentCard"""
     return AgentCardBuilder(

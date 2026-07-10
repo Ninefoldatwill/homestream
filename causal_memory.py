@@ -21,18 +21,18 @@
 """
 
 import time
-from typing import Optional, List, Set, Dict, Any
+from typing import Any
 
 import structlog
 
 from event_stream import Event, EventStream, EventType
 from memory_evolution import (
-    MemoryRecord,
-    MemoryType,
+    DEFAULT_IMPORTANCE,
     ForgettingEngine,
     HybridRetriever,
     MemoryEvolutionOrchestra,
-    DEFAULT_IMPORTANCE,
+    MemoryRecord,
+    MemoryType,
 )
 
 logger = structlog.get_logger("bridge_v7.causal_memory")
@@ -56,8 +56,7 @@ class CausalMemoryBridge:
     # 因果链完整性权重：每深一层，完整性贡献递减
     COMPLETENESS_DECAY = 0.9
 
-    def __init__(self, event_stream: EventStream,
-                 orchestra: MemoryEvolutionOrchestra):
+    def __init__(self, event_stream: EventStream, orchestra: MemoryEvolutionOrchestra):
         """
         Args:
             event_stream: 事件流引擎（提供因果链）
@@ -72,10 +71,13 @@ class CausalMemoryBridge:
     # 念起 — 事件 → 因果记忆
     # ===================================================================
 
-    def remember_event(self, event: Event,
-                       memory_type: MemoryType = MemoryType.EPISODIC,
-                       importance: float = DEFAULT_IMPORTANCE,
-                       tags: Optional[List[str]] = None) -> MemoryRecord:
+    def remember_event(
+        self,
+        event: Event,
+        memory_type: MemoryType = MemoryType.EPISODIC,
+        importance: float = DEFAULT_IMPORTANCE,
+        tags: list[str] | None = None,
+    ) -> MemoryRecord:
         """将事件转化为记忆，携带因果链。
 
         这是"念起"——每一次事件发生，都在记忆中留下因果印记。
@@ -96,11 +98,13 @@ class CausalMemoryBridge:
 
         # 标签：事件类型 + sender + recipient
         memory_tags = list(tags or [])
-        memory_tags.extend([
-            event.event_type.value.lower(),
-            f"from:{event.sender}",
-            f"to:{event.recipient}",
-        ])
+        memory_tags.extend(
+            [
+                event.event_type.value.lower(),
+                f"from:{event.sender}",
+                f"to:{event.recipient}",
+            ]
+        )
 
         rec = MemoryRecord(
             id=f"cmem_{int(time.time() * 1000)}_{abs(hash(content)) % 10000:04d}",
@@ -113,11 +117,13 @@ class CausalMemoryBridge:
         )
 
         self.forgetting.add(rec)
-        logger.info("causal_memory.remembered",
-                    memory_id=rec.id,
-                    event_id=event.event_id,
-                    cause=event.cause,
-                    event_type=event.event_type.value)
+        logger.info(
+            "causal_memory.remembered",
+            memory_id=rec.id,
+            event_id=event.event_id,
+            cause=event.cause,
+            event_type=event.event_type.value,
+        )
 
         return rec
 
@@ -125,8 +131,7 @@ class CausalMemoryBridge:
     # 涌现 — 因果驱动的记忆召回
     # ===================================================================
 
-    def get_causal_context(self, event_id: str,
-                           max_depth: int = MAX_CAUSE_DEPTH) -> Set[str]:
+    def get_causal_context(self, event_id: str, max_depth: int = MAX_CAUSE_DEPTH) -> set[str]:
         """获取事件的因果上下文（因果链上所有事件ID集合）。
 
         从指定事件出发，沿 cause 链回溯，收集所有祖先事件ID。
@@ -140,7 +145,7 @@ class CausalMemoryBridge:
         Returns:
             因果链上所有事件ID的集合（不含起始事件本身）
         """
-        context: Set[str] = set()
+        context: set[str] = set()
         chain = self.event_stream.get_cause_chain(event_id)
 
         # 链中最后一个元素是起始事件本身，排除它
@@ -149,10 +154,13 @@ class CausalMemoryBridge:
 
         return context
 
-    def recall_with_cause(self, query: str,
-                          current_event_id: Optional[str] = None,
-                          top_k: int = 10,
-                          use_causal_boost: bool = True) -> List[MemoryRecord]:
+    def recall_with_cause(
+        self,
+        query: str,
+        current_event_id: str | None = None,
+        top_k: int = 10,
+        use_causal_boost: bool = True,
+    ) -> list[MemoryRecord]:
         """因果召回：混合检索 + 因果链加成。
 
         这是"涌现"——当新的"果"在形成时，相关的"因"自然浮现。
@@ -167,13 +175,15 @@ class CausalMemoryBridge:
         Returns:
             召回的记忆列表（已按因果加成排序）
         """
-        causal_context: Optional[Set[str]] = None
+        causal_context: set[str] | None = None
 
         if use_causal_boost and current_event_id:
             causal_context = self.get_causal_context(current_event_id)
-            logger.debug("causal_memory.recall",
-                         current_event=current_event_id,
-                         causal_chain_length=len(causal_context))
+            logger.debug(
+                "causal_memory.recall",
+                current_event=current_event_id,
+                causal_chain_length=len(causal_context),
+            )
 
         results = self.retriever.search(
             query=query,
@@ -187,7 +197,7 @@ class CausalMemoryBridge:
     # 溯源 — 从记忆回溯到因果根
     # ===================================================================
 
-    def trace_memory_cause(self, memory_id: str) -> List[Event]:
+    def trace_memory_cause(self, memory_id: str) -> list[Event]:
         """追溯记忆的因果链。
 
         从一条记忆出发，找到它的 cause_event_id，
@@ -207,7 +217,7 @@ class CausalMemoryBridge:
 
         return self.event_stream.get_cause_chain(rec.cause_event_id)
 
-    def find_causal_memories(self, event_id: str) -> List[MemoryRecord]:
+    def find_causal_memories(self, event_id: str) -> list[MemoryRecord]:
         """查找由指定事件直接触发的所有记忆。
 
         Args:
@@ -260,7 +270,7 @@ class CausalMemoryBridge:
     # 因果记忆摘要
     # ===================================================================
 
-    def causal_summary(self, event_id: str) -> Dict[str, Any]:
+    def causal_summary(self, event_id: str) -> dict[str, Any]:
         """生成指定事件的因果记忆摘要。
 
         Returns:
@@ -277,7 +287,7 @@ class CausalMemoryBridge:
         completeness = self.causal_completeness(event_id)
 
         # 收集因果链上所有事件的关联记忆
-        all_related: List[MemoryRecord] = list(related)
+        all_related: list[MemoryRecord] = list(related)
         seen_ids = {r.id for r in all_related}
         for event in chain:
             event_memories = self.find_causal_memories(event.event_id)
@@ -319,6 +329,7 @@ class CausalMemoryBridge:
 # 自动桥接：EventStream → CausalMemoryBridge
 # ======================================================================
 
+
 class AutoCausalBridge:
     """自动因果桥接器：订阅EventStream，自动将事件转化为因果记忆。
 
@@ -330,10 +341,13 @@ class AutoCausalBridge:
     可通过 event_filter 过滤需要记忆的事件类型。
     """
 
-    def __init__(self, event_stream: EventStream,
-                 orchestra: MemoryEvolutionOrchestra,
-                 memory_types: Optional[Dict[EventType, MemoryType]] = None,
-                 event_filter: Optional[Set[EventType]] = None):
+    def __init__(
+        self,
+        event_stream: EventStream,
+        orchestra: MemoryEvolutionOrchestra,
+        memory_types: dict[EventType, MemoryType] | None = None,
+        event_filter: set[EventType] | None = None,
+    ):
         """
         Args:
             event_stream: 事件流
@@ -372,8 +386,10 @@ class AutoCausalBridge:
             self.event_stream.subscribe_by_type(etype, self._on_event)
 
         self._active = True
-        logger.info("auto_causal_bridge.started",
-                    filter=[t.value for t in self.event_filter] if self.event_filter else "all")
+        logger.info(
+            "auto_causal_bridge.started",
+            filter=[t.value for t in self.event_filter] if self.event_filter else "all",
+        )
 
     def stop(self):
         """停止自动桥接。"""
@@ -386,15 +402,15 @@ class AutoCausalBridge:
 
         # 根据事件类型调整重要性
         importance_map = {
-            EventType.DONE: 0.9,    # 完成事件最重要
-            EventType.WARN: 0.85,   # 警告次之
-            EventType.TASK: 0.8,    # 任务分配
-            EventType.ASK: 0.75,    # 提问
-            EventType.UPD: 0.6,     # 更新
-            EventType.INFO: 0.5,    # 信息
-            EventType.ACK: 0.4,     # 确认
-            EventType.LOG: 0.3,     # 日志
-            EventType.PING: 0.2,    # 心跳
+            EventType.DONE: 0.9,  # 完成事件最重要
+            EventType.WARN: 0.85,  # 警告次之
+            EventType.TASK: 0.8,  # 任务分配
+            EventType.ASK: 0.75,  # 提问
+            EventType.UPD: 0.6,  # 更新
+            EventType.INFO: 0.5,  # 信息
+            EventType.ACK: 0.4,  # 确认
+            EventType.LOG: 0.3,  # 日志
+            EventType.PING: 0.2,  # 心跳
         }
         importance = importance_map.get(event.event_type, DEFAULT_IMPORTANCE)
 

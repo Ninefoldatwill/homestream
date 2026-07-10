@@ -5,19 +5,24 @@ GLM/DeepSeek Provider Mock测试
 不需要实际API Key。
 """
 
-import pytest
-import asyncio
 import json
 import urllib.error
-from unittest.mock import patch, MagicMock
 from io import BytesIO
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from providers.base_provider import (
-    ProviderConfig, ProviderType, ProviderTier,
-    ChatMessage, ChatResponse, ProviderError, ProviderStatus,
+    ChatMessage,
+    ProviderError,
+    ProviderStatus,
+    ProviderTier,
 )
-from providers.glm_provider import GLMProvider, create_glm_flash_provider, create_glm_plus_provider
-from providers.deepseek_provider import DeepSeekProvider, create_deepseek_flash_provider, create_deepseek_reasoner_provider
+from providers.deepseek_provider import (
+    create_deepseek_flash_provider,
+    create_deepseek_reasoner_provider,
+)
+from providers.glm_provider import create_glm_flash_provider, create_glm_plus_provider
 
 
 def _make_mock_response(data: dict, status: int = 200) -> MagicMock:
@@ -42,6 +47,7 @@ def _make_mock_http_error(status: int, body: str = "") -> urllib.error.HTTPError
 
 
 # ==================== GLM Provider Mock测试 ====================
+
 
 class TestGLMProviderMock:
     """GLM Provider Mock测试"""
@@ -73,9 +79,7 @@ class TestGLMProviderMock:
         }
 
         with patch("urllib.request.urlopen", return_value=_make_mock_response(mock_data)):
-            response = await provider.chat([
-                ChatMessage(role="user", content="你好")
-            ])
+            response = await provider.chat([ChatMessage(role="user", content="你好")])
 
         assert response.content == "你好！我是GLM。"
         assert response.provider == "glm_flash"
@@ -88,8 +92,10 @@ class TestGLMProviderMock:
     async def test_chat_401_error(self):
         """测试401认证失败"""
         provider = create_glm_flash_provider("invalid_key")
-        with patch("urllib.request.urlopen",
-                   side_effect=_make_mock_http_error(401, '{"error":"invalid key"}')):
+        with patch(
+            "urllib.request.urlopen",
+            side_effect=_make_mock_http_error(401, '{"error":"invalid key"}'),
+        ):
             with pytest.raises(ProviderError) as exc:
                 await provider.chat([ChatMessage(role="user", content="test")])
         assert exc.value.status_code == 401
@@ -99,8 +105,10 @@ class TestGLMProviderMock:
     async def test_chat_429_rate_limit(self):
         """测试429频率限制"""
         provider = create_glm_flash_provider("test_key")
-        with patch("urllib.request.urlopen",
-                   side_effect=_make_mock_http_error(429, '{"error":"rate limit"}')):
+        with patch(
+            "urllib.request.urlopen",
+            side_effect=_make_mock_http_error(429, '{"error":"rate limit"}'),
+        ):
             with pytest.raises(ProviderError) as exc:
                 await provider.chat([ChatMessage(role="user", content="test")])
         assert exc.value.status_code == 429
@@ -110,8 +118,9 @@ class TestGLMProviderMock:
     async def test_chat_network_error(self):
         """测试网络错误"""
         provider = create_glm_flash_provider("test_key")
-        with patch("urllib.request.urlopen",
-                   side_effect=urllib.error.URLError("Connection refused")):
+        with patch(
+            "urllib.request.urlopen", side_effect=urllib.error.URLError("Connection refused")
+        ):
             with pytest.raises(ProviderError) as exc:
                 await provider.chat([ChatMessage(role="user", content="test")])
         assert "网络错误" in str(exc.value)
@@ -162,6 +171,7 @@ class TestGLMProviderMock:
 
 # ==================== DeepSeek Provider Mock测试 ====================
 
+
 class TestDeepSeekProviderMock:
     """DeepSeek Provider Mock测试"""
 
@@ -193,9 +203,7 @@ class TestDeepSeekProviderMock:
         }
 
         with patch("urllib.request.urlopen", return_value=_make_mock_response(mock_data)):
-            response = await provider.chat([
-                ChatMessage(role="user", content="你好")
-            ])
+            response = await provider.chat([ChatMessage(role="user", content="你好")])
 
         assert response.content == "我是DeepSeek。"
         assert response.provider == "deepseek_flash"
@@ -209,8 +217,9 @@ class TestDeepSeekProviderMock:
     async def test_chat_401_error(self):
         """测试401认证失败"""
         provider = create_deepseek_flash_provider("invalid")
-        with patch("urllib.request.urlopen",
-                   side_effect=_make_mock_http_error(401, '{"error":"bad key"}')):
+        with patch(
+            "urllib.request.urlopen", side_effect=_make_mock_http_error(401, '{"error":"bad key"}')
+        ):
             with pytest.raises(ProviderError) as exc:
                 await provider.chat([ChatMessage(role="user", content="test")])
         assert exc.value.status_code == 401
@@ -220,8 +229,10 @@ class TestDeepSeekProviderMock:
     async def test_chat_429_rate_limit(self):
         """测试429频率限制"""
         provider = create_deepseek_flash_provider("test_key")
-        with patch("urllib.request.urlopen",
-                   side_effect=_make_mock_http_error(429, '{"error":"slow down"}')):
+        with patch(
+            "urllib.request.urlopen",
+            side_effect=_make_mock_http_error(429, '{"error":"slow down"}'),
+        ):
             with pytest.raises(ProviderError) as exc:
                 await provider.chat([ChatMessage(role="user", content="test")])
         assert exc.value.status_code == 429
@@ -231,8 +242,7 @@ class TestDeepSeekProviderMock:
     async def test_chat_network_error(self):
         """测试网络错误"""
         provider = create_deepseek_flash_provider("test_key")
-        with patch("urllib.request.urlopen",
-                   side_effect=urllib.error.URLError("Timeout")):
+        with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("Timeout")):
             with pytest.raises(ProviderError) as exc:
                 await provider.chat([ChatMessage(role="user", content="test")])
         assert "网络错误" in str(exc.value)
@@ -275,8 +285,7 @@ class TestDeepSeekProviderMock:
     async def test_error_count_tracking(self):
         """测试错误计数"""
         provider = create_deepseek_flash_provider("test_key")
-        with patch("urllib.request.urlopen",
-                   side_effect=urllib.error.URLError("fail")):
+        with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("fail")):
             try:
                 await provider.chat([ChatMessage(role="user", content="test")])
             except ProviderError:

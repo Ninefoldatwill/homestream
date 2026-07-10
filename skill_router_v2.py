@@ -45,75 +45,77 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, field
-from typing import Optional, Any, List
+from dataclasses import dataclass
+from typing import Any
 
+from model_router import ModelRouter
+from providers.base_provider import ChatMessage, ProviderTier
 from skill_router import (
-    SkillRouter, SkillEntry, RouteResult, Priority,
-    create_router as create_router_v1,
+    RouteResult,
+    SkillEntry,
+    SkillRouter,
 )
-from providers.base_provider import ProviderTier, ChatMessage
-from model_router import ModelRouter, RouterStrategy
-
 
 # ─── 分类 → 模型层级映射 ────────────────────────────────────
 
 CATEGORY_MODEL_MAP: dict[str, ProviderTier] = {
-    "automation":    ProviderTier.L1,   # 自动化：本地快速响应
-    "research":      ProviderTier.L3,   # 研究：付费高质量推理
-    "content":       ProviderTier.L2,   # 内容：免费API足够
-    "knowledge":     ProviderTier.L1,   # 知识：查询为主
-    "meta":          ProviderTier.L1,   # 元技能：简单逻辑
-    "media":         ProviderTier.L1,   # 媒体：专用工具，不需LLM推理
-    "design":        ProviderTier.L2,   # 设计：需要一定创意
-    "education":     ProviderTier.L3,   # 教育：需要深度推理
-    "collaboration": ProviderTier.L1,   # 协作：协调为主
-    "information":   ProviderTier.L2,   # 信息：检索+总结
-    "productivity":  ProviderTier.L1,   # 生产力：工具操作
+    "automation": ProviderTier.L1,  # 自动化：本地快速响应
+    "research": ProviderTier.L3,  # 研究：付费高质量推理
+    "content": ProviderTier.L2,  # 内容：免费API足够
+    "knowledge": ProviderTier.L1,  # 知识：查询为主
+    "meta": ProviderTier.L1,  # 元技能：简单逻辑
+    "media": ProviderTier.L1,  # 媒体：专用工具，不需LLM推理
+    "design": ProviderTier.L2,  # 设计：需要一定创意
+    "education": ProviderTier.L3,  # 教育：需要深度推理
+    "collaboration": ProviderTier.L1,  # 协作：协调为主
+    "information": ProviderTier.L2,  # 信息：检索+总结
+    "productivity": ProviderTier.L1,  # 生产力：工具操作
 }
 
 # 分类 → 推荐理由（用于RouteResultV2的model_reason字段）
 CATEGORY_REASON: dict[str, str] = {
-    "automation":    "自动化任务，本地L1模型快速响应即可",
-    "research":      "研究分析需要深度推理，推荐L3付费模型",
-    "content":       "内容生成，L2免费API质量足够",
-    "knowledge":     "知识查询，本地L1模型即可处理",
-    "meta":          "元技能操作，本地L1足够",
-    "media":         "媒体处理，专用工具优先，模型辅助用L1",
-    "design":        "设计创作，L2免费API提供足够创意",
-    "education":     "教育辅导需要深度推理，推荐L3付费模型",
+    "automation": "自动化任务，本地L1模型快速响应即可",
+    "research": "研究分析需要深度推理，推荐L3付费模型",
+    "content": "内容生成，L2免费API质量足够",
+    "knowledge": "知识查询，本地L1模型即可处理",
+    "meta": "元技能操作，本地L1足够",
+    "media": "媒体处理，专用工具优先，模型辅助用L1",
+    "design": "设计创作，L2免费API提供足够创意",
+    "education": "教育辅导需要深度推理，推荐L3付费模型",
     "collaboration": "团队协作，本地L1模型处理协调逻辑",
-    "information":   "信息检索总结，L2免费API性价比最优",
-    "productivity":  "生产力工具，本地L1即可",
+    "information": "信息检索总结，L2免费API性价比最优",
+    "productivity": "生产力工具，本地L1即可",
 }
 
 
 # ─── v2 路由结果 ─────────────────────────────────────────────
 
+
 @dataclass
 class RouteResultV2:
     """双层路由结果（Skill + Model）"""
+
     # Layer 1: Skill路由
-    skill: Optional[SkillEntry]
+    skill: SkillEntry | None
     skill_candidates: list[SkillEntry]
     skill_confidence: float
     skill_strategy: str
     skill_reason: str
 
     # Layer 2: Model路由
-    model_tier: Optional[ProviderTier]
+    model_tier: ProviderTier | None
     model_reason: str
-    model_tier_locked: bool          # 是否被用户强制指定
-    model_response: Optional[str]    # 实际模型回复（如果传了model_router）
+    model_tier_locked: bool  # 是否被用户强制指定
+    model_response: str | None  # 实际模型回复（如果传了model_router）
 
     # 元信息
     query: str
     role: str
-    total_latency_ms: Optional[float] = None
+    total_latency_ms: float | None = None
 
     def summary(self) -> str:
         lines = [
-            f"[RouteResultV2] query=\"{self.query[:50]}\" role={self.role}",
+            f'[RouteResultV2] query="{self.query[:50]}" role={self.role}',
             f"  Layer1 Skill: {self.skill.name if self.skill else 'None'} "
             f"(confidence={self.skill_confidence:.2f}, strategy={self.skill_strategy})",
             f"  Layer2 Model: {self.model_tier.value if self.model_tier else 'None'}"
@@ -144,8 +146,7 @@ class RouteResultV2:
                 "has_response": self.model_response is not None,
             },
             "candidates": [
-                {"id": s.id, "name": s.name, "priority": s.priority}
-                for s in self.skill_candidates
+                {"id": s.id, "name": s.name, "priority": s.priority} for s in self.skill_candidates
             ],
             "query": self.query,
             "role": self.role,
@@ -154,6 +155,7 @@ class RouteResultV2:
 
 
 # ─── v2 核心路由器 ───────────────────────────────────────────
+
 
 class SkillRouterV2(SkillRouter):
     """
@@ -170,7 +172,7 @@ class SkillRouterV2(SkillRouter):
         # 用户可覆盖默认的category→tier映射
         self._model_override: dict[str, ProviderTier] = {}
         # 全局tier锁定（用户强制指定）
-        self._locked_tier: Optional[ProviderTier] = None
+        self._locked_tier: ProviderTier | None = None
 
     # ── Model层配置 ──────────────────────────────────
 
@@ -178,11 +180,11 @@ class SkillRouterV2(SkillRouter):
         """覆盖某个分类的默认ModelTier推荐"""
         self._model_override[category] = tier
 
-    def lock_model_tier(self, tier: Optional[ProviderTier]) -> None:
+    def lock_model_tier(self, tier: ProviderTier | None) -> None:
         """全局锁定ModelTier（所有请求都用这个tier）"""
         self._locked_tier = tier
 
-    def get_model_tier(self, skill: Optional[SkillEntry]) -> tuple[Optional[ProviderTier], str, bool]:
+    def get_model_tier(self, skill: SkillEntry | None) -> tuple[ProviderTier | None, str, bool]:
         """
         根据Skill推荐ModelTier
 
@@ -224,8 +226,8 @@ class SkillRouterV2(SkillRouter):
         query: str,
         role: str = "all",
         top_k: int = 5,
-        model_router: Optional[ModelRouter] = None,
-        force_tier: Optional[ProviderTier] = None,
+        model_router: ModelRouter | None = None,
+        force_tier: ProviderTier | None = None,
         system_prompt: str = "",
         max_tokens: int = 512,
     ) -> RouteResultV2:
@@ -245,6 +247,7 @@ class SkillRouterV2(SkillRouter):
             RouteResultV2: 双层路由结果
         """
         import time
+
         t0 = time.perf_counter()
 
         # ── Layer 1: Skill路由（复用v1逻辑）──
@@ -254,12 +257,10 @@ class SkillRouterV2(SkillRouter):
         skill_result: RouteResult = self.route(query, role=role, top_k=top_k)
 
         # ── Layer 2: Model路由 ──
-        model_tier, model_reason, locked = self.get_model_tier(
-            skill_result.recommended_skill
-        )
+        model_tier, model_reason, locked = self.get_model_tier(skill_result.recommended_skill)
 
         # ── 可选：实际执行模型调用 ──
-        model_response: Optional[str] = None
+        model_response: str | None = None
         if model_router is not None and model_tier is not None:
             try:
                 # 构建消息
@@ -310,10 +311,7 @@ class SkillRouterV2(SkillRouter):
         role: str = "all",
     ) -> list[RouteResultV2]:
         """批量路由（不含模型执行）"""
-        return [
-            self.route_with_model(q, role=role)
-            for q in queries
-        ]
+        return [self.route_with_model(q, role=role) for q in queries]
 
     # ── 路由解释 ─────────────────────────────────────
 
@@ -325,9 +323,11 @@ class SkillRouterV2(SkillRouter):
 
 # ─── 辅助函数 ───────────────────────────────────────────────
 
+
 def await_if_needed(coro_or_result: Any) -> Any:
     """处理同步/异步返回值"""
     import asyncio
+
     if asyncio.iscoroutine(coro_or_result):
         try:
             loop = asyncio.get_event_loop()
@@ -345,9 +345,10 @@ def await_if_needed(coro_or_result: Any) -> Any:
 
 # ─── 工厂函数 ───────────────────────────────────────────────
 
+
 def create_router_v2(
     registry_path: str | None = None,
-    model_router: Optional[ModelRouter] = None,
+    model_router: ModelRouter | None = None,
 ) -> SkillRouterV2:
     """
     创建并加载 SkillRouterV2

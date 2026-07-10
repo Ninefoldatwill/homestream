@@ -13,24 +13,24 @@ test_theme_manager.py — 千面设计市场主题管理器测试
 - PluginType.THEME 枚举
 """
 
-import pytest
 import json
 from pathlib import Path
 
+import pytest
+
+from plugin_registry import PluginRegistry, PluginType
 from theme_manager import (
-    ThemeInfo,
-    ThemeError,
-    ThemeManager,
-    get_theme_manager,
     CANONICAL_TOKENS,
     THEME_CATEGORIES,
+    ThemeInfo,
+    ThemeManager,
+    get_theme_manager,
 )
-from plugin_registry import PluginType, PluginRegistry
-
 
 # ============================================================
 # 常量验证
 # ============================================================
+
 
 class TestConstants:
     """模块常量测试。"""
@@ -58,6 +58,7 @@ class TestConstants:
 # ThemeInfo 测试
 # ============================================================
 
+
 class TestThemeInfo:
     """主题信息数据结构测试。"""
 
@@ -70,8 +71,7 @@ class TestThemeInfo:
         assert t.homestream == ">=5.0.0"
 
     def test_to_dict(self):
-        t = ThemeInfo(id="t1", name="Test", author="jiuchong",
-                      tokens=["--bg", "--accent"])
+        t = ThemeInfo(id="t1", name="Test", author="jiuchong", tokens=["--bg", "--accent"])
         d = t.to_dict()
         assert d["id"] == "t1"
         assert d["name"] == "Test"
@@ -80,8 +80,11 @@ class TestThemeInfo:
 
     def test_from_manifest(self):
         data = {
-            "id": "my-theme", "name": "我的主题", "version": "2.0.0",
-            "author": "tester", "category": "cyberpunk",
+            "id": "my-theme",
+            "name": "我的主题",
+            "version": "2.0.0",
+            "author": "tester",
+            "category": "cyberpunk",
             "tokens": ["--bg", "--text"],
         }
         t = ThemeInfo.from_manifest(data)
@@ -101,6 +104,7 @@ class TestThemeInfo:
 # ThemeManager 发现与列举测试
 # ============================================================
 
+
 class TestThemeManagerDiscovery:
     """主题发现测试。"""
 
@@ -112,18 +116,34 @@ class TestThemeManagerDiscovery:
 
         t1 = themes_dir / "liquid-glass"
         t1.mkdir()
-        (t1 / "theme.json").write_text(json.dumps({
-            "id": "liquid-glass", "name": "液态玻璃", "version": "1.0.0",
-            "author": "jiuchong", "category": "glass", "tokens": ["--bg", "--card"],
-        }), encoding="utf-8")
+        (t1 / "theme.json").write_text(
+            json.dumps(
+                {
+                    "id": "liquid-glass",
+                    "name": "液态玻璃",
+                    "version": "1.0.0",
+                    "author": "jiuchong",
+                    "category": "glass",
+                    "tokens": ["--bg", "--card"],
+                }
+            ),
+            encoding="utf-8",
+        )
         (t1 / "theme.css").write_text(":root{--bg:rgba(255,255,255,0.6)}", encoding="utf-8")
 
         t2 = themes_dir / "pixel-art"
         t2.mkdir()
-        (t2 / "theme.json").write_text(json.dumps({
-            "id": "pixel-art", "name": "像素艺术", "version": "1.0.0",
-            "category": "pixel",
-        }), encoding="utf-8")
+        (t2 / "theme.json").write_text(
+            json.dumps(
+                {
+                    "id": "pixel-art",
+                    "name": "像素艺术",
+                    "version": "1.0.0",
+                    "category": "pixel",
+                }
+            ),
+            encoding="utf-8",
+        )
         (t2 / "theme.css").write_text(":root{--bg:#1a1a2e}", encoding="utf-8")
 
         registry_file = work_dir / "theme_registry.json"
@@ -152,14 +172,14 @@ class TestThemeManagerDiscovery:
         assert theme_setup.get_theme("nonexistent") is None
 
     def test_discover_empty_dir(self, work_dir):
-        tm = ThemeManager(themes_dir=work_dir / "empty",
-                          registry_file=work_dir / "reg.json")
+        tm = ThemeManager(themes_dir=work_dir / "empty", registry_file=work_dir / "reg.json")
         assert tm.discover() == []
 
 
 # ============================================================
 # ThemeManager 覆盖样式测试
 # ============================================================
+
 
 class TestThemeManagerOverrideCSS:
     """覆盖样式生成测试。"""
@@ -170,12 +190,18 @@ class TestThemeManagerOverrideCSS:
         themes_dir.mkdir()
         t1 = themes_dir / "glass"
         t1.mkdir()
-        (t1 / "theme.json").write_text(json.dumps({
-            "id": "glass", "name": "Glass", "category": "glass",
-        }), encoding="utf-8")
+        (t1 / "theme.json").write_text(
+            json.dumps(
+                {
+                    "id": "glass",
+                    "name": "Glass",
+                    "category": "glass",
+                }
+            ),
+            encoding="utf-8",
+        )
         (t1 / "theme.css").write_text(":root{--bg:rgba(255,255,255,0.5)}", encoding="utf-8")
-        return ThemeManager(themes_dir=themes_dir,
-                            registry_file=work_dir / "reg.json")
+        return ThemeManager(themes_dir=themes_dir, registry_file=work_dir / "reg.json")
 
     def test_get_override_css(self, tm_with_theme):
         css = tm_with_theme.get_override_css("glass")
@@ -215,6 +241,7 @@ class TestThemeManagerOverrideCSS:
 # ThemeManager 激活测试
 # ============================================================
 
+
 class TestThemeManagerActivation:
     """主题激活管理测试。"""
 
@@ -224,12 +251,17 @@ class TestThemeManagerActivation:
         themes_dir.mkdir()
         t1 = themes_dir / "glass"
         t1.mkdir()
-        (t1 / "theme.json").write_text(json.dumps({
-            "id": "glass", "name": "Glass",
-        }), encoding="utf-8")
+        (t1 / "theme.json").write_text(
+            json.dumps(
+                {
+                    "id": "glass",
+                    "name": "Glass",
+                }
+            ),
+            encoding="utf-8",
+        )
         (t1 / "theme.css").write_text(":root{}", encoding="utf-8")
-        return ThemeManager(themes_dir=themes_dir,
-                            registry_file=work_dir / "reg.json")
+        return ThemeManager(themes_dir=themes_dir, registry_file=work_dir / "reg.json")
 
     def test_activate(self, tm):
         ok, msg = tm.activate("glass")
@@ -249,14 +281,14 @@ class TestThemeManagerActivation:
 
     def test_activate_persists(self, tm):
         tm.activate("glass")
-        tm2 = ThemeManager(themes_dir=tm.themes_dir,
-                           registry_file=tm.registry_file)
+        tm2 = ThemeManager(themes_dir=tm.themes_dir, registry_file=tm.registry_file)
         assert tm2.get_active() == "glass"
 
 
 # ============================================================
 # ThemeManager 安装卸载测试
 # ============================================================
+
 
 class TestThemeManagerInstall:
     """主题安装/卸载测试。"""
@@ -265,18 +297,25 @@ class TestThemeManagerInstall:
     def source_theme(self, work_dir):
         src = work_dir / "source" / "neon"
         src.mkdir(parents=True)
-        (src / "theme.json").write_text(json.dumps({
-            "id": "neon", "name": "霓虹", "category": "cyberpunk",
-            "version": "1.5.0", "author": "tester",
-        }), encoding="utf-8")
+        (src / "theme.json").write_text(
+            json.dumps(
+                {
+                    "id": "neon",
+                    "name": "霓虹",
+                    "category": "cyberpunk",
+                    "version": "1.5.0",
+                    "author": "tester",
+                }
+            ),
+            encoding="utf-8",
+        )
         (src / "theme.css").write_text(":root{--bg:#0a0a0a}", encoding="utf-8")
         (src / "preview.svg").write_text("<svg></svg>", encoding="utf-8")
         return src
 
     @pytest.fixture
     def tm(self, work_dir):
-        return ThemeManager(themes_dir=work_dir / "themes",
-                            registry_file=work_dir / "reg.json")
+        return ThemeManager(themes_dir=work_dir / "themes", registry_file=work_dir / "reg.json")
 
     def test_install_theme(self, source_theme, tm):
         ok, msg = tm.install_theme(source_theme / "theme.json")
@@ -295,9 +334,15 @@ class TestThemeManagerInstall:
     def test_install_invalid_category(self, work_dir, tm):
         src = work_dir / "bad"
         src.mkdir()
-        (src / "theme.json").write_text(json.dumps({
-            "id": "bad", "category": "invalid_category",
-        }), encoding="utf-8")
+        (src / "theme.json").write_text(
+            json.dumps(
+                {
+                    "id": "bad",
+                    "category": "invalid_category",
+                }
+            ),
+            encoding="utf-8",
+        )
         ok, msg = tm.install_theme(src / "theme.json")
         assert ok is False
         assert "未知分类" in msg
@@ -338,6 +383,7 @@ class TestThemeManagerInstall:
 # ThemeManager 预览测试
 # ============================================================
 
+
 class TestThemeManagerPreview:
     """主题预览测试。"""
 
@@ -347,16 +393,24 @@ class TestThemeManagerPreview:
         themes_dir.mkdir()
         t1 = themes_dir / "glass"
         t1.mkdir()
-        (t1 / "theme.json").write_text(json.dumps({
-            "id": "glass", "name": "液态玻璃", "author": "jiuchong",
-            "version": "1.0.0", "category": "glass", "license": "MIT",
-            "description": "半透明毛玻璃效果",
-            "tokens": ["--bg", "--card"],
-            "homestream": ">=5.0.0",
-        }), encoding="utf-8")
+        (t1 / "theme.json").write_text(
+            json.dumps(
+                {
+                    "id": "glass",
+                    "name": "液态玻璃",
+                    "author": "jiuchong",
+                    "version": "1.0.0",
+                    "category": "glass",
+                    "license": "MIT",
+                    "description": "半透明毛玻璃效果",
+                    "tokens": ["--bg", "--card"],
+                    "homestream": ">=5.0.0",
+                }
+            ),
+            encoding="utf-8",
+        )
         (t1 / "theme.css").write_text(":root{--bg:rgba(255,255,255,0.5)}", encoding="utf-8")
-        return ThemeManager(themes_dir=themes_dir,
-                            registry_file=work_dir / "reg.json")
+        return ThemeManager(themes_dir=themes_dir, registry_file=work_dir / "reg.json")
 
     def test_preview_html(self, tm):
         html = tm.preview_html("glass")
@@ -375,6 +429,7 @@ class TestThemeManagerPreview:
 # get_theme_manager 全局实例测试
 # ============================================================
 
+
 class TestGetThemeManager:
     """全局管理器获取测试。"""
 
@@ -384,14 +439,14 @@ class TestGetThemeManager:
         assert tm1 is tm2
 
     def test_get_theme_manager_with_dir(self, work_dir):
-        tm = get_theme_manager(themes_dir=work_dir / "themes",
-                               registry_file=work_dir / "reg.json")
+        tm = get_theme_manager(themes_dir=work_dir / "themes", registry_file=work_dir / "reg.json")
         assert isinstance(tm, ThemeManager)
 
 
 # ============================================================
 # PluginRegistry THEME 集成测试
 # ============================================================
+
 
 class TestPluginRegistryThemeIntegration:
     """PluginRegistry 主题集成测试。"""
@@ -403,19 +458,31 @@ class TestPluginRegistryThemeIntegration:
         themes_dir.mkdir()
         t1 = themes_dir / "glass"
         t1.mkdir()
-        (t1 / "theme.json").write_text(json.dumps({
-            "id": "glass", "name": "Glass", "category": "glass",
-        }), encoding="utf-8")
+        (t1 / "theme.json").write_text(
+            json.dumps(
+                {
+                    "id": "glass",
+                    "name": "Glass",
+                    "category": "glass",
+                }
+            ),
+            encoding="utf-8",
+        )
         (t1 / "theme.css").write_text(":root{--bg:rgba(255,255,255,0.5)}", encoding="utf-8")
 
         registry_file = work_dir / "theme_registry.json"
         # 直接注册 manifest（绕过文件复制操作）
         reg = PluginRegistry()
         from plugin_registry import PluginManifest
-        reg.register(PluginManifest(
-            name="glass", version="1.0.0", plugin_type=PluginType.THEME,
-            description="千面设计市场主题: glass",
-        ))
+
+        reg.register(
+            PluginManifest(
+                name="glass",
+                version="1.0.0",
+                plugin_type=PluginType.THEME,
+                description="千面设计市场主题: glass",
+            )
+        )
         return reg, themes_dir, registry_file
 
     def test_plugin_type_theme_enum(self):
@@ -439,11 +506,11 @@ class TestPluginRegistryThemeIntegration:
 
     def test_activate_theme(self, registry_with_theme):
         reg, themes_dir, registry_file = registry_with_theme
-        ok, msg = reg.activate_theme("glass", themes_dir=themes_dir,
-                                     registry_file=registry_file)
+        ok, msg = reg.activate_theme("glass", themes_dir=themes_dir, registry_file=registry_file)
         assert ok is True
         # 验证 ThemeManager 也记录了激活状态
         from theme_manager import ThemeManager
+
         tm2 = ThemeManager(themes_dir=themes_dir, registry_file=registry_file)
         assert tm2.get_active() == "glass"
 

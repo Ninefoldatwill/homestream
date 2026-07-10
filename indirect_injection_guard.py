@@ -8,12 +8,12 @@
   EventStream事件 · 群聊消息 · Kanban回调 · 书阁知识 · 外部API响应
 """
 
-import re
-import json
-import unicodedata
 import base64
+import json
+import re
+import unicodedata
 from enum import Enum
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Any
 
 import structlog
 
@@ -24,12 +24,13 @@ logger = structlog.get_logger(__name__)
 # Severity
 # ---------------------------------------------------------------------------
 
+
 class InjectionSeverity(str, Enum):
-    CRITICAL = "critical"   # 完全阻断
-    HIGH = "high"           # 剥离可疑片段
-    MEDIUM = "medium"       # 标记+告警
-    LOW = "low"             # 记录+放行
-    NONE = "none"           # 安全
+    CRITICAL = "critical"  # 完全阻断
+    HIGH = "high"  # 剥离可疑片段
+    MEDIUM = "medium"  # 标记+告警
+    LOW = "low"  # 记录+放行
+    NONE = "none"  # 安全
 
 
 # ---------------------------------------------------------------------------
@@ -79,15 +80,26 @@ STRUCT_ANOMALY_PATTERNS = [
 
 # Zero-width chars
 ZERO_WIDTH_CHARS = {
-    0x200B, 0x200C, 0x200D, 0x200E, 0x200F,
-    0xFEFF, 0x00AD, 0x061C, 0x2060, 0x2061,
-    0x2062, 0x2063, 0x2064,
+    0x200B,
+    0x200C,
+    0x200D,
+    0x200E,
+    0x200F,
+    0xFEFF,
+    0x00AD,
+    0x061C,
+    0x2060,
+    0x2061,
+    0x2062,
+    0x2063,
+    0x2064,
 }
 
 
 # ---------------------------------------------------------------------------
 # Input sanitizer
 # ---------------------------------------------------------------------------
+
 
 def unicode_normalize(text: str, form: str = "NFKC") -> str:
     """Unicode 归一化，消除同形异码攻击。"""
@@ -119,7 +131,7 @@ def decode_nested(text: str, max_depth: int = 3) -> str:
     return result
 
 
-def sanitize_raw_input(text: str) -> Tuple[str, bool]:
+def sanitize_raw_input(text: str) -> tuple[str, bool]:
     """输入净化：归一→去零宽→解码嵌套→检查变化。
 
     Returns:
@@ -135,6 +147,7 @@ def sanitize_raw_input(text: str) -> Tuple[str, bool]:
 # ---------------------------------------------------------------------------
 # Classifier
 # ---------------------------------------------------------------------------
+
 
 def _count_role_confusion(text: str) -> int:
     """检测角色混淆模式命中数。"""
@@ -152,13 +165,13 @@ def _has_structure_anomaly(text: str) -> bool:
     return False
 
 
-def classify(text: str) -> Tuple[InjectionSeverity, List[str]]:
+def classify(text: str) -> tuple[InjectionSeverity, list[str]]:
     """注入分类器（无外部API依赖）。
 
     Returns:
         (severity, reasons)
     """
-    reasons: List[str] = []
+    reasons: list[str] = []
     role_hits = _count_role_confusion(text)
     struct_anom = _has_structure_anomaly(text)
 
@@ -181,6 +194,7 @@ def classify(text: str) -> Tuple[InjectionSeverity, List[str]]:
 # Central guard function
 # ---------------------------------------------------------------------------
 
+
 def _sanitize_marked(text: str, marker: str) -> str:
     """剥离匹配的注入片段，用标记替换。"""
     for p in ROLE_CONFUSION_PATTERNS:
@@ -188,7 +202,7 @@ def _sanitize_marked(text: str, marker: str) -> str:
     return text
 
 
-def inspect(content: str, vector: str = "unknown") -> Tuple[str, bool, Optional[str]]:
+def inspect(content: str, vector: str = "unknown") -> tuple[str, bool, str | None]:
     """统一安检入口。
 
     Args:
@@ -204,9 +218,12 @@ def inspect(content: str, vector: str = "unknown") -> Tuple[str, bool, Optional[
     # Step 1: input sanitization
     clean, modified = sanitize_raw_input(content)
     if modified:
-        logger.info("indirect_injection.sanitize_modified",
-                    vector=vector, original_length=len(content),
-                    clean_length=len(clean))
+        logger.info(
+            "indirect_injection.sanitize_modified",
+            vector=vector,
+            original_length=len(content),
+            clean_length=len(clean),
+        )
 
     # Step 2: classification
     severity, reasons = classify(clean)
@@ -216,29 +233,31 @@ def inspect(content: str, vector: str = "unknown") -> Tuple[str, bool, Optional[
 
     # Step 3: triage
     if severity == InjectionSeverity.CRITICAL:
-        logger.warning("indirect_injection.blocked",
-                       vector=vector, severity="CRITICAL",
-                       reasons=reasons)
+        logger.warning(
+            "indirect_injection.blocked", vector=vector, severity="CRITICAL", reasons=reasons
+        )
         return "", True, f"INDIRECT_INJECTION_BLOCKED:{vector}:" + ",".join(reasons)
 
     if severity == InjectionSeverity.HIGH:
         safe = _sanitize_marked(clean, vector)
-        logger.warning("indirect_injection.sanitized",
-                       vector=vector, severity="HIGH",
-                       reasons=reasons,
-                       chars_removed=len(clean)-len(safe))
+        logger.warning(
+            "indirect_injection.sanitized",
+            vector=vector,
+            severity="HIGH",
+            reasons=reasons,
+            chars_removed=len(clean) - len(safe),
+        )
         return safe, False, f"INDIRECT_INJECTION_SANITIZED:{vector}:" + ",".join(reasons)
 
     # MEDIUM / LOW: flag only
-    logger.info("indirect_injection.flagged",
-                vector=vector, severity=severity,
-                reasons=reasons)
+    logger.info("indirect_injection.flagged", vector=vector, severity=severity, reasons=reasons)
     return clean, False, f"INDIRECT_INJECTION_FLAGGED:{vector}:" + ",".join(reasons)
 
 
 # ---------------------------------------------------------------------------
 # 5 vector hooks — convenience wrappers
 # ---------------------------------------------------------------------------
+
 
 def guard_event(event: dict) -> dict:
     """保护 EventStream 事件。检测 content 字段。"""
@@ -266,7 +285,7 @@ def guard_message(msg: dict) -> dict:
     return msg
 
 
-def guard_kanban(data: dict) -> Tuple[dict, bool]:
+def guard_kanban(data: dict) -> tuple[dict, bool]:
     """保护 Kanban 回调。JSON Schema 校验 + 内容安检。
 
     Returns:
@@ -293,23 +312,24 @@ def guard_bookhouse(items: list) -> list:
             text_fields = " ".join(str(v) for v in item.values())
             _, blocked, alert = inspect(text_fields, "bookhouse")
             if blocked:
-                logger.warning("indirect_injection.bookhouse_filtered",
-                               item_id=item.get("id", "?"))
+                logger.warning("indirect_injection.bookhouse_filtered", item_id=item.get("id", "?"))
                 continue
         safe_items.append(item)
     return safe_items
 
 
-def guard_external(content: str, source_domain: str,
-                   allowed_domains: Optional[List[str]] = None) -> Tuple[str, bool]:
+def guard_external(
+    content: str, source_domain: str, allowed_domains: list[str] | None = None
+) -> tuple[str, bool]:
     """保护外部API响应。域白名单 + 内容安检。
 
     Returns:
         (safe_content, is_blocked)
     """
     if allowed_domains and source_domain not in allowed_domains:
-        logger.warning("indirect_injection.domain_blocked",
-                       domain=source_domain, allowed=allowed_domains)
+        logger.warning(
+            "indirect_injection.domain_blocked", domain=source_domain, allowed=allowed_domains
+        )
         return "", True
     safe, blocked, alert = inspect(content, "external_response")
     return safe, blocked
@@ -319,20 +339,29 @@ def guard_external(content: str, source_domain: str,
 # Bulk audit for batch analysis
 # ---------------------------------------------------------------------------
 
-def audit_batch(entries: List[Dict[str, Any]]) -> dict:
+
+def audit_batch(entries: list[dict[str, Any]]) -> dict:
     """批量审计：在非关键路径上全量扫描注入风险。
 
     Returns:
         {total, blocked, sanitized, flagged, clean, alerts: [...]}
     """
-    result = {"total": len(entries), "blocked": 0, "sanitized": 0,
-              "flagged": 0, "clean": 0, "alerts": []}
+    result = {
+        "total": len(entries),
+        "blocked": 0,
+        "sanitized": 0,
+        "flagged": 0,
+        "clean": 0,
+        "alerts": [],
+    }
     for entry in entries:
         content = entry.get("content", "") if isinstance(entry, dict) else str(entry)
         severity, reasons = classify(sanitize_raw_input(content)[0])
         if severity == InjectionSeverity.CRITICAL:
             result["blocked"] += 1
-            result["alerts"].append({"entry": str(entry)[:80], "severity": "CRITICAL", "reasons": reasons})
+            result["alerts"].append(
+                {"entry": str(entry)[:80], "severity": "CRITICAL", "reasons": reasons}
+            )
         elif severity == InjectionSeverity.HIGH:
             result["sanitized"] += 1
         elif severity in (InjectionSeverity.MEDIUM, InjectionSeverity.LOW):

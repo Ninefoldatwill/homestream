@@ -6,7 +6,6 @@
 
 import re
 
-
 SENSITIVE_PATTERNS = {
     "token": re.compile(
         r'(token|api_key|secret|password)(["\']?\s*[:=]\s*["\']?)([a-zA-Z0-9_\-]{8,})',
@@ -21,6 +20,7 @@ def redact_sensitive_data(_, __, event_dict):
 
     放在JSONRenderer之前，自动过滤token/api_key/password/Bearer。
     """
+
     def _redact(obj):
         if isinstance(obj, str):
             for name, pattern in SENSITIVE_PATTERNS.items():

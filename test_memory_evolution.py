@@ -15,29 +15,24 @@ test_memory_evolution.py — 记忆演化引擎测试
       测试用文件路径替代（work_dir / *.db）。
 """
 
-import pytest
-import math
 import time
 
 from memory_evolution import (
-    MemoryType,
-    MemoryRecord,
+    COGNITIVE_DECAY_RATES,
     ForgettingEngine,
-    MergingEngine,
-    ReconstructionEngine,
     HybridRetriever,
     MemoryEvolutionOrchestra,
+    MemoryRecord,
+    MemoryType,
+    MergingEngine,
+    ReconstructionEngine,
     ReMeCompressor,
-    COGNITIVE_DECAY_RATES,
-    FORGET_THRESHOLD,
-    DEFAULT_IMPORTANCE,
-    BOOST_ON_ACCESS,
 )
-
 
 # ============================================================
 # MemoryType 测试
 # ============================================================
+
 
 class TestMemoryType:
     """认知分类枚举测试。"""
@@ -82,6 +77,7 @@ class TestMemoryType:
 # MemoryRecord 测试
 # ============================================================
 
+
 class TestMemoryRecord:
     """记忆记录数据结构测试。"""
 
@@ -92,29 +88,31 @@ class TestMemoryRecord:
 
     def test_salience_evergreen(self):
         """evergreen 记忆不衰减。"""
-        rec = MemoryRecord(id="t1", content="test", importance=0.9,
-                           is_evergreen=True, timestamp=0)
+        rec = MemoryRecord(id="t1", content="test", importance=0.9, is_evergreen=True, timestamp=0)
         assert rec.salience() == 0.9
 
     def test_salience_old_memory_decays(self):
         """老记忆显著度下降。"""
         old_time = time.time() - 86400 * 100
-        rec = MemoryRecord(id="t1", content="test", importance=1.0,
-                           mtype=MemoryType.EPISODIC, timestamp=old_time)
+        rec = MemoryRecord(
+            id="t1", content="test", importance=1.0, mtype=MemoryType.EPISODIC, timestamp=old_time
+        )
         assert rec.salience() < 1.0
 
     def test_should_forget_old(self):
         """足够老且低重要度 → 应遗忘。"""
         old_time = time.time() - 86400 * 500
-        rec = MemoryRecord(id="t1", content="test", importance=0.3,
-                           mtype=MemoryType.EPISODIC, timestamp=old_time)
+        rec = MemoryRecord(
+            id="t1", content="test", importance=0.3, mtype=MemoryType.EPISODIC, timestamp=old_time
+        )
         assert rec.should_forget()
 
     def test_should_not_forget_evergreen(self):
         """evergreen 永不遗忘。"""
         old_time = time.time() - 86400 * 1000
-        rec = MemoryRecord(id="t1", content="test", importance=0.3,
-                           is_evergreen=True, timestamp=old_time)
+        rec = MemoryRecord(
+            id="t1", content="test", importance=0.3, is_evergreen=True, timestamp=old_time
+        )
         assert not rec.should_forget()
 
     def test_reinforce(self):
@@ -137,6 +135,7 @@ class TestMemoryRecord:
 # ForgettingEngine 测试（文件路径，非 :memory:）
 # ============================================================
 
+
 class TestForgettingEngine:
     """遗忘引擎测试。"""
 
@@ -158,8 +157,7 @@ class TestForgettingEngine:
         """列出活跃记忆。"""
         engine = ForgettingEngine(str(work_dir / "fe.db"))
         for i in range(5):
-            engine.add(MemoryRecord(id=f"fe{i}", content=f"content{i}",
-                                    importance=0.5 + i * 0.1))
+            engine.add(MemoryRecord(id=f"fe{i}", content=f"content{i}", importance=0.5 + i * 0.1))
         active = engine.list_active(limit=10)
         assert len(active) == 5
         assert active[0].importance >= active[-1].importance
@@ -192,8 +190,15 @@ class TestForgettingEngine:
         """衰减扫描找到需遗忘记忆。"""
         engine = ForgettingEngine(str(work_dir / "fe.db"))
         old_time = time.time() - 86400 * 500
-        engine.add(MemoryRecord(id="old1", content="old", importance=0.1,
-                                mtype=MemoryType.EPISODIC, timestamp=old_time))
+        engine.add(
+            MemoryRecord(
+                id="old1",
+                content="old",
+                importance=0.1,
+                mtype=MemoryType.EPISODIC,
+                timestamp=old_time,
+            )
+        )
         engine.add(MemoryRecord(id="new1", content="new", importance=0.9))
         candidates = engine.decay_scan()
         assert any(c.id == "old1" for c in candidates)
@@ -203,6 +208,7 @@ class TestForgettingEngine:
 # ============================================================
 # MergingEngine 测试
 # ============================================================
+
 
 class TestMergingEngine:
     """合并引擎测试。"""
@@ -256,10 +262,20 @@ class TestMergingEngine:
     def test_compress_cluster(self):
         engine = MergingEngine()
         cluster = [
-            MemoryRecord(id="m1", content="best content", importance=0.9,
-                         mtype=MemoryType.SEMANTIC, tags=["a"]),
-            MemoryRecord(id="m2", content="other content", importance=0.5,
-                         mtype=MemoryType.SEMANTIC, tags=["b"]),
+            MemoryRecord(
+                id="m1",
+                content="best content",
+                importance=0.9,
+                mtype=MemoryType.SEMANTIC,
+                tags=["a"],
+            ),
+            MemoryRecord(
+                id="m2",
+                content="other content",
+                importance=0.5,
+                mtype=MemoryType.SEMANTIC,
+                tags=["b"],
+            ),
         ]
         merged = engine.compress_cluster(cluster)
         assert merged.id == "merged_m1"
@@ -281,6 +297,7 @@ class TestMergingEngine:
 # ReconstructionEngine 测试
 # ============================================================
 
+
 class TestReconstructionEngine:
     """重构引擎测试。"""
 
@@ -294,11 +311,15 @@ class TestReconstructionEngine:
         """有记忆 → 生成洞察。"""
         fe = ForgettingEngine(str(work_dir / "re.db"))
         for i in range(5):
-            fe.add(MemoryRecord(
-                id=f"r{i}", content=f"semantic memory {i}",
-                mtype=MemoryType.SEMANTIC, importance=0.8,
-                tags=["python", "coding"],
-            ))
+            fe.add(
+                MemoryRecord(
+                    id=f"r{i}",
+                    content=f"semantic memory {i}",
+                    mtype=MemoryType.SEMANTIC,
+                    importance=0.8,
+                    tags=["python", "coding"],
+                )
+            )
         re = ReconstructionEngine(fe)
         insights = re.reflect_on_recent()
         assert len(insights) > 0
@@ -339,6 +360,7 @@ class TestReconstructionEngine:
 # HybridRetriever 测试
 # ============================================================
 
+
 class TestHybridRetriever:
     """混合召回测试。"""
 
@@ -349,8 +371,7 @@ class TestHybridRetriever:
         assert HybridRetriever.bm25_score("xyz", "hello world") == 0.0
 
     def test_vector_similarity(self):
-        rec = MemoryRecord(id="v1", content="python programming",
-                           tags=["python", "coding"])
+        rec = MemoryRecord(id="v1", content="python programming", tags=["python", "coding"])
         assert HybridRetriever.vector_similarity("python", rec) > 0
 
     def test_rrf_basic(self):
@@ -369,10 +390,14 @@ class TestHybridRetriever:
     def test_search_with_data(self, work_dir):
         """有数据搜索 → 返回相关记忆。"""
         fe = ForgettingEngine(str(work_dir / "hr.db"))
-        fe.add(MemoryRecord(id="s1", content="python programming tutorial",
-                            importance=0.9, tags=["python"]))
-        fe.add(MemoryRecord(id="s2", content="cooking recipe guide",
-                            importance=0.7, tags=["cooking"]))
+        fe.add(
+            MemoryRecord(
+                id="s1", content="python programming tutorial", importance=0.9, tags=["python"]
+            )
+        )
+        fe.add(
+            MemoryRecord(id="s2", content="cooking recipe guide", importance=0.7, tags=["cooking"])
+        )
         retriever = HybridRetriever(fe)
         results = retriever.search("python", top_k=2)
         assert len(results) > 0
@@ -381,12 +406,11 @@ class TestHybridRetriever:
     def test_search_mmr_diversity(self, work_dir):
         """MMR 多样性。"""
         fe = ForgettingEngine(str(work_dir / "hr.db"))
-        fe.add(MemoryRecord(id="s1", content="python basics",
-                            importance=0.9, tags=["python"]))
-        fe.add(MemoryRecord(id="s2", content="python basics",
-                            importance=0.9, tags=["python"]))
-        fe.add(MemoryRecord(id="s3", content="javascript guide",
-                            importance=0.8, tags=["javascript"]))
+        fe.add(MemoryRecord(id="s1", content="python basics", importance=0.9, tags=["python"]))
+        fe.add(MemoryRecord(id="s2", content="python basics", importance=0.9, tags=["python"]))
+        fe.add(
+            MemoryRecord(id="s3", content="javascript guide", importance=0.8, tags=["javascript"])
+        )
         retriever = HybridRetriever(fe)
         results = retriever.search("python", top_k=2, use_mmr=True)
         assert len(results) <= 2
@@ -395,6 +419,7 @@ class TestHybridRetriever:
 # ============================================================
 # MemoryEvolutionOrchestra 测试
 # ============================================================
+
 
 class TestMemoryEvolutionOrchestra:
     """记忆演化总指挥测试。"""
@@ -419,8 +444,7 @@ class TestMemoryEvolutionOrchestra:
         """日维护执行。"""
         orch = MemoryEvolutionOrchestra(str(work_dir / "orch.db"))
         for i in range(5):
-            orch.ingest(f"memory item {i}", importance=0.6,
-                        tags=[f"tag{i}"])
+            orch.ingest(f"memory item {i}", importance=0.6, tags=[f"tag{i}"])
         result = orch.run_daily_maintenance()
         assert "forgotten" in result
         assert "dedup_removed" in result
@@ -432,14 +456,16 @@ class TestMemoryEvolutionOrchestra:
 # ReMeCompressor 测试（持久连接，:memory: 可用）
 # ============================================================
 
+
 class TestReMeCompressor:
     """ReMe 记忆压缩引擎测试。"""
 
     def test_remember_and_recall(self):
         """存储 + 召回。"""
         reme = ReMeCompressor(db_path=":memory:")
-        reme.remember("user_prefers_python", "用户偏好Python编程",
-                      category="preference", importance=0.9)
+        reme.remember(
+            "user_prefers_python", "用户偏好Python编程", category="preference", importance=0.9
+        )
         results = reme.recall("python")
         assert len(results) > 0
         assert results[0]["key"] == "user_prefers_python"

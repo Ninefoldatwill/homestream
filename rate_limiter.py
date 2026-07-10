@@ -16,11 +16,11 @@
         raise HTTPException(429, "Rate limit exceeded")
 """
 
-import time
 import threading
-from dataclasses import dataclass, field
-from typing import Dict, Optional
+import time
 from collections import deque
+from dataclasses import dataclass, field
+
 import structlog
 
 logger = structlog.get_logger("bridge_v7.rate_limiter")
@@ -30,18 +30,20 @@ logger = structlog.get_logger("bridge_v7.rate_limiter")
 # 令牌桶（Token Bucket）
 # ============================================================
 
+
 @dataclass
 class TokenBucket:
     """令牌桶限流器 — 支持短时突发+长期平均限流"""
+
     name: str
-    rate: float                            # 每秒填充速率（令牌/秒）
-    burst: int                             # 桶容量（突发上限）
-    _tokens: float = 0.0                   # 当前令牌数
+    rate: float  # 每秒填充速率（令牌/秒）
+    burst: int  # 桶容量（突发上限）
+    _tokens: float = 0.0  # 当前令牌数
     _last_refill: float = field(default_factory=time.monotonic)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def __post_init__(self):
-        self._tokens = float(self.burst)   # 初始化满桶
+        self._tokens = float(self.burst)  # 初始化满桶
 
     def _refill(self):
         """按时间差补充令牌"""
@@ -71,12 +73,14 @@ class TokenBucket:
 # 滑动窗口计数器（Sliding Window）
 # ============================================================
 
+
 @dataclass
 class SlidingWindow:
     """滑动窗口计数器 — 简单直观的接口频控"""
+
     name: str
-    window_seconds: float                   # 窗口大小（秒）
-    max_requests: int                       # 窗口内最大请求数
+    window_seconds: float  # 窗口大小（秒）
+    max_requests: int  # 窗口内最大请求数
     _timestamps: deque = field(default_factory=deque)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -108,7 +112,7 @@ class SlidingWindow:
 # 限流器注册表（线程安全单例）
 # ============================================================
 
-_limiter_registry: Dict[str, TokenBucket] = {}
+_limiter_registry: dict[str, TokenBucket] = {}
 _registry_lock = threading.Lock()
 
 
@@ -131,7 +135,7 @@ def create_token_bucket(
         return _limiter_registry[name]
 
 
-def get_limiter(name: str) -> Optional[TokenBucket]:
+def get_limiter(name: str) -> TokenBucket | None:
     """获取已注册的限流器"""
     with _registry_lock:
         return _limiter_registry.get(name)
@@ -144,35 +148,35 @@ def get_limiter(name: str) -> Optional[TokenBucket]:
 # 模型聊天接口 — 最重要的限流点（防AI模型费用爆增）
 MODEL_CHAT_LIMITER = create_token_bucket(
     "model_chat",
-    rate=30,       # 30 QPS（~1800 RPM）
-    burst=50,      # 允许50突发
+    rate=30,  # 30 QPS（~1800 RPM）
+    burst=50,  # 允许50突发
 )
 
 # ICP消息发送 — 防消息风暴
 ICP_EVENT_LIMITER = create_token_bucket(
     "icp_event",
-    rate=100,      # 100 QPS
+    rate=100,  # 100 QPS
     burst=200,
 )
 
 # 群聊消息 — 防刷屏
 GROUP_CHAT_LIMITER = create_token_bucket(
     "group_chat",
-    rate=50,       # 50 TPS
+    rate=50,  # 50 TPS
     burst=100,
 )
 
 # Skill调用 — 防工具滥用
 SKILL_INVOKE_LIMITER = create_token_bucket(
     "skill_invoke",
-    rate=20,       # 20 QPS
+    rate=20,  # 20 QPS
     burst=40,
 )
 
 # 通用API — 默认限流
 GENERAL_API_LIMITER = create_token_bucket(
     "general_api",
-    rate=60,       # 60 QPS
+    rate=60,  # 60 QPS
     burst=120,
 )
 
@@ -199,9 +203,9 @@ def get_limiter_for_endpoint(endpoint: str) -> TokenBucket:
 # FastAPI/Starlette 限流中间件
 # ============================================================
 
-from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -232,7 +236,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 status_code=429,
                 content={
                     "error": "rate_limit_exceeded",
-                    "message": f"请求频率过高，请稍后重试",
+                    "message": "请求频率过高，请稍后重试",
                     "retry_after": 1,
                 },
             )

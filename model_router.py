@@ -26,30 +26,35 @@ ModelRouter - 硬件自适应多模型路由器
 
 from __future__ import annotations
 
-import os
 import asyncio
+import builtins
 import logging
-from enum import Enum
-from typing import Optional, List, Dict, Any, Type, TYPE_CHECKING
+import os
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
 
+from hardware_profile import HardwareInfo, detect_hardware, get_model_recommendation, recommend_tier
 from providers.base_provider import (
-    BaseProvider, ProviderConfig, ProviderType, ProviderTier,
-    ChatMessage, ChatResponse, ProviderError, ProviderStatus,
+    BaseProvider,
+    ChatMessage,
+    ChatResponse,
+    ProviderError,
+    ProviderTier,
 )
-from providers.llama_cpp_provider import LlamaCppProvider, create_default_llama_cpp_provider
-from providers.glm_provider import GLMProvider, create_glm_flash_provider
-from providers.deepseek_provider import DeepSeekProvider, create_deepseek_flash_provider
-from hardware_profile import detect_hardware, recommend_tier, get_model_recommendation, HardwareInfo
+from providers.deepseek_provider import create_deepseek_flash_provider
+from providers.glm_provider import create_glm_flash_provider
+from providers.llama_cpp_provider import create_default_llama_cpp_provider
 
 logger = logging.getLogger(__name__)
 
 
 class RouterStrategy(Enum):
     """路由策略"""
-    COST_FIRST = "cost_first"       # 成本优先：本地 > 免费API > 付费API
-    QUALITY_FIRST = "quality_first" # 质量优先：付费Pro > 免费Flash > 本地
-    SPEED_FIRST = "speed_first"     # 速度优先：按历史延迟排序
+
+    COST_FIRST = "cost_first"  # 成本优先：本地 > 免费API > 付费API
+    QUALITY_FIRST = "quality_first"  # 质量优先：付费Pro > 免费Flash > 本地
+    SPEED_FIRST = "speed_first"  # 速度优先：按历史延迟排序
     TIER_SPECIFIED = "tier_specified"  # 指定层级
 
 
@@ -59,12 +64,15 @@ class DualRedundancyConfig:
 
     主线路失败/超时后，自动切换到复线（DeepSeek L3）
     """
+
     enabled: bool = True  # 是否启用双保障
-    primary_tiers: List[ProviderTier] = field(default_factory=lambda: [ProviderTier.L1, ProviderTier.L2])  # 主线路
+    primary_tiers: list[ProviderTier] = field(
+        default_factory=lambda: [ProviderTier.L1, ProviderTier.L2]
+    )  # 主线路
     backup_tier: ProviderTier = ProviderTier.L3  # 复线（DeepSeek）
     primary_timeout: int = 10  # 主线路单Provider超时（秒）
-    backup_timeout: int = 15   # 复线超时（秒）
-    fail_fast: bool = True     # 是否快速失败（主线路全部失败后立即用复线）
+    backup_timeout: int = 15  # 复线超时（秒）
+    fail_fast: bool = True  # 是否快速失败（主线路全部失败后立即用复线）
 
 
 class ProviderRegistry:
@@ -74,8 +82,8 @@ class ProviderRegistry:
     """
 
     def __init__(self):
-        self._providers: Dict[str, BaseProvider] = {}
-        self._provider_classes: Dict[str, Type[BaseProvider]] = {}
+        self._providers: dict[str, BaseProvider] = {}
+        self._provider_classes: dict[str, type[BaseProvider]] = {}
 
     def register(self, provider: BaseProvider) -> bool:
         """注册Provider"""
@@ -93,30 +101,27 @@ class ProviderRegistry:
             return True
         return False
 
-    def get(self, name: str) -> Optional[BaseProvider]:
+    def get(self, name: str) -> BaseProvider | None:
         """获取Provider"""
         return self._providers.get(name)
 
-    def get_all(self) -> Dict[str, BaseProvider]:
+    def get_all(self) -> dict[str, BaseProvider]:
         """获取所有Provider"""
         return dict(self._providers)
 
-    def get_by_tier(self, tier: ProviderTier) -> List[BaseProvider]:
+    def get_by_tier(self, tier: ProviderTier) -> builtins.list[BaseProvider]:
         """按层级获取Provider"""
-        return [
-            p for p in self._providers.values()
-            if p.config.tier == tier and p.config.enabled
-        ]
+        return [p for p in self._providers.values() if p.config.tier == tier and p.config.enabled]
 
-    def get_available(self) -> List[BaseProvider]:
+    def get_available(self) -> builtins.list[BaseProvider]:
         """获取所有已启用的Provider"""
         return [p for p in self._providers.values() if p.config.enabled]
 
-    def register_class(self, type_name: str, cls: Type[BaseProvider]):
+    def register_class(self, type_name: str, cls: type[BaseProvider]):
         """注册Provider类（供工厂模式使用）"""
         self._provider_classes[type_name] = cls
 
-    def list(self) -> List[Dict[str, Any]]:
+    def list(self) -> builtins.list[dict[str, Any]]:
         """列出所有Provider状态"""
         return [p.stats for p in self._providers.values()]
 
@@ -127,9 +132,9 @@ class ModelRouter:
     def __init__(self, strategy: RouterStrategy = RouterStrategy.COST_FIRST):
         self.registry = ProviderRegistry()
         self.strategy = strategy
-        self.hardware: Optional[HardwareInfo] = None
+        self.hardware: HardwareInfo | None = None
         self._initialized = False
-        self._specified_tier: Optional[ProviderTier] = None
+        self._specified_tier: ProviderTier | None = None
         self.dual_redundancy = DualRedundancyConfig()  # 双保障配置（6/27新增）
 
         # 从环境变量加载双保障配置
@@ -199,7 +204,9 @@ class ModelRouter:
         # 2. L1: 本地llama.cpp（零配置）
         llama_base = os.getenv("LLAMA_API_BASE", "http://localhost:1342/v1")
         llama_key = os.getenv("LLAMA_API_KEY", "jan-local")
-        llama_model = os.getenv("LLAMA_MODEL_NAME", rec.model_name.lower().replace(".", "").replace("-", ""))
+        llama_model = os.getenv(
+            "LLAMA_MODEL_NAME", rec.model_name.lower().replace(".", "").replace("-", "")
+        )
 
         llama_provider = create_default_llama_cpp_provider(
             api_base=llama_base,
@@ -219,6 +226,7 @@ class ModelRouter:
             glm_plus_key = os.getenv("GLM_PLUS_API_KEY", "")
             if glm_plus_key:
                 from providers.glm_provider import create_glm_plus_provider
+
                 self.registry.register(create_glm_plus_provider(glm_plus_key))
 
         # 4. L3: DeepSeek付费API（有Key才注册）
@@ -232,6 +240,7 @@ class ModelRouter:
             ds_reasoner_key = os.getenv("DEEPSEEK_REASONER_API_KEY", "")
             if ds_reasoner_key:
                 from providers.deepseek_provider import create_deepseek_reasoner_provider
+
                 self.registry.register(create_deepseek_reasoner_provider(ds_reasoner_key))
 
         # 5. 汇报初始化结果
@@ -242,7 +251,7 @@ class ModelRouter:
 
         self._initialized = True
 
-    def init_for_testing(self, providers: List[BaseProvider]):
+    def init_for_testing(self, providers: list[BaseProvider]):
         """测试用：手动注入Provider"""
         for p in providers:
             self.registry.register(p)
@@ -255,14 +264,14 @@ class ModelRouter:
         self.strategy = strategy
         logger.info(f"路由策略切换为: {strategy.value}")
 
-    def set_tier(self, tier: Optional[ProviderTier]):
+    def set_tier(self, tier: ProviderTier | None):
         """指定使用哪个层级（仅TIER_SPECIFIED策略有效）"""
         self._specified_tier = tier
         if tier:
             self.strategy = RouterStrategy.TIER_SPECIFIED
             logger.info(f"指定层级: {tier.value}")
 
-    def _get_ordered_providers(self) -> List[BaseProvider]:
+    def _get_ordered_providers(self) -> list[BaseProvider]:
         """根据策略获取排序后的Provider列表"""
         available = [p for p in self.registry.get_available() if p.is_available]
 
@@ -284,6 +293,7 @@ class ModelRouter:
             def avg_latency(p):
                 stats = p.stats
                 return stats.get("avg_latency_ms", 9999) if stats.get("requests", 0) > 0 else 9999
+
             available.sort(key=avg_latency)
 
         elif self.strategy == RouterStrategy.TIER_SPECIFIED:
@@ -300,10 +310,10 @@ class ModelRouter:
 
     async def chat(
         self,
-        messages: List[ChatMessage],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        prefer_tier: Optional[ProviderTier] = None,
+        messages: list[ChatMessage],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        prefer_tier: ProviderTier | None = None,
     ) -> ChatResponse:
         """统一聊天接口 - 自动路由 + 降级 + 双保障
 
@@ -341,14 +351,15 @@ class ModelRouter:
             return await self._chat_with_dual_redundancy(ordered, messages, max_tokens, temperature)
 
         # 原逻辑：串行降级（双保障未启用时）
-        errors: List[str] = []
+        errors: list[str] = []
         for provider in ordered:
             try:
                 timeout = self._get_timeout_for_provider(provider)
-                logger.debug(f"尝试Provider: {provider.name} ({provider.config.tier.value}), timeout={timeout}s")
+                logger.debug(
+                    f"尝试Provider: {provider.name} ({provider.config.tier.value}), timeout={timeout}s"
+                )
                 response = await asyncio.wait_for(
-                    provider.chat(messages, max_tokens, temperature),
-                    timeout=timeout
+                    provider.chat(messages, max_tokens, temperature), timeout=timeout
                 )
                 logger.info(
                     f"路由成功: {provider.name} "
@@ -356,7 +367,7 @@ class ModelRouter:
                     f"in={response.tokens_in} out={response.tokens_out})"
                 )
                 return response
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 errors.append(f"{provider.name}: 超时({timeout}s)")
                 logger.warning(f"Provider {provider.name} 超时({timeout}s)，尝试降级...")
                 continue
@@ -371,16 +382,15 @@ class ModelRouter:
 
         # 全部失败
         raise ProviderError(
-            "ModelRouter",
-            f"所有Provider均失败:\n" + "\n".join(f"  - {e}" for e in errors)
+            "ModelRouter", "所有Provider均失败:\n" + "\n".join(f"  - {e}" for e in errors)
         )
 
     async def _chat_with_dual_redundancy(
         self,
-        ordered: List[BaseProvider],
-        messages: List[ChatMessage],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
+        ordered: list[BaseProvider],
+        messages: list[ChatMessage],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> ChatResponse:
         """双保障聊天：主线路失败/超时 → 自动切换到复线
 
@@ -390,21 +400,22 @@ class ModelRouter:
           3. 复线也失败，抛出错误
         """
         cfg = self.dual_redundancy
-        errors: List[str] = []
+        errors: list[str] = []
 
         # 1. 尝试主线路
         primary_providers = [p for p in ordered if p.config.tier in cfg.primary_tiers]
         for provider in primary_providers:
             try:
                 timeout = cfg.primary_timeout
-                logger.debug(f"[主线路] 尝试Provider: {provider.name} ({provider.config.tier.value}), timeout={timeout}s")
+                logger.debug(
+                    f"[主线路] 尝试Provider: {provider.name} ({provider.config.tier.value}), timeout={timeout}s"
+                )
                 response = await asyncio.wait_for(
-                    provider.chat(messages, max_tokens, temperature),
-                    timeout=timeout
+                    provider.chat(messages, max_tokens, temperature), timeout=timeout
                 )
                 logger.info(f"[主线路] 路由成功: {provider.name} ({response.latency_ms:.0f}ms)")
                 return response
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 errors.append(f"{provider.name}: 超时({timeout}s)")
                 logger.warning(f"[主线路] Provider {provider.name} 超时({timeout}s)，降级...")
                 continue
@@ -418,19 +429,22 @@ class ModelRouter:
                 continue
 
         # 2. 主线路全部失败，切换到复线
-        logger.warning(f"[双保障] 主线路全部失败({len(errors)}个错误)，切换到复线({cfg.backup_tier.value})...")
+        logger.warning(
+            f"[双保障] 主线路全部失败({len(errors)}个错误)，切换到复线({cfg.backup_tier.value})..."
+        )
         backup_providers = [p for p in ordered if p.config.tier == cfg.backup_tier]
         for provider in backup_providers:
             try:
                 timeout = cfg.backup_timeout
-                logger.info(f"[复线] 尝试Provider: {provider.name} ({provider.config.tier.value}), timeout={timeout}s")
+                logger.info(
+                    f"[复线] 尝试Provider: {provider.name} ({provider.config.tier.value}), timeout={timeout}s"
+                )
                 response = await asyncio.wait_for(
-                    provider.chat(messages, max_tokens, temperature),
-                    timeout=timeout
+                    provider.chat(messages, max_tokens, temperature), timeout=timeout
                 )
                 logger.info(f"[复线] 路由成功: {provider.name} ({response.latency_ms:.0f}ms)")
                 return response
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 errors.append(f"{provider.name}(复线): 超时({timeout}s)")
                 logger.warning(f"[复线] Provider {provider.name} 超时({timeout}s)")
                 continue
@@ -446,7 +460,8 @@ class ModelRouter:
         # 3. 全部失败
         raise ProviderError(
             "ModelRouter",
-            f"双保障全部失败(主线路{len(cfg.primary_tiers)}层 + 复线1层):\n" + "\n".join(f"  - {e}" for e in errors)
+            f"双保障全部失败(主线路{len(cfg.primary_tiers)}层 + 复线1层):\n"
+            + "\n".join(f"  - {e}" for e in errors),
         )
 
     def _get_timeout_for_provider(self, provider: BaseProvider) -> int:
@@ -477,7 +492,7 @@ class ModelRouter:
         Returns:
             str: 模型回复文本
         """
-        messages: List[ChatMessage] = []
+        messages: list[ChatMessage] = []
         if system:
             messages.append(ChatMessage(role="system", content=system))
         messages.append(ChatMessage(role="user", content=prompt))
@@ -487,7 +502,7 @@ class ModelRouter:
 
     # ==================== 状态管理 ====================
 
-    async def health_check_all(self) -> Dict[str, bool]:
+    async def health_check_all(self) -> dict[str, bool]:
         """检查所有Provider健康状态"""
         results = {}
         tasks = []
@@ -506,21 +521,23 @@ class ModelRouter:
 
         return results
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """获取路由器完整状态"""
         providers_status = []
         for p in self.registry.get_all().values():
-            providers_status.append({
-                "name": p.name,
-                "display_name": p.config.display_name,
-                "type": p.config.provider_type.value,
-                "tier": p.config.tier.value,
-                "model": p.config.model_name,
-                "status": p.status.value,
-                "enabled": p.config.enabled,
-                "priority": p.config.priority,
-                "stats": p.stats,
-            })
+            providers_status.append(
+                {
+                    "name": p.name,
+                    "display_name": p.config.display_name,
+                    "type": p.config.provider_type.value,
+                    "tier": p.config.tier.value,
+                    "model": p.config.model_name,
+                    "status": p.status.value,
+                    "enabled": p.config.enabled,
+                    "priority": p.config.priority,
+                    "stats": p.stats,
+                }
+            )
 
         return {
             "strategy": self.strategy.value,
@@ -528,10 +545,12 @@ class ModelRouter:
             "hardware": self.hardware.to_dict() if self.hardware else None,
             "providers": providers_status,
             "total_providers": len(providers_status),
-            "available_providers": sum(1 for p in providers_status if p["status"] in ("healthy", "degraded", "unknown")),
+            "available_providers": sum(
+                1 for p in providers_status if p["status"] in ("healthy", "degraded", "unknown")
+            ),
         }
 
-    def get_available_tiers(self) -> List[str]:
+    def get_available_tiers(self) -> list[str]:
         """获取当前可用的层级列表"""
         tiers = set()
         for p in self.registry.get_available():

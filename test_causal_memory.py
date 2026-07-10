@@ -17,23 +17,27 @@ test_causal_memory.py — 因果记忆桥接引擎测试
 """
 
 import pytest
-import time
 
+from causal_memory import AutoCausalBridge, CausalMemoryBridge
 from event_stream import (
-    EventStream, Event, EventType, EventSource,
-    create_action, create_task_action, create_done_action,
+    EventStream,
+    EventType,
+    create_action,
+    create_done_action,
+    create_task_action,
 )
 from memory_evolution import (
-    MemoryRecord, MemoryType, ForgettingEngine,
-    HybridRetriever, MemoryEvolutionOrchestra,
-    DEFAULT_IMPORTANCE,
+    ForgettingEngine,
+    HybridRetriever,
+    MemoryEvolutionOrchestra,
+    MemoryRecord,
+    MemoryType,
 )
-from causal_memory import CausalMemoryBridge, AutoCausalBridge
-
 
 # ============================================================
 # Fixture: 构建因果链事件流
 # ============================================================
+
 
 @pytest.fixture
 def causal_setup(work_dir):
@@ -68,7 +72,9 @@ def event_chain(causal_setup):
     eid3 = stream.publish(e3)
 
     e4 = create_done_action(
-        "灵犀", "澜澜", "TASK-002",
+        "灵犀",
+        "澜澜",
+        "TASK-002",
         what_done="MemGen分析报告完成",
         where_artifacts=["docs/memgen_analysis.md"],
         how_verify="检查5章节完整",
@@ -78,7 +84,9 @@ def event_chain(causal_setup):
     eid4 = stream.publish(e4)
 
     e5 = create_done_action(
-        "澜澜", "九重", "TASK-001",
+        "澜澜",
+        "九重",
+        "TASK-001",
         what_done="因果记忆方案设计完成",
         where_artifacts=["docs/causal_memory_design.md"],
         how_verify="因果链闭环验证通过",
@@ -96,6 +104,7 @@ def event_chain(causal_setup):
 # ============================================================
 # CausalMemoryBridge 基础测试
 # ============================================================
+
 
 class TestCausalMemoryBridgeInit:
     """因果记忆桥接引擎初始化测试。"""
@@ -135,9 +144,14 @@ class TestRememberEvent:
         stream, orchestra, bridge = causal_setup
 
         event = create_done_action(
-            "澜澜", "九重", "T-001",
-            what_done="完成", where_artifacts=[], how_verify="验证",
-            known_issues=[], what_next="下一步",
+            "澜澜",
+            "九重",
+            "T-001",
+            what_done="完成",
+            where_artifacts=[],
+            how_verify="验证",
+            known_issues=[],
+            what_next="下一步",
         )
         stream.publish(event)
 
@@ -176,6 +190,7 @@ class TestRememberEvent:
 # ============================================================
 # 因果上下文测试
 # ============================================================
+
 
 class TestCausalContext:
     """因果上下文构建测试。"""
@@ -232,6 +247,7 @@ class TestCausalContext:
 # 因果召回测试
 # ============================================================
 
+
 class TestRecallWithCause:
     """涌现 — 因果驱动召回测试。"""
 
@@ -261,14 +277,10 @@ class TestRecallWithCause:
         bridge.remember_event(unrelated)
 
         # 从E5检索：E1和E4在因果链上，应获得加成
-        results = bridge.recall_with_cause(
-            "因果", current_event_id=event_ids[4]
-        )
+        results = bridge.recall_with_cause("因果", current_event_id=event_ids[4])
 
         # 因果链上的记忆应排在前面
-        causal_memories = [r for r in results if r.cause_event_id in {
-            event_ids[0], event_ids[3]
-        }]
+        causal_memories = [r for r in results if r.cause_event_id in {event_ids[0], event_ids[3]}]
         assert len(causal_memories) > 0
 
     def test_recall_with_cause_no_memories(self, causal_setup):
@@ -285,6 +297,7 @@ class TestRecallWithCause:
 # ============================================================
 # 溯源测试
 # ============================================================
+
 
 class TestTraceMemoryCause:
     """溯源 — 从记忆回溯因果链测试。"""
@@ -337,6 +350,7 @@ class TestTraceMemoryCause:
 # 因果链完整性测试
 # ============================================================
 
+
 class TestCausalCompleteness:
     """因果链完整性评估测试。"""
 
@@ -363,6 +377,7 @@ class TestCausalCompleteness:
 # ============================================================
 # 因果摘要测试
 # ============================================================
+
 
 class TestCausalSummary:
     """因果记忆摘要测试。"""
@@ -405,6 +420,7 @@ class TestCausalSummary:
 # AutoCausalBridge 测试
 # ============================================================
 
+
 class TestAutoCausalBridge:
     """自动因果桥接器测试。"""
 
@@ -436,7 +452,8 @@ class TestAutoCausalBridge:
         """事件过滤器：只记忆指定类型。"""
         stream, orchestra, bridge = causal_setup
         auto = AutoCausalBridge(
-            stream, orchestra,
+            stream,
+            orchestra,
             event_filter={EventType.TASK, EventType.DONE},
         )
         auto.start()
@@ -446,9 +463,7 @@ class TestAutoCausalBridge:
         # 发布INFO（不应记忆）
         stream.publish(create_action("A", "B", EventType.INFO, "info"))
         # 发布DONE（应记忆）
-        stream.publish(create_done_action(
-            "B", "A", "T1", "done", [], "verify", [], "next"
-        ))
+        stream.publish(create_done_action("B", "A", "T1", "done", [], "verify", [], "next"))
 
         active = orchestra.forgetting.list_active(limit=10)
         # 只有TASK和DONE被记忆
@@ -460,9 +475,7 @@ class TestAutoCausalBridge:
         auto = AutoCausalBridge(stream, orchestra)
         auto.start()
 
-        stream.publish(create_done_action(
-            "A", "B", "T1", "done", [], "v", [], "n"
-        ))
+        stream.publish(create_done_action("A", "B", "T1", "done", [], "v", [], "n"))
         stream.publish(create_action("A", "B", EventType.PING, "ping"))
 
         active = orchestra.forgetting.list_active(limit=10)
@@ -477,6 +490,7 @@ class TestAutoCausalBridge:
 # HybridRetriever 因果加成测试
 # ============================================================
 
+
 class TestHybridRetrieverCausalBoost:
     """HybridRetriever 因果加成机制测试。"""
 
@@ -486,12 +500,16 @@ class TestHybridRetrieverCausalBoost:
 
         # 两条内容相似的记忆，一条有因果链，一条没有
         causal_rec = MemoryRecord(
-            id="causal_1", content="因果记忆架构设计",
-            importance=0.7, cause_event_id="evt_001",
+            id="causal_1",
+            content="因果记忆架构设计",
+            importance=0.7,
+            cause_event_id="evt_001",
         )
         plain_rec = MemoryRecord(
-            id="plain_1", content="因果记忆架构设计",
-            importance=0.7, cause_event_id=None,
+            id="plain_1",
+            content="因果记忆架构设计",
+            importance=0.7,
+            cause_event_id=None,
         )
         fe.add(causal_rec)
         fe.add(plain_rec)
@@ -504,7 +522,8 @@ class TestHybridRetrieverCausalBoost:
 
         # 有因果上下文：causal_1应排在前面
         results_causal = retriever.search(
-            "因果记忆", top_k=2,
+            "因果记忆",
+            top_k=2,
             causal_context={"evt_001"},
         )
         causal_ids = [r.id for r in results_causal]
@@ -516,10 +535,14 @@ class TestHybridRetrieverCausalBoost:
     def test_no_boost_without_context(self, work_dir):
         """无 causal_context 时不加成。"""
         fe = ForgettingEngine(str(work_dir / "noboost.db"))
-        fe.add(MemoryRecord(
-            id="m1", content="test content",
-            importance=0.7, cause_event_id="evt_001",
-        ))
+        fe.add(
+            MemoryRecord(
+                id="m1",
+                content="test content",
+                importance=0.7,
+                cause_event_id="evt_001",
+            )
+        )
 
         retriever = HybridRetriever(fe)
         results = retriever.search("test", top_k=1, causal_context=None)
@@ -528,10 +551,14 @@ class TestHybridRetrieverCausalBoost:
     def test_no_boost_unrelated_context(self, work_dir):
         """causal_context 不包含记忆的 cause_event_id 时不加成。"""
         fe = ForgettingEngine(str(work_dir / "unrelated.db"))
-        fe.add(MemoryRecord(
-            id="m1", content="test content",
-            importance=0.7, cause_event_id="evt_001",
-        ))
+        fe.add(
+            MemoryRecord(
+                id="m1",
+                content="test content",
+                importance=0.7,
+                cause_event_id="evt_001",
+            )
+        )
 
         retriever = HybridRetriever(fe)
         # causal_context 包含不相关的事件ID
@@ -542,6 +569,7 @@ class TestHybridRetrieverCausalBoost:
 # ============================================================
 # 完整闭环测试
 # ============================================================
+
 
 class TestCausalMemoryClosedLoop:
     """因果记忆完整闭环测试。
@@ -564,9 +592,7 @@ class TestCausalMemoryClosedLoop:
             assert rec.has_cause
 
         # 3. 涌现：从E5检索，因果链上的记忆应获得加成
-        results = bridge.recall_with_cause(
-            "因果记忆", current_event_id=event_ids[4]
-        )
+        results = bridge.recall_with_cause("因果记忆", current_event_id=event_ids[4])
         assert len(results) > 0
 
         # 4. 溯源：从E5的记忆回溯到E1
@@ -600,8 +626,14 @@ class TestCausalMemoryClosedLoop:
             create_task_action("九重", "澜澜", "新因果记忆任务", "TASK-NEW-001"),
             create_task_action("澜澜", "灵犀", "新分析任务", "TASK-NEW-002"),
             create_done_action(
-                "灵犀", "澜澜", "TASK-NEW-002",
-                "新报告完成", ["docs/new.md"], "检查完整", [], "下一步",
+                "灵犀",
+                "澜澜",
+                "TASK-NEW-002",
+                "新报告完成",
+                ["docs/new.md"],
+                "检查完整",
+                [],
+                "下一步",
             ),
         ]
         new_ids = [stream.publish(e) for e in new_events]
@@ -611,9 +643,7 @@ class TestCausalMemoryClosedLoop:
         assert len(active) >= 3
 
         # 因果召回（用最后一条新事件）
-        results = bridge.recall_with_cause(
-            "因果", current_event_id=new_ids[-1]
-        )
+        results = bridge.recall_with_cause("因果", current_event_id=new_ids[-1])
         assert len(results) > 0
 
     def test_causal_memory_isolation(self, work_dir):

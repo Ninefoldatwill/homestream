@@ -21,16 +21,15 @@ DSL 格式：JSON Schema 定义工作流图
 执行策略：拓扑排序 → 并行分支 → 检查点保存 → 失败回滚
 """
 
-import json
 import time
 import uuid
 from collections import defaultdict
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
 
-from pydantic import BaseModel, Field, ConfigDict
 import structlog
+from pydantic import BaseModel, ConfigDict, Field
 
 logger = structlog.get_logger("bridge_v7.workflow_engine")
 
@@ -39,23 +38,26 @@ logger = structlog.get_logger("bridge_v7.workflow_engine")
 # 节点类型与状态
 # ============================================================
 
+
 class NodeType(str, Enum):
     """工作流节点类型（6种）。"""
-    LLM = "llm"               # 大语言模型调用
-    CODE = "code"              # 代码执行
-    HTTP = "http"              # HTTP/API请求
-    CONDITION = "condition"    # 条件分支
-    LOOP = "loop"              # 循环迭代
+
+    LLM = "llm"  # 大语言模型调用
+    CODE = "code"  # 代码执行
+    HTTP = "http"  # HTTP/API请求
+    CONDITION = "condition"  # 条件分支
+    LOOP = "loop"  # 循环迭代
     AGGREGATOR = "aggregator"  # 结果聚合
 
 
 class NodeStatus(str, Enum):
     """节点执行状态。"""
+
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
     FAILED = "failed"
-    SKIPPED = "skipped"        # 条件分支跳过
+    SKIPPED = "skipped"  # 条件分支跳过
     TIMEOUT = "timeout"
 
 
@@ -63,59 +65,66 @@ class NodeStatus(str, Enum):
 # WorkflowDSL — pydantic 模型定义
 # ============================================================
 
+
 class NodeDefinition(BaseModel):
     """工作流节点定义。"""
+
     model_config = ConfigDict(extra="allow")
 
     id: str = Field(description="节点唯一ID")
     type: NodeType = Field(description="节点类型")
     name: str = Field(default="", description="节点名称")
-    config: Dict[str, Any] = Field(
+    config: dict[str, Any] = Field(
         default_factory=dict,
         description="节点配置（不同类型有不同schema）",
     )
-    inputs: List[str] = Field(
+    inputs: list[str] = Field(
         default_factory=list,
         description="输入节点ID列表（DAG边）",
     )
     timeout_seconds: float = Field(default=30.0, description="节点超时时间")
     retries: int = Field(default=0, description="失败重试次数")
-    fallback: Optional[str] = Field(
-        default=None, description="失败时的降级节点ID",
+    fallback: str | None = Field(
+        default=None,
+        description="失败时的降级节点ID",
     )
 
 
 class WorkflowDefinition(BaseModel):
     """工作流定义（DSL入口）。"""
+
     model_config = ConfigDict(extra="allow")
 
     id: str = Field(default_factory=lambda: f"wf_{uuid.uuid4().hex[:8]}")
     name: str = Field(default="", description="工作流名称")
     description: str = Field(default="", description="工作流描述")
     version: str = Field(default="1.0.0", description="版本号")
-    nodes: List[NodeDefinition] = Field(
-        default_factory=list, description="节点列表",
+    nodes: list[NodeDefinition] = Field(
+        default_factory=list,
+        description="节点列表",
     )
     start_node: str = Field(description="起始节点ID")
-    end_nodes: List[str] = Field(
-        default_factory=list, description="终止节点ID列表",
+    end_nodes: list[str] = Field(
+        default_factory=list,
+        description="终止节点ID列表",
     )
     global_timeout: float = Field(default=300.0, description="全局超时时间")
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 # ============================================================
 # 节点执行器基类与注册机制
 # ============================================================
 
+
 class BaseNodeExecutor:
     """节点执行器基类。每种节点类型对应一个执行器。"""
 
     node_type: NodeType = NodeType.LLM
 
-    def execute(self, config: Dict[str, Any],
-                inputs: Dict[str, Any],
-                context: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(
+        self, config: dict[str, Any], inputs: dict[str, Any], context: dict[str, Any]
+    ) -> dict[str, Any]:
         """执行节点逻辑，返回输出字典。
 
         Args:
@@ -140,9 +149,9 @@ class LLMNodeExecutor(BaseNodeExecutor):
 
     node_type = NodeType.LLM
 
-    def execute(self, config: Dict[str, Any],
-                inputs: Dict[str, Any],
-                context: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(
+        self, config: dict[str, Any], inputs: dict[str, Any], context: dict[str, Any]
+    ) -> dict[str, Any]:
         prompt_template = config.get("prompt_template", "")
         max_tokens = config.get("max_tokens", 512)
 
@@ -154,11 +163,15 @@ class LLMNodeExecutor(BaseNodeExecutor):
         # 尝试使用model_router三层路由
         try:
             from model_router import ModelRouter
+
             router = ModelRouter()
             # model_router.chat 是 async 方法，同步执行中无法await
             # 降级到模拟输出
             logger.debug("workflow.llm_router_async_fallback")
-            return {"output": f"[LLM模拟·三层路由] {prompt[:200]}...", "model_used": "model_router_async"}
+            return {
+                "output": f"[LLM模拟·三层路由] {prompt[:200]}...",
+                "model_used": "model_router_async",
+            }
         except ImportError:
             logger.debug("workflow.llm_fallback_no_router")
             return {"output": f"[LLM模拟] {prompt[:100]}...", "model_used": "fallback"}
@@ -210,9 +223,9 @@ class CodeNodeExecutor(BaseNodeExecutor):
         "zip": zip,
     }
 
-    def execute(self, config: Dict[str, Any],
-                inputs: Dict[str, Any],
-                context: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(
+        self, config: dict[str, Any], inputs: dict[str, Any], context: dict[str, Any]
+    ) -> dict[str, Any]:
         code = config.get("code", "")
         language = config.get("language", "python")
 
@@ -223,12 +236,22 @@ class CodeNodeExecutor(BaseNodeExecutor):
             return {"output": "", "error": False}
 
         # 安全检查：禁止危险操作
-        dangerous_patterns = ["import os", "import sys", "exec(", "eval(",
-                              "open(", "__import__", "subprocess"]
+        dangerous_patterns = [
+            "import os",
+            "import sys",
+            "exec(",
+            "eval(",
+            "open(",
+            "__import__",
+            "subprocess",
+        ]
         for pattern in dangerous_patterns:
             if pattern in code:
-                return {"output": f"[安全拦截] 检测到禁止操作: {pattern}",
-                        "error": True, "blocked": True}
+                return {
+                    "output": f"[安全拦截] 检测到禁止操作: {pattern}",
+                    "error": True,
+                    "blocked": True,
+                }
 
         # 受控执行：使用locals隔离
         local_vars = {**self.SAFE_FUNCTIONS, **inputs}
@@ -253,9 +276,9 @@ class HTTPNodeExecutor(BaseNodeExecutor):
 
     node_type = NodeType.HTTP
 
-    def execute(self, config: Dict[str, Any],
-                inputs: Dict[str, Any],
-                context: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(
+        self, config: dict[str, Any], inputs: dict[str, Any], context: dict[str, Any]
+    ) -> dict[str, Any]:
         url = config.get("url", "")
         method = config.get("method", "GET").upper()
 
@@ -270,6 +293,7 @@ class HTTPNodeExecutor(BaseNodeExecutor):
 
         try:
             import requests
+
             headers = config.get("headers", {})
             if method == "GET":
                 resp = requests.get(url, headers=headers, timeout=10)
@@ -294,9 +318,9 @@ class ConditionNodeExecutor(BaseNodeExecutor):
 
     node_type = NodeType.CONDITION
 
-    def execute(self, config: Dict[str, Any],
-                inputs: Dict[str, Any],
-                context: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(
+        self, config: dict[str, Any], inputs: dict[str, Any], context: dict[str, Any]
+    ) -> dict[str, Any]:
         condition_expr = config.get("condition", "")
         branches = config.get("branches", {"true": "", "false": ""})
 
@@ -326,12 +350,18 @@ class ConditionNodeExecutor(BaseNodeExecutor):
                 if len(parts) == 2:
                     left = self._parse_value(parts[0].strip())
                     right = self._parse_value(parts[1].strip())
-                    if op.strip() == ">": return left > right
-                    if op.strip() == "<": return left < right
-                    if op.strip() == ">=": return left >= right
-                    if op.strip() == "<=": return left <= right
-                    if op.strip() == "==": return left == right
-                    if op.strip() == "!=": return left != right
+                    if op.strip() == ">":
+                        return left > right
+                    if op.strip() == "<":
+                        return left < right
+                    if op.strip() == ">=":
+                        return left >= right
+                    if op.strip() == "<=":
+                        return left <= right
+                    if op.strip() == "==":
+                        return left == right
+                    if op.strip() == "!=":
+                        return left != right
 
         # 默认：真值判断
         return bool(expr)
@@ -355,9 +385,9 @@ class LoopNodeExecutor(BaseNodeExecutor):
 
     node_type = NodeType.LOOP
 
-    def execute(self, config: Dict[str, Any],
-                inputs: Dict[str, Any],
-                context: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(
+        self, config: dict[str, Any], inputs: dict[str, Any], context: dict[str, Any]
+    ) -> dict[str, Any]:
         max_iter = config.get("max_iterations", 10)
         acc_key = config.get("accumulator_key", "results")
 
@@ -380,9 +410,9 @@ class AggregatorNodeExecutor(BaseNodeExecutor):
 
     node_type = NodeType.AGGREGATOR
 
-    def execute(self, config: Dict[str, Any],
-                inputs: Dict[str, Any],
-                context: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(
+        self, config: dict[str, Any], inputs: dict[str, Any], context: dict[str, Any]
+    ) -> dict[str, Any]:
         agg_type = config.get("aggregation_type", "concat")
 
         if agg_type == "concat":
@@ -390,12 +420,10 @@ class AggregatorNodeExecutor(BaseNodeExecutor):
         elif agg_type == "merge":
             output = inputs  # 直接返回合并字典
         elif agg_type == "sum":
-            numeric_vals = [float(v) for v in inputs.values()
-                           if isinstance(v, (int, float))]
+            numeric_vals = [float(v) for v in inputs.values() if isinstance(v, (int, float))]
             output = sum(numeric_vals) if numeric_vals else 0
         elif agg_type == "average":
-            numeric_vals = [float(v) for v in inputs.values()
-                           if isinstance(v, (int, float))]
+            numeric_vals = [float(v) for v in inputs.values() if isinstance(v, (int, float))]
             output = sum(numeric_vals) / len(numeric_vals) if numeric_vals else 0
         elif agg_type == "latest":
             # 取最后一个输入
@@ -411,7 +439,7 @@ class AggregatorNodeExecutor(BaseNodeExecutor):
 # 执行器注册表
 # ============================================================
 
-EXECUTOR_REGISTRY: Dict[NodeType, BaseNodeExecutor] = {
+EXECUTOR_REGISTRY: dict[NodeType, BaseNodeExecutor] = {
     NodeType.LLM: LLMNodeExecutor(),
     NodeType.CODE: CodeNodeExecutor(),
     NodeType.HTTP: HTTPNodeExecutor(),
@@ -431,11 +459,12 @@ def register_executor(node_type: NodeType, executor: BaseNodeExecutor):
 # DAG 拓扑排序器
 # ============================================================
 
+
 class DAGTopology:
     """DAG拓扑排序 — 验证+排序+并行分支检测。"""
 
     @staticmethod
-    def validate(nodes: List[NodeDefinition]) -> Tuple[bool, str]:
+    def validate(nodes: list[NodeDefinition]) -> tuple[bool, str]:
         """验证DAG：无环·无孤立节点·有入口。"""
         node_ids = {n.id for n in nodes}
         if not node_ids:
@@ -451,14 +480,14 @@ class DAGTopology:
             return False, "无入口节点（所有节点都有前置依赖=死循环）"
 
         # 检查循环（DFS检测）
-        adj: Dict[str, List[str]] = defaultdict(list)
+        adj: dict[str, list[str]] = defaultdict(list)
         for n in nodes:
             for inp in n.inputs:
                 if inp in node_ids:
                     adj[inp].append(n.id)
 
-        visited: Set[str] = set()
-        in_stack: Set[str] = set()
+        visited: set[str] = set()
+        in_stack: set[str] = set()
 
         def dfs(node_id: str) -> bool:
             if node_id in in_stack:
@@ -481,12 +510,12 @@ class DAGTopology:
         return True, "DAG验证通过"
 
     @staticmethod
-    def sort(nodes: List[NodeDefinition]) -> List[str]:
+    def sort(nodes: list[NodeDefinition]) -> list[str]:
         """拓扑排序：返回按执行顺序排列的节点ID列表。"""
         # 构建邻接和入度
         node_map = {n.id: n for n in nodes}
-        in_degree: Dict[str, int] = defaultdict(int)
-        adj: Dict[str, List[str]] = defaultdict(list)
+        in_degree: dict[str, int] = defaultdict(int)
+        adj: dict[str, list[str]] = defaultdict(list)
 
         for n in nodes:
             in_degree[n.id] = len(n.inputs)
@@ -513,13 +542,15 @@ class DAGTopology:
 # WorkflowExecutor — 工作流执行引擎
 # ============================================================
 
+
 @dataclass
 class NodeExecutionResult:
     """节点执行结果。"""
+
     node_id: str
     status: NodeStatus
-    output: Dict[str, Any] = field(default_factory=dict)
-    error: Optional[str] = None
+    output: dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
     started_at: float = 0.0
     finished_at: float = 0.0
     duration_ms: float = 0.0
@@ -539,10 +570,11 @@ class WorkflowExecutor:
 
     def __init__(self, failsafe_enabled: bool = True):
         self.failsafe_enabled = failsafe_enabled
-        self._checkpoints: Dict[str, Dict[str, Any]] = {}
+        self._checkpoints: dict[str, dict[str, Any]] = {}
 
-    def execute(self, workflow: WorkflowDefinition,
-                initial_inputs: Dict[str, Any] = None) -> Dict[str, Any]:
+    def execute(
+        self, workflow: WorkflowDefinition, initial_inputs: dict[str, Any] = None
+    ) -> dict[str, Any]:
         """执行完整工作流。"""
         initial_inputs = initial_inputs or {}
         nodes = workflow.nodes
@@ -558,13 +590,13 @@ class WorkflowExecutor:
         node_map = {n.id: n for n in nodes}
 
         # 执行上下文
-        context: Dict[str, Any] = {"workflow_id": workflow.id, "initial": initial_inputs}
-        node_outputs: Dict[str, Dict[str, Any]] = {}
-        node_results: Dict[str, NodeExecutionResult] = {}
-        skipped_nodes: Set[str] = set()
+        context: dict[str, Any] = {"workflow_id": workflow.id, "initial": initial_inputs}
+        node_outputs: dict[str, dict[str, Any]] = {}
+        node_results: dict[str, NodeExecutionResult] = {}
+        skipped_nodes: set[str] = set()
 
         # 条件分支决策（决定哪些节点跳过）
-        active_branches: Set[str] = set()
+        active_branches: set[str] = set()
 
         wf_start = time.time()
 
@@ -576,7 +608,8 @@ class WorkflowExecutor:
             # 检查是否被条件分支跳过
             if node_id in skipped_nodes:
                 node_results[node_id] = NodeExecutionResult(
-                    node_id=node_id, status=NodeStatus.SKIPPED)
+                    node_id=node_id, status=NodeStatus.SKIPPED
+                )
                 continue
 
             # 收集前置输入
@@ -614,8 +647,9 @@ class WorkflowExecutor:
             if result.status in (NodeStatus.FAILED, NodeStatus.TIMEOUT):
                 if node_def.fallback:
                     # 降级到fallback节点
-                    logger.info("workflow.node_fallback",
-                                node_id=node_id, fallback=node_def.fallback)
+                    logger.info(
+                        "workflow.node_fallback", node_id=node_id, fallback=node_def.fallback
+                    )
                     fallback_def = node_map.get(node_def.fallback)
                     if fallback_def:
                         fallback_result = self._execute_node(fallback_def, inputs, context)
@@ -623,14 +657,14 @@ class WorkflowExecutor:
                         node_outputs[node_def.fallback] = fallback_result.output
                 elif self.failsafe_enabled:
                     # 全局降级：记录错误但继续执行
-                    logger.warning("workflow.node_failed_continuing",
-                                   node_id=node_id, error=result.error)
+                    logger.warning(
+                        "workflow.node_failed_continuing", node_id=node_id, error=result.error
+                    )
 
         wf_duration = time.time() - wf_start
 
         # 组装最终结果
-        success_count = sum(1 for r in node_results.values()
-                           if r.status == NodeStatus.SUCCESS)
+        success_count = sum(1 for r in node_results.values() if r.status == NodeStatus.SUCCESS)
         total_count = len(node_results)
 
         final_outputs = {}
@@ -644,22 +678,26 @@ class WorkflowExecutor:
             "success_count": success_count,
             "total_count": total_count,
             "duration_ms": round(wf_duration * 1000, 2),
-            "results": {nid: {"status": r.status.value, "output": r.output}
-                       for nid, r in node_results.items()},
+            "results": {
+                nid: {"status": r.status.value, "output": r.output}
+                for nid, r in node_results.items()
+            },
             "final_outputs": final_outputs,
         }
 
-        logger.info("workflow.completed",
-                    workflow_id=workflow.id,
-                    success=success_count,
-                    total=total_count,
-                    duration_ms=result["duration_ms"])
+        logger.info(
+            "workflow.completed",
+            workflow_id=workflow.id,
+            success=success_count,
+            total=total_count,
+            duration_ms=result["duration_ms"],
+        )
 
         return result
 
-    def _execute_node(self, node_def: NodeDefinition,
-                      inputs: Dict[str, Any],
-                      context: Dict[str, Any]) -> NodeExecutionResult:
+    def _execute_node(
+        self, node_def: NodeDefinition, inputs: dict[str, Any], context: dict[str, Any]
+    ) -> NodeExecutionResult:
         """执行单个节点：超时保护 + 重试。"""
         executor = EXECUTOR_REGISTRY.get(node_def.type)
         if not executor:
@@ -678,15 +716,13 @@ class WorkflowExecutor:
                 # LLM双保障特殊处理
                 if node_def.type == NodeType.LLM and isinstance(executor, LLMNodeExecutor):
                     if output.get("error"):
-                        output = executor.execute_with_fallback(
-                            node_def.config, inputs, context)
+                        output = executor.execute_with_fallback(node_def.config, inputs, context)
 
                 duration = (time.time() - start_time) * 1000
 
                 if output.get("error"):
                     if attempt < node_def.retries:
-                        logger.info("workflow.node_retry",
-                                    node_id=node_def.id, attempt=attempt+1)
+                        logger.info("workflow.node_retry", node_id=node_def.id, attempt=attempt + 1)
                         continue
                     return NodeExecutionResult(
                         node_id=node_def.id,
@@ -709,8 +745,12 @@ class WorkflowExecutor:
 
             except Exception as e:
                 if attempt < node_def.retries:
-                    logger.info("workflow.node_retry_on_error",
-                                node_id=node_def.id, attempt=attempt+1, error=str(e))
+                    logger.info(
+                        "workflow.node_retry_on_error",
+                        node_id=node_def.id,
+                        attempt=attempt + 1,
+                        error=str(e),
+                    )
                     continue
                 duration = (time.time() - start_time) * 1000
                 return NodeExecutionResult(
@@ -740,7 +780,7 @@ class WorkflowExecutor:
             "timestamp": time.time(),
         }
 
-    def get_checkpoint(self, wf_id: str, node_id: str) -> Optional[Dict[str, Any]]:
+    def get_checkpoint(self, wf_id: str, node_id: str) -> dict[str, Any] | None:
         """获取检查点。"""
         key = f"{wf_id}:{node_id}"
         return self._checkpoints.get(key)
@@ -750,8 +790,8 @@ class WorkflowExecutor:
 # 工作流工厂与便捷API
 # ============================================================
 
-def create_simple_workflow(name: str,
-                           steps: List[Dict[str, Any]]) -> WorkflowDefinition:
+
+def create_simple_workflow(name: str, steps: list[dict[str, Any]]) -> WorkflowDefinition:
     """快捷创建线性工作流。
 
     Args:
@@ -768,18 +808,20 @@ def create_simple_workflow(name: str,
     for i, step in enumerate(steps):
         node_id = f"node_{i}"
         node_type = NodeType(step.get("type", "llm"))
-        inputs = [f"node_{i-1}"] if i > 0 else []
+        inputs = [f"node_{i - 1}"] if i > 0 else []
 
-        nodes.append(NodeDefinition(
-            id=node_id,
-            type=node_type,
-            name=step.get("name", f"步骤{i+1}"),
-            config=step.get("config", {}),
-            inputs=inputs,
-            timeout_seconds=step.get("timeout", 30.0),
-            retries=step.get("retries", 0),
-            fallback=step.get("fallback"),
-        ))
+        nodes.append(
+            NodeDefinition(
+                id=node_id,
+                type=node_type,
+                name=step.get("name", f"步骤{i + 1}"),
+                config=step.get("config", {}),
+                inputs=inputs,
+                timeout_seconds=step.get("timeout", 30.0),
+                retries=step.get("retries", 0),
+                fallback=step.get("fallback"),
+            )
+        )
 
         if i == 0:
             start_id = node_id
@@ -794,13 +836,12 @@ def create_simple_workflow(name: str,
     )
 
 
-def run_workflow(workflow: WorkflowDefinition,
-                 inputs: Dict[str, Any] = None) -> Dict[str, Any]:
+def run_workflow(workflow: WorkflowDefinition, inputs: dict[str, Any] = None) -> dict[str, Any]:
     """快捷执行工作流。"""
     executor = WorkflowExecutor()
     return executor.execute(workflow, initial_inputs=inputs)
 
 
-def validate_workflow(workflow: WorkflowDefinition) -> Tuple[bool, str]:
+def validate_workflow(workflow: WorkflowDefinition) -> tuple[bool, str]:
     """快捷验证工作流DAG。"""
     return DAGTopology.validate(workflow.nodes)

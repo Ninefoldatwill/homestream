@@ -16,23 +16,22 @@ test_theme_a11y.py — theme_a11y.py 无障碍审计器测试套件
 """
 
 import json
-import os
-import tempfile
 from pathlib import Path
 
 import pytest
 
 from theme_a11y import (
-    AuditReport,
-    CheckResult,
-    ContrastPair,
     DEFAULT_CONTRAST_PAIRS,
     DEUTERANOPIA_MATRIX,
     PROTANOPIA_MATRIX,
     TRITANOPIA_MATRIX,
-    WCAG_AA_NORMAL,
     WCAG_AA_LARGE,
+    WCAG_AA_NORMAL,
     WCAG_AA_UI,
+    AuditReport,
+    CheckResult,
+    ContrastPair,
+    _color_distance,
     audit_colorblindness,
     audit_contrast,
     audit_theme,
@@ -45,17 +44,14 @@ from theme_a11y import (
     parse_color,
     relative_luminance,
     simulate_colorblind,
-    _color_distance,
-    _COLORBLIND_DIST_THRESHOLD,
 )
-
 
 # ============================================================
 # 颜色解析测试
 # ============================================================
 
-class TestParseColor:
 
+class TestParseColor:
     def test_hex_3digit(self):
         assert parse_color("#fff") == (255, 255, 255)
         assert parse_color("#000") == (0, 0, 0)
@@ -93,8 +89,8 @@ class TestParseColor:
 # W3C 相对亮度测试
 # ============================================================
 
-class TestRelativeLuminance:
 
+class TestRelativeLuminance:
     def test_white(self):
         assert relative_luminance((255, 255, 255)) == pytest.approx(1.0, abs=0.01)
 
@@ -128,8 +124,8 @@ class TestRelativeLuminance:
 # W3C 对比度比率测试
 # ============================================================
 
-class TestContrastRatio:
 
+class TestContrastRatio:
     def test_black_on_white(self):
         # 黑色 vs 白色 = 21:1（W3C 最大值）
         ratio = contrast_ratio("#000000", "#ffffff")
@@ -164,8 +160,8 @@ class TestContrastRatio:
 # 色盲模拟测试
 # ============================================================
 
-class TestColorblindSimulation:
 
+class TestColorblindSimulation:
     def test_simulate_protanopia(self):
         # 红色在红色盲下应偏向黄褐色
         result = simulate_colorblind((255, 0, 0), PROTANOPIA_MATRIX)
@@ -207,8 +203,8 @@ class TestColorblindSimulation:
 # CSS Token 提取测试
 # ============================================================
 
-class TestTokenExtraction:
 
+class TestTokenExtraction:
     def test_extract_from_css(self):
         css = ":root { --text: #1a1a2e; --bg: #f5f7fb; --accent: #4a90d9; }"
         tokens = extract_tokens_from_css(css)
@@ -242,9 +238,7 @@ class TestTokenExtraction:
         assert tokens["--bg"] == "#f5f7fb"
 
     def test_extract_from_manifest_css_field(self):
-        manifest = {
-            "css": ":root { --text: #1a1a2e; }"
-        }
+        manifest = {"css": ":root { --text: #1a1a2e; }"}
         tokens = extract_tokens_from_manifest(manifest)
         assert tokens["--text"] == "#1a1a2e"
 
@@ -262,17 +256,23 @@ class TestTokenExtraction:
 # 对比度审计测试
 # ============================================================
 
-class TestAuditContrast:
 
+class TestAuditContrast:
     def test_all_pass(self):
         # 高对比度主题应全部通过
         tokens = {
-            "--text": "#000000", "--bg": "#ffffff",
-            "--card": "#ffffff", "--panel": "#ffffff",
-            "--text2": "#333333", "--text3": "#666666",
-            "--accent": "#0033cc", "--accent2": "#6600cc",
-            "--green": "#006600", "--red": "#990000",
-            "--yellow": "#664400", "--border": "#999999",
+            "--text": "#000000",
+            "--bg": "#ffffff",
+            "--card": "#ffffff",
+            "--panel": "#ffffff",
+            "--text2": "#333333",
+            "--text3": "#666666",
+            "--accent": "#0033cc",
+            "--accent2": "#6600cc",
+            "--green": "#006600",
+            "--red": "#990000",
+            "--yellow": "#664400",
+            "--border": "#999999",
         }
         results = audit_contrast(tokens)
         assert len(results) == len(DEFAULT_CONTRAST_PAIRS)
@@ -283,12 +283,18 @@ class TestAuditContrast:
     def test_low_contrast_error(self):
         # 低对比度主题应有错误
         tokens = {
-            "--text": "#cccccc", "--bg": "#ffffff",
-            "--card": "#ffffff", "--panel": "#ffffff",
-            "--text2": "#dddddd", "--text3": "#eeeeee",
-            "--accent": "#eeeeff", "--accent2": "#ffeeff",
-            "--green": "#ccffcc", "--red": "#ffcccc",
-            "--yellow": "#ffffcc", "--border": "#f0f0f0",
+            "--text": "#cccccc",
+            "--bg": "#ffffff",
+            "--card": "#ffffff",
+            "--panel": "#ffffff",
+            "--text2": "#dddddd",
+            "--text3": "#eeeeee",
+            "--accent": "#eeeeff",
+            "--accent2": "#ffeeff",
+            "--green": "#ccffcc",
+            "--red": "#ffcccc",
+            "--yellow": "#ffffcc",
+            "--border": "#f0f0f0",
         }
         results = audit_contrast(tokens)
         errors = [r for r in results if r.status == "error"]
@@ -310,12 +316,18 @@ class TestAuditContrast:
     def test_warn_threshold(self):
         # 对比度在阈值 80%-100% 之间应为 warn
         tokens = {
-            "--text": "#767676", "--bg": "#ffffff",  # 对比度约 4.54:1
-            "--card": "#ffffff", "--panel": "#ffffff",
-            "--text2": "#767676", "--text3": "#767676",
-            "--accent": "#767676", "--accent2": "#767676",
-            "--green": "#767676", "--red": "#767676",
-            "--yellow": "#767676", "--border": "#767676",
+            "--text": "#767676",
+            "--bg": "#ffffff",  # 对比度约 4.54:1
+            "--card": "#ffffff",
+            "--panel": "#ffffff",
+            "--text2": "#767676",
+            "--text3": "#767676",
+            "--accent": "#767676",
+            "--accent2": "#767676",
+            "--green": "#767676",
+            "--red": "#767676",
+            "--yellow": "#767676",
+            "--border": "#767676",
         }
         results = audit_contrast(tokens)
         # 应该有一些 warn 或 pass，不应全是 error
@@ -327,13 +339,15 @@ class TestAuditContrast:
 # 色盲审计测试
 # ============================================================
 
-class TestAuditColorblindness:
 
+class TestAuditColorblindness:
     def test_basic_run(self):
         tokens = {
-            "--text": "#1a1a2e", "--bg": "#f5f7fb",
+            "--text": "#1a1a2e",
+            "--bg": "#f5f7fb",
             "--text2": "#5a6a7e",
-            "--accent": "#4a90d9", "--accent2": "#7c5ce0",
+            "--accent": "#4a90d9",
+            "--accent2": "#7c5ce0",
         }
         results = audit_colorblindness(tokens)
         # 正文 + 次要文本 + 强调色 + 次强调色 = 4 对 × 3 种色盲 = 12
@@ -342,9 +356,11 @@ class TestAuditColorblindness:
 
     def test_high_contrast_passes(self):
         tokens = {
-            "--text": "#000000", "--bg": "#ffffff",
+            "--text": "#000000",
+            "--bg": "#ffffff",
             "--text2": "#000000",
-            "--accent": "#000080", "--accent2": "#000080",
+            "--accent": "#000080",
+            "--accent2": "#000080",
         }
         results = audit_colorblindness(tokens)
         passed = [r for r in results if r.status == "pass"]
@@ -360,16 +376,22 @@ class TestAuditColorblindness:
 # 完整审计测试
 # ============================================================
 
-class TestAuditTheme:
 
+class TestAuditTheme:
     def test_full_audit_good_theme(self):
         tokens = {
-            "--text": "#1a1a2e", "--bg": "#f5f7fb",
-            "--card": "#ffffff", "--panel": "#ffffff",
-            "--text2": "#5a6a7e", "--text3": "#999999",
-            "--border": "#e2e8f0", "--accent": "#4a90d9",
-            "--accent2": "#7c5ce0", "--green": "#22c55e",
-            "--red": "#ef4444", "--yellow": "#f59e0b",
+            "--text": "#1a1a2e",
+            "--bg": "#f5f7fb",
+            "--card": "#ffffff",
+            "--panel": "#ffffff",
+            "--text2": "#5a6a7e",
+            "--text3": "#999999",
+            "--border": "#e2e8f0",
+            "--accent": "#4a90d9",
+            "--accent2": "#7c5ce0",
+            "--green": "#22c55e",
+            "--red": "#ef4444",
+            "--yellow": "#f59e0b",
         }
         report = audit_theme(tokens, theme_id="test", theme_name="测试主题")
         assert report.theme_id == "test"
@@ -381,12 +403,18 @@ class TestAuditTheme:
 
     def test_full_audit_bad_theme(self):
         tokens = {
-            "--text": "#eeeeee", "--bg": "#ffffff",
-            "--card": "#ffffff", "--panel": "#ffffff",
-            "--text2": "#eeeeee", "--text3": "#f5f5f5",
-            "--border": "#f0f0f0", "--accent": "#eeeeff",
-            "--accent2": "#ffeeff", "--green": "#ccffcc",
-            "--red": "#ffcccc", "--yellow": "#ffffcc",
+            "--text": "#eeeeee",
+            "--bg": "#ffffff",
+            "--card": "#ffffff",
+            "--panel": "#ffffff",
+            "--text2": "#eeeeee",
+            "--text3": "#f5f5f5",
+            "--border": "#f0f0f0",
+            "--accent": "#eeeeff",
+            "--accent2": "#ffeeff",
+            "--green": "#ccffcc",
+            "--red": "#ffcccc",
+            "--yellow": "#ffffcc",
         }
         report = audit_theme(tokens, theme_id="bad")
         assert report.errors > 0
@@ -420,6 +448,7 @@ class TestAuditTheme:
 # 文件审计测试
 # ============================================================
 
+
 class TestAuditThemeFile:
     """文件审计测试 — 使用项目内 .pytest_tmp 目录避免沙箱拦截。"""
 
@@ -437,11 +466,9 @@ class TestAuditThemeFile:
             "colors": {
                 "--text": "#1a1a2e",
                 "--bg": "#f5f7fb",
-            }
+            },
         }
-        (theme_dir / "theme.json").write_text(
-            json.dumps(manifest), encoding="utf-8"
-        )
+        (theme_dir / "theme.json").write_text(json.dumps(manifest), encoding="utf-8")
         report = audit_theme_file(theme_dir / "theme.json")
         assert report.theme_id == "test-theme"
         assert report.theme_name == "测试主题"
@@ -459,9 +486,7 @@ class TestAuditThemeFile:
             "name": "CSS主题",
             "entry": "theme.css",
         }
-        (theme_dir / "theme.json").write_text(
-            json.dumps(manifest), encoding="utf-8"
-        )
+        (theme_dir / "theme.json").write_text(json.dumps(manifest), encoding="utf-8")
         css = ":root { --text: #1a1a2e; --bg: #f5f7fb; --accent: #4a90d9; }"
         (theme_dir / "theme.css").write_text(css, encoding="utf-8")
         report = audit_theme_file(theme_dir / "theme.json")
@@ -478,16 +503,22 @@ class TestAuditThemeFile:
 # 报告格式化测试
 # ============================================================
 
-class TestFormatReport:
 
+class TestFormatReport:
     def test_basic_format(self):
         tokens = {
-            "--text": "#1a1a2e", "--bg": "#f5f7fb",
-            "--card": "#ffffff", "--panel": "#ffffff",
-            "--text2": "#5a6a7e", "--text3": "#999999",
-            "--border": "#e2e8f0", "--accent": "#4a90d9",
-            "--accent2": "#7c5ce0", "--green": "#22c55e",
-            "--red": "#ef4444", "--yellow": "#f59e0b",
+            "--text": "#1a1a2e",
+            "--bg": "#f5f7fb",
+            "--card": "#ffffff",
+            "--panel": "#ffffff",
+            "--text2": "#5a6a7e",
+            "--text3": "#999999",
+            "--border": "#e2e8f0",
+            "--accent": "#4a90d9",
+            "--accent2": "#7c5ce0",
+            "--green": "#22c55e",
+            "--red": "#ef4444",
+            "--yellow": "#f59e0b",
         }
         report = audit_theme(tokens, theme_id="fmt", theme_name="格式化测试")
         text = format_report(report)
@@ -509,8 +540,8 @@ class TestFormatReport:
 # 常量与数据结构测试
 # ============================================================
 
-class TestConstants:
 
+class TestConstants:
     def test_wcag_thresholds(self):
         assert WCAG_AA_NORMAL == 4.5
         assert WCAG_AA_LARGE == 3.0

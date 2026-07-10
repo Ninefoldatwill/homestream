@@ -14,15 +14,20 @@ LlamaCpp Provider - 本地llama-server适配器
 from __future__ import annotations
 
 import json
-import time
 import logging
-import urllib.request
+import time
 import urllib.error
-from typing import Optional, List
+import urllib.request
 
 from .base_provider import (
-    BaseProvider, ProviderConfig, ProviderType, ProviderTier,
-    ChatMessage, ChatResponse, ProviderError, ProviderStatus,
+    BaseProvider,
+    ChatMessage,
+    ChatResponse,
+    ProviderConfig,
+    ProviderError,
+    ProviderStatus,
+    ProviderTier,
+    ProviderType,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,9 +44,9 @@ class LlamaCppProvider(BaseProvider):
 
     async def chat(
         self,
-        messages: List[ChatMessage],
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
+        messages: list[ChatMessage],
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> ChatResponse:
         """调用本地llama-server的OpenAI兼容API"""
         url = f"{self.config.api_base}/chat/completions"
@@ -112,7 +117,9 @@ class LlamaCppProvider(BaseProvider):
                 models = data.get("data", [])
                 if models:
                     self._mark_status(ProviderStatus.HEALTHY)
-                    logger.debug(f"[{self.name}] 健康检查通过，模型: {models[0].get('id', 'unknown')}")
+                    logger.debug(
+                        f"[{self.name}] 健康检查通过，模型: {models[0].get('id', 'unknown')}"
+                    )
                     return True
                 else:
                     self._mark_status(ProviderStatus.DEGRADED)
@@ -134,12 +141,12 @@ def create_default_llama_cpp_provider(
         display_name="本地Qwen2.5-7B (llama.cpp)",
         provider_type=ProviderType.LOCAL,
         tier=ProviderTier.L1,
-        priority=10,       # L1优先级最高（成本为零）
+        priority=10,  # L1优先级最高（成本为零）
         api_base=api_base,
         api_key=api_key,
         model_name=model_name,
         max_tokens=512,
         temperature=0.7,
-        timeout=60,        # 本地模型推理可能较慢
+        timeout=60,  # 本地模型推理可能较慢
     )
     return LlamaCppProvider(config)

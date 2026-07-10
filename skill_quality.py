@@ -28,15 +28,16 @@ skill_quality.py — SkillsBench 12维质量评分系统
   11. compatibility  兼容性    — Agent/平台声明
   12. testability    可测试性  — 测试脚本/验证逻辑
 """
+
 from __future__ import annotations
 
-import re
 import json
-import math
+import re
 from dataclasses import dataclass, field
+from datetime import UTC
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import structlog
 
@@ -47,14 +48,15 @@ logger = structlog.get_logger("bridge_v7.skill_quality")
 # 质量等级
 # ===========================================================================
 
+
 class QualityTier(str, Enum):
-    ELITE = "elite"      # 10.0-12.0 精英
-    HIGH = "high"        # 7.0-9.9   优秀
-    MEDIUM = "medium"    # 4.0-6.9   可用
-    LOW = "low"          # 0.0-3.9   低质
+    ELITE = "elite"  # 10.0-12.0 精英
+    HIGH = "high"  # 7.0-9.9   优秀
+    MEDIUM = "medium"  # 4.0-6.9   可用
+    LOW = "low"  # 0.0-3.9   低质
 
     @classmethod
-    def from_score(cls, total: float) -> "QualityTier":
+    def from_score(cls, total: float) -> QualityTier:
         if total >= 10.0:
             return cls.ELITE
         if total >= 7.0:
@@ -76,15 +78,17 @@ class QualityTier(str, Enum):
 # 维度定义
 # ===========================================================================
 
+
 @dataclass
 class DimensionScore:
     """单维度评分。"""
-    name: str           # 维度标识
-    label_cn: str       # 中文名
-    score: float        # 0.0-1.0
-    max_score: float    # 满分
-    weight: float       # 权重
-    findings: List[str]  # 发现列表（加分/扣分原因）
+
+    name: str  # 维度标识
+    label_cn: str  # 中文名
+    score: float  # 0.0-1.0
+    max_score: float  # 满分
+    weight: float  # 权重
+    findings: list[str]  # 发现列表（加分/扣分原因）
 
     @property
     def percentage(self) -> int:
@@ -104,14 +108,15 @@ class DimensionScore:
 @dataclass
 class QualityReport:
     """完整质量报告。"""
+
     skill_name: str
     skill_path: str
-    total_score: float          # 0.0-12.0
+    total_score: float  # 0.0-12.0
     tier: QualityTier
-    dimensions: List[DimensionScore]
-    security_details: Optional["SecurityAudit"] = None
-    recommendations: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    dimensions: list[DimensionScore]
+    security_details: SecurityAudit | None = None
+    recommendations: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
     scored_at: str = ""
 
     @property
@@ -133,23 +138,27 @@ class QualityReport:
 # 安全审计子维度（SkillsBench 安全审计扩展）
 # ===========================================================================
 
+
 @dataclass
 class SecurityAudit:
     """5项安全子维度审计。"""
-    injection_risk: float       # 注入风险 (0=安全, 1=高危)
-    dangerous_ops: float        # 危险操作 (exec/eval/shell)
-    network_access: float       # 网络访问风险
-    file_system_access: float   # 文件系统访问风险
-    credential_leak: float      # 凭据泄露风险
-    findings: List[str] = field(default_factory=list)
+
+    injection_risk: float  # 注入风险 (0=安全, 1=高危)
+    dangerous_ops: float  # 危险操作 (exec/eval/shell)
+    network_access: float  # 网络访问风险
+    file_system_access: float  # 文件系统访问风险
+    credential_leak: float  # 凭据泄露风险
+    findings: list[str] = field(default_factory=list)
 
     @property
     def overall_security(self) -> float:
         """综合安全分 (0=完全安全, 1=极高风险)。"""
         weights = [0.30, 0.25, 0.15, 0.15, 0.15]
         scores = [
-            self.injection_risk, self.dangerous_ops,
-            self.network_access, self.file_system_access,
+            self.injection_risk,
+            self.dangerous_ops,
+            self.network_access,
+            self.file_system_access,
             self.credential_leak,
         ]
         return sum(w * s for w, s in zip(weights, scores))
@@ -199,20 +208,41 @@ CREDENTIAL_PATTERNS = [
 
 # 注入提示模式（中文+英文）
 INJECTION_PATTERNS = [
-    (r"(忽略|忘记|无视|跳过|覆盖|override|ignore|disregard|bypass|skip)\s*(上述|以上|之前|前面|所有|all|above|previous|prior)\s*(指令|规则|限制|约束|规定|instruction|rule|constraint|restriction)", 0.9, "忽略指令模式"),
-    (r"(你|you)\s*(现在|now)\s*(是|are)\s*(一个|a|an)\s*(不同|新|new|different)\s*(的|角色|身份|人格|role|identity|persona)", 0.7, "身份重定义"),
-    (r"(假装|扮演|模拟|角色扮演|act as|pretend|roleplay|simulate)\s*(你是|你是|you are)", 0.6, "角色扮演注入"),
-    (r"(不要|别再|停止|don't|stop|never)\s*(说|回复|输出|say|reply|output)\s*(你是|你是|you are|as an?)\s*(AI|助手|assistant|agent)", 0.5, "抑制身份声明"),
+    (
+        r"(忽略|忘记|无视|跳过|覆盖|override|ignore|disregard|bypass|skip)\s*(上述|以上|之前|前面|所有|all|above|previous|prior)\s*(指令|规则|限制|约束|规定|instruction|rule|constraint|restriction)",
+        0.9,
+        "忽略指令模式",
+    ),
+    (
+        r"(你|you)\s*(现在|now)\s*(是|are)\s*(一个|a|an)\s*(不同|新|new|different)\s*(的|角色|身份|人格|role|identity|persona)",
+        0.7,
+        "身份重定义",
+    ),
+    (
+        r"(假装|扮演|模拟|角色扮演|act as|pretend|roleplay|simulate)\s*(你是|你是|you are)",
+        0.6,
+        "角色扮演注入",
+    ),
+    (
+        r"(不要|别再|停止|don't|stop|never)\s*(说|回复|输出|say|reply|output)\s*(你是|你是|you are|as an?)\s*(AI|助手|assistant|agent)",
+        0.5,
+        "抑制身份声明",
+    ),
     (r"(system\s*prompt|系统提示|SYSTEM|INSTRUCTION)\s*[:=]", 0.8, "系统提示提取"),
     (r"\[INST\]|<<SYS>>|<\|\s*im_start\s*\|>|<\|\s*im_end\s*\|>", 0.9, "特殊token注入"),
     (r"DAN\s*mode|jailbreak|越狱|developer\s*mode", 0.95, "越狱/越权模式"),
-    (r"(输出|打印|显示|复述|重复|output|print|display|repeat|echo)\s*(你的|your)\s*(系统|system)\s*(提示|prompt)", 0.85, "提示词提取"),
+    (
+        r"(输出|打印|显示|复述|重复|output|print|display|repeat|echo)\s*(你的|your)\s*(系统|system)\s*(提示|prompt)",
+        0.85,
+        "提示词提取",
+    ),
 ]
 
 
 # ===========================================================================
 # SkillsBench 12维评估引擎
 # ===========================================================================
+
 
 class SkillsBenchScorer:
     """SkillsBench 12维质量评估器。
@@ -231,15 +261,15 @@ class SkillsBenchScorer:
 
     def _reset(self):
         self._raw_content = ""
-        self._frontmatter: Dict[str, Any] = {}
+        self._frontmatter: dict[str, Any] = {}
         self._body = ""
-        self._skill_dir: Optional[Path] = None
+        self._skill_dir: Path | None = None
 
     # ── 主入口 ──────────────────────────────────────────────────
 
     def score_file(self, skill_path: Path | str) -> QualityReport:
         """对单个 SKILL.md 进行12维度评分。"""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         path = Path(skill_path)
         self._reset()
@@ -271,14 +301,16 @@ class SkillsBenchScorer:
         # 安全性单独审计（计入总分但独立展示）
         security = self._audit_security()
         security_score = 1.0 - security.overall_security  # 安全→高分
-        dims.append(DimensionScore(
-            name="security",
-            label_cn="安全性",
-            score=security_score,
-            max_score=1.0,
-            weight=1.0,
-            findings=security.findings if security.findings else ["无明显安全风险"],
-        ))
+        dims.append(
+            DimensionScore(
+                name="security",
+                label_cn="安全性",
+                score=security_score,
+                max_score=1.0,
+                weight=1.0,
+                findings=security.findings if security.findings else ["无明显安全风险"],
+            )
+        )
 
         total = sum(d.score for d in dims)
         tier = QualityTier.from_score(total)
@@ -297,13 +329,14 @@ class SkillsBenchScorer:
             metadata={
                 "frontmatter_keys": list(self._frontmatter.keys()),
                 "body_chars": len(self._body),
-                "has_examples": "## 示例" in self._raw_content or "## Examples" in self._raw_content,
+                "has_examples": "## 示例" in self._raw_content
+                or "## Examples" in self._raw_content,
                 "has_tests": self._has_test_files(),
             },
-            scored_at=datetime.now(timezone.utc).isoformat(),
+            scored_at=datetime.now(UTC).isoformat(),
         )
 
-    def score_directory(self, dir_path: Path | str) -> List[QualityReport]:
+    def score_directory(self, dir_path: Path | str) -> list[QualityReport]:
         """批量评分目录中所有 SKILL.md。"""
         root = Path(dir_path)
         reports = []
@@ -320,13 +353,12 @@ class SkillsBenchScorer:
                     report = self.score_file(skill_md)
                     reports.append(report)
                 except Exception as e:
-                    logger.warning("skill_quality.score_error",
-                                   path=str(skill_md), error=str(e))
+                    logger.warning("skill_quality.score_error", path=str(skill_md), error=str(e))
                     reports.append(self._empty_report(str(skill_md), str(e)))
 
         return reports
 
-    def summary(self, reports: List[QualityReport]) -> Dict[str, Any]:
+    def summary(self, reports: list[QualityReport]) -> dict[str, Any]:
         """生成批量评分汇总。"""
         if not reports:
             return {"total": 0, "avg_score": 0.0, "tiers": {}, "top_3": [], "worst_3": []}
@@ -366,6 +398,7 @@ class SkillsBenchScorer:
             if len(parts) >= 3:
                 try:
                     import yaml
+
                     self._frontmatter = yaml.safe_load(parts[1].strip()) or {}
                 except Exception:
                     self._frontmatter = {}
@@ -411,9 +444,12 @@ class SkillsBenchScorer:
             findings.append("正文第一段过短（建议≥20字符）")
 
         return DimensionScore(
-            name="clarity", label_cn="清晰度",
+            name="clarity",
+            label_cn="清晰度",
             score=round(max(0.0, min(1.0, score)), 2),
-            max_score=1.0, weight=1.0, findings=findings,
+            max_score=1.0,
+            weight=1.0,
+            findings=findings,
         )
 
     def _score_completeness(self) -> DimensionScore:
@@ -452,9 +488,12 @@ class SkillsBenchScorer:
             findings.append("正文过短（<50字符）")
 
         return DimensionScore(
-            name="completeness", label_cn="完整度",
+            name="completeness",
+            label_cn="完整度",
             score=round(max(0.0, min(1.0, score)), 2),
-            max_score=1.0, weight=1.0, findings=findings,
+            max_score=1.0,
+            weight=1.0,
+            findings=findings,
         )
 
     def _score_correctness(self) -> DimensionScore:
@@ -478,7 +517,7 @@ class SkillsBenchScorer:
 
         # 检查 JSON 嵌入
         json_errors = 0
-        for match in re.finditer(r'\{[^}]*\}', self._body):
+        for match in re.finditer(r"\{[^}]*\}", self._body):
             try:
                 json.loads(match.group())
             except json.JSONDecodeError:
@@ -488,15 +527,18 @@ class SkillsBenchScorer:
             score -= json_errors * 0.05
 
         # Markdown 链接完整性
-        broken_links = len(re.findall(r'\[[^\]]+\]\(\s*\)', self._body))
+        broken_links = len(re.findall(r"\[[^\]]+\]\(\s*\)", self._body))
         if broken_links:
             findings.append(f"发现 {broken_links} 个空链接")
             score -= broken_links * 0.05
 
         return DimensionScore(
-            name="correctness", label_cn="正确性",
+            name="correctness",
+            label_cn="正确性",
             score=round(max(0.0, min(1.0, score)), 2),
-            max_score=1.0, weight=1.0, findings=findings,
+            max_score=1.0,
+            weight=1.0,
+            findings=findings,
         )
 
     def _score_efficiency(self) -> DimensionScore:
@@ -520,21 +562,24 @@ class SkillsBenchScorer:
             findings.append(f"token 用量偏高（~{estimated_tokens} est.，建议拆分到 references/）")
 
         # 检测"全塞一个文档"反模式（SkillsBench: -2.9pp）
-        section_count = len(re.findall(r'^#{1,3}\s', self._body, re.MULTILINE))
+        section_count = len(re.findall(r"^#{1,3}\s", self._body, re.MULTILINE))
         if section_count > 15:
             score -= 0.25
             findings.append(f"检测到全塞文档反模式（{section_count}个章节）→ 建议拆分")
 
         # 代码块比例
-        code_blocks = len(re.findall(r'```', self._body))
+        code_blocks = len(re.findall(r"```", self._body))
         if code_blocks > 10:
             score -= 0.1
             findings.append("代码块过多（建议精简为关键示例）")
 
         return DimensionScore(
-            name="efficiency", label_cn="效率",
+            name="efficiency",
+            label_cn="效率",
             score=round(max(0.0, min(1.0, score)), 2),
-            max_score=1.0, weight=1.0, findings=findings,
+            max_score=1.0,
+            weight=1.0,
+            findings=findings,
         )
 
     def _score_robustness(self) -> DimensionScore:
@@ -566,9 +611,12 @@ class SkillsBenchScorer:
             score -= 0.1
 
         return DimensionScore(
-            name="robustness", label_cn="鲁棒性",
+            name="robustness",
+            label_cn="鲁棒性",
             score=round(max(0.0, min(1.0, score)), 2),
-            max_score=1.0, weight=1.0, findings=findings,
+            max_score=1.0,
+            weight=1.0,
+            findings=findings,
         )
 
     def _score_maintainability(self) -> DimensionScore:
@@ -598,9 +646,12 @@ class SkillsBenchScorer:
             findings.append("包含更新历史")
 
         return DimensionScore(
-            name="maintainability", label_cn="可维护性",
+            name="maintainability",
+            label_cn="可维护性",
             score=round(max(0.0, min(1.0, score)), 2),
-            max_score=1.0, weight=1.0, findings=findings,
+            max_score=1.0,
+            weight=1.0,
+            findings=findings,
         )
 
     def _score_usability(self) -> DimensionScore:
@@ -637,9 +688,12 @@ class SkillsBenchScorer:
             score -= 0.1
 
         return DimensionScore(
-            name="usability", label_cn="可用性",
+            name="usability",
+            label_cn="可用性",
             score=round(max(0.0, min(1.0, score)), 2),
-            max_score=1.0, weight=1.0, findings=findings,
+            max_score=1.0,
+            weight=1.0,
+            findings=findings,
         )
 
     def _score_modularity(self) -> DimensionScore:
@@ -671,9 +725,12 @@ class SkillsBenchScorer:
                 findings.append("文件过多（>20），建议精简")
 
         return DimensionScore(
-            name="modularity", label_cn="模块化",
+            name="modularity",
+            label_cn="模块化",
             score=round(max(0.0, min(1.0, score)), 2),
-            max_score=1.0, weight=1.0, findings=findings,
+            max_score=1.0,
+            weight=1.0,
+            findings=findings,
         )
 
     def _score_documentation(self) -> DimensionScore:
@@ -683,7 +740,7 @@ class SkillsBenchScorer:
 
         content = self._body
         # inline 注释
-        inline_comments = len(re.findall(r'# .+', content))
+        inline_comments = len(re.findall(r"# .+", content))
         if inline_comments >= 5:
             score += 0.15
             findings.append(f"{inline_comments} 处内联注释")
@@ -691,7 +748,7 @@ class SkillsBenchScorer:
             findings.append("内联注释不足（建议≥5处）")
 
         # 引用/参考
-        refs = re.findall(r'(https?://|arxiv|doi|参考文献|reference)', content, re.IGNORECASE)
+        refs = re.findall(r"(https?://|arxiv|doi|参考文献|reference)", content, re.IGNORECASE)
         if refs:
             score += 0.15
             findings.append(f"包含 {len(refs)} 处参考引用")
@@ -699,7 +756,7 @@ class SkillsBenchScorer:
             findings.append("缺少参考引用")
 
         # Markdown 结构化
-        headings = len(re.findall(r'^#{1,4}\s', content, re.MULTILINE))
+        headings = len(re.findall(r"^#{1,4}\s", content, re.MULTILINE))
         if headings >= 5:
             score += 0.15
         if headings >= 3:
@@ -712,9 +769,12 @@ class SkillsBenchScorer:
             score += 0.05
 
         return DimensionScore(
-            name="documentation", label_cn="文档质量",
+            name="documentation",
+            label_cn="文档质量",
             score=round(max(0.0, min(1.0, score)), 2),
-            max_score=1.0, weight=1.0, findings=findings,
+            max_score=1.0,
+            weight=1.0,
+            findings=findings,
         )
 
     def _score_compatibility(self) -> DimensionScore:
@@ -726,7 +786,11 @@ class SkillsBenchScorer:
         if compat:
             score += 0.3
             # 检查是否声明了具体平台
-            platforms = re.findall(r'(openbridge|homebridge|claude|codex|gemini|copilot|workbuddy)', compat, re.IGNORECASE)
+            platforms = re.findall(
+                r"(openbridge|homebridge|claude|codex|gemini|copilot|workbuddy)",
+                compat,
+                re.IGNORECASE,
+            )
             if platforms:
                 score += 0.2
                 findings.append(f"兼容平台: {', '.join(set(platforms))}")
@@ -734,7 +798,9 @@ class SkillsBenchScorer:
             findings.append("缺少 compatibility 声明")
 
         # 检查 body 中是否有兼容性说明
-        if re.search(r"(兼容|compatible|supported)\s*(agent|平台|platform)", self._body, re.IGNORECASE):
+        if re.search(
+            r"(兼容|compatible|supported)\s*(agent|平台|platform)", self._body, re.IGNORECASE
+        ):
             score += 0.1
             findings.append("正文含兼容性说明")
 
@@ -743,9 +809,12 @@ class SkillsBenchScorer:
             score += 0.1
 
         return DimensionScore(
-            name="compatibility", label_cn="兼容性",
+            name="compatibility",
+            label_cn="兼容性",
             score=round(max(0.0, min(1.0, score)), 2),
-            max_score=1.0, weight=1.0, findings=findings,
+            max_score=1.0,
+            weight=1.0,
+            findings=findings,
         )
 
     def _score_testability(self) -> DimensionScore:
@@ -768,9 +837,12 @@ class SkillsBenchScorer:
             score += 0.1
 
         return DimensionScore(
-            name="testability", label_cn="可测试性",
+            name="testability",
+            label_cn="可测试性",
             score=round(max(0.0, min(1.0, score)), 2),
-            max_score=1.0, weight=1.0, findings=findings,
+            max_score=1.0,
+            weight=1.0,
+            findings=findings,
         )
 
     # ── 安全审计 ───────────────────────────────────────────────
@@ -883,6 +955,7 @@ class SkillsBenchScorer:
 # Rich 格式化输出（CLI集成用）
 # ===========================================================================
 
+
 def format_report_rich(report: QualityReport) -> str:
     """生成 Rich 格式的质量报告（彩色终端输出）。
 
@@ -894,9 +967,11 @@ def format_report_rich(report: QualityReport) -> str:
     tier_emoji = report.tier.emoji
     tier_label = report.tier.label_cn
     score_bar = _score_bar(report.total_score, 12.0)
-    lines.append(f"\n{'='*60}")
-    lines.append(f"  {tier_emoji} {report.skill_name} — {report.total_score}/12.0 {score_bar} [{tier_label}]")
-    lines.append(f"{'='*60}")
+    lines.append(f"\n{'=' * 60}")
+    lines.append(
+        f"  {tier_emoji} {report.skill_name} — {report.total_score}/12.0 {score_bar} [{tier_label}]"
+    )
+    lines.append(f"{'=' * 60}")
 
     # 12维详情表
     lines.append(f"\n{'维度':<12} {'得分':<8} {'等级':<12} {'加权':<6} {'关键发现'}")
@@ -914,47 +989,55 @@ def format_report_rich(report: QualityReport) -> str:
     # 安全审计
     if report.security_details:
         sec = report.security_details
-        lines.append(f"\n{'─'*60}")
-        lines.append(f"  🛡️  安全审计 | 综合风险: {sec.overall_security:.2f} | 等级: {sec.risk_level}")
+        lines.append(f"\n{'─' * 60}")
+        lines.append(
+            f"  🛡️  安全审计 | 综合风险: {sec.overall_security:.2f} | 等级: {sec.risk_level}"
+        )
         for f in sec.findings:
             lines.append(f"     {f}")
 
     # 改进建议
     if report.recommendations:
-        lines.append(f"\n{'─'*60}")
+        lines.append(f"\n{'─' * 60}")
         lines.append(f"  💡 改进建议 ({len(report.recommendations)}条):")
         for i, rec in enumerate(report.recommendations[:5], 1):
             lines.append(f"     {i}. {rec}")
 
     # 底线
     lines.append(f"\n  Scored at: {report.scored_at}")
-    lines.append(f"  Pass: {'✅' if report.pass_threshold else '❌'} | Elite: {'💎' if report.elite_threshold else '—'}")
+    lines.append(
+        f"  Pass: {'✅' if report.pass_threshold else '❌'} | Elite: {'💎' if report.elite_threshold else '—'}"
+    )
 
     return "\n".join(lines)
 
 
-def format_summary_rich(summary: Dict[str, Any]) -> str:
+def format_summary_rich(summary: dict[str, Any]) -> str:
     """Rich 格式的批量评分汇总。"""
     lines = []
 
-    lines.append(f"\n{'='*60}")
-    lines.append(f"  SkillsBench 批量评分汇总")
-    lines.append(f"{'='*60}")
+    lines.append(f"\n{'=' * 60}")
+    lines.append("  SkillsBench 批量评分汇总")
+    lines.append(f"{'=' * 60}")
 
     lines.append(f"  总计: {summary['total']} 个技能")
-    lines.append(f"  平均分: {summary['avg_score']}/12.0 | 最高: {summary['max_score']} | 最低: {summary['min_score']}")
+    lines.append(
+        f"  平均分: {summary['avg_score']}/12.0 | 最高: {summary['max_score']} | 最低: {summary['min_score']}"
+    )
     lines.append(f"  通过率 (≥4.0): {summary['pass_rate']}%")
 
     tiers = summary.get("tiers", {})
-    lines.append(f"  等级分布: 💎精英={tiers.get('elite', 0)} ⭐优秀={tiers.get('high', 0)} ✅可用={tiers.get('medium', 0)} ⚠️低质={tiers.get('low', 0)}")
+    lines.append(
+        f"  等级分布: 💎精英={tiers.get('elite', 0)} ⭐优秀={tiers.get('high', 0)} ✅可用={tiers.get('medium', 0)} ⚠️低质={tiers.get('low', 0)}"
+    )
 
     if summary.get("top_3"):
-        lines.append(f"\n  Top 3:")
+        lines.append("\n  Top 3:")
         for name, score, emoji in summary["top_3"]:
             lines.append(f"    {emoji} {name}: {score}/12.0")
 
     if summary.get("worst_3"):
-        lines.append(f"\n  Worst 3:")
+        lines.append("\n  Worst 3:")
         for name, score, emoji in summary["worst_3"]:
             lines.append(f"    {emoji} {name}: {score}/12.0")
 
@@ -977,12 +1060,13 @@ def _score_bar(score: float, max_score: float, width: int = 20) -> str:
 # 便捷函数
 # ===========================================================================
 
+
 def score_skill(skill_path: Path | str, strict: bool = False) -> QualityReport:
     """便捷函数：对单个技能评分。"""
     return SkillsBenchScorer(strict=strict).score_file(skill_path)
 
 
-def score_directory(dir_path: Path | str, strict: bool = False) -> Dict[str, Any]:
+def score_directory(dir_path: Path | str, strict: bool = False) -> dict[str, Any]:
     """便捷函数：批量评分目录并返回汇总。"""
     scorer = SkillsBenchScorer(strict=strict)
     reports = scorer.score_directory(dir_path)
@@ -1023,7 +1107,9 @@ if __name__ == "__main__":
         for report in reports:
             # 简要展示每个技能的核心数据
             bar = "▓" * int(report.total_score) + "░" * (12 - int(report.total_score))
-            print(f"  {report.tier.emoji} {report.skill_name:<30} {report.total_score:>4.1f}/12.0 [{bar}]")
+            print(
+                f"  {report.tier.emoji} {report.skill_name:<30} {report.total_score:>4.1f}/12.0 [{bar}]"
+            )
     else:
         print(f"路径不存在: {path}")
         sys.exit(1)

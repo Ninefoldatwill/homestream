@@ -9,35 +9,31 @@ workflow_engine.py 测试 — 可视化工作流引擎验证
 - 工作流工厂与便捷API
 """
 
-import pytest
-import time
-
 from workflow_engine import (
-    NodeType,
-    NodeStatus,
-    NodeDefinition,
-    WorkflowDefinition,
-    BaseNodeExecutor,
-    LLMNodeExecutor,
-    CodeNodeExecutor,
-    HTTPNodeExecutor,
-    ConditionNodeExecutor,
-    LoopNodeExecutor,
-    AggregatorNodeExecutor,
     EXECUTOR_REGISTRY,
-    register_executor,
+    AggregatorNodeExecutor,
+    BaseNodeExecutor,
+    CodeNodeExecutor,
+    ConditionNodeExecutor,
     DAGTopology,
+    HTTPNodeExecutor,
+    LLMNodeExecutor,
+    LoopNodeExecutor,
+    NodeDefinition,
+    NodeStatus,
+    NodeType,
+    WorkflowDefinition,
     WorkflowExecutor,
-    NodeExecutionResult,
     create_simple_workflow,
+    register_executor,
     run_workflow,
     validate_workflow,
 )
 
-
 # ============================================================
 # WorkflowDSL 测试
 # ============================================================
+
 
 class TestWorkflowDSL:
     """工作流DSL定义测试。"""
@@ -45,7 +41,9 @@ class TestWorkflowDSL:
     def test_node_definition_basic(self):
         """基本节点定义。"""
         node = NodeDefinition(
-            id="node_1", type=NodeType.LLM, name="LLM步骤",
+            id="node_1",
+            type=NodeType.LLM,
+            name="LLM步骤",
             config={"prompt_template": "你好{{name}}"},
             inputs=[],
         )
@@ -57,9 +55,11 @@ class TestWorkflowDSL:
     def test_node_definition_with_fallback(self):
         """带降级的节点定义。"""
         node = NodeDefinition(
-            id="node_1", type=NodeType.LLM,
+            id="node_1",
+            type=NodeType.LLM,
             config={"prompt_template": "测试"},
-            inputs=[], fallback="node_fallback",
+            inputs=[],
+            fallback="node_fallback",
         )
         assert node.fallback == "node_fallback"
 
@@ -99,6 +99,7 @@ class TestWorkflowDSL:
 # ============================================================
 # DAG拓扑排序测试
 # ============================================================
+
 
 class TestDAGTopology:
     """DAG拓扑排序与验证测试。"""
@@ -169,6 +170,7 @@ class TestDAGTopology:
 # 节点执行器测试
 # ============================================================
 
+
 class TestLLMNodeExecutor:
     """LLM节点执行器测试。"""
 
@@ -189,7 +191,8 @@ class TestLLMNodeExecutor:
         executor = LLMNodeExecutor()
         result = executor.execute(
             config={"prompt_template": "测试提示词"},
-            inputs={}, context={},
+            inputs={},
+            context={},
         )
         assert result["output"]  # 应有输出（fallback模式）
 
@@ -198,7 +201,8 @@ class TestLLMNodeExecutor:
         executor = LLMNodeExecutor()
         result = executor.execute_with_fallback(
             config={"prompt_template": "测试"},
-            inputs={}, context={},
+            inputs={},
+            context={},
         )
         assert result["output"]
 
@@ -211,7 +215,8 @@ class TestCodeNodeExecutor:
         executor = CodeNodeExecutor()
         result = executor.execute(
             config={"code": "result = sum([1, 2, 3])"},
-            inputs={}, context={},
+            inputs={},
+            context={},
         )
         assert result["output"] == "6"
         assert result["error"] is False
@@ -231,7 +236,8 @@ class TestCodeNodeExecutor:
         executor = CodeNodeExecutor()
         result = executor.execute(
             config={"code": "import os\nresult = os.listdir('.')"},
-            inputs={}, context={},
+            inputs={},
+            context={},
         )
         assert result["blocked"] is True
         assert result["error"] is True
@@ -241,7 +247,8 @@ class TestCodeNodeExecutor:
         executor = CodeNodeExecutor()
         result = executor.execute(
             config={"code": "result = eval('1+1')"},
-            inputs={}, context={},
+            inputs={},
+            context={},
         )
         assert result["blocked"] is True
 
@@ -250,7 +257,8 @@ class TestCodeNodeExecutor:
         executor = CodeNodeExecutor()
         result = executor.execute(
             config={"code": "console.log('hello')", "language": "javascript"},
-            inputs={}, context={},
+            inputs={},
+            context={},
         )
         assert result["error"] is True
 
@@ -259,7 +267,8 @@ class TestCodeNodeExecutor:
         executor = CodeNodeExecutor()
         result = executor.execute(
             config={"code": ""},
-            inputs={}, context={},
+            inputs={},
+            context={},
         )
         assert result["output"] == ""
         assert result["error"] is False
@@ -279,7 +288,8 @@ class TestHTTPNodeExecutor:
         executor = HTTPNodeExecutor()
         result = executor.execute(
             config={"url": "https://httpbin.org/get", "method": "GET"},
-            inputs={}, context={},
+            inputs={},
+            context={},
         )
         # 有requests库则真实请求，否则模拟
         assert result["output"]
@@ -292,8 +302,10 @@ class TestConditionNodeExecutor:
         """简单比较——结果为真。"""
         executor = ConditionNodeExecutor()
         result = executor.execute(
-            config={"condition": "{{score}} > 0.5",
-                    "branches": {"true": "node_yes", "false": "node_no"}},
+            config={
+                "condition": "{{score}} > 0.5",
+                "branches": {"true": "node_yes", "false": "node_no"},
+            },
             inputs={"score": "0.8"},
             context={},
         )
@@ -304,8 +316,10 @@ class TestConditionNodeExecutor:
         """简单比较——结果为假。"""
         executor = ConditionNodeExecutor()
         result = executor.execute(
-            config={"condition": "{{score}} > 0.5",
-                    "branches": {"true": "node_yes", "false": "node_no"}},
+            config={
+                "condition": "{{score}} > 0.5",
+                "branches": {"true": "node_yes", "false": "node_no"},
+            },
             inputs={"score": "0.3"},
             context={},
         )
@@ -340,7 +354,8 @@ class TestLoopNodeExecutor:
         executor = LoopNodeExecutor()
         result = executor.execute(
             config={"max_iterations": 3},
-            inputs={}, context={},
+            inputs={},
+            context={},
         )
         assert result["iterations"] == 3
         assert len(result["output"]) == 3
@@ -349,7 +364,9 @@ class TestLoopNodeExecutor:
         """默认迭代次数。"""
         executor = LoopNodeExecutor()
         result = executor.execute(
-            config={}, inputs={}, context={},
+            config={},
+            inputs={},
+            context={},
         )
         assert result["iterations"] == 10  # 默认值
 
@@ -403,6 +420,7 @@ class TestAggregatorNodeExecutor:
 # 执行器注册表测试
 # ============================================================
 
+
 class TestExecutorRegistry:
     """执行器注册表测试。"""
 
@@ -414,8 +432,10 @@ class TestExecutorRegistry:
 
     def test_register_custom_executor(self):
         """注册自定义执行器。"""
+
         class CustomExecutor(BaseNodeExecutor):
             node_type = NodeType.LLM
+
             def execute(self, config, inputs, context):
                 return {"output": "custom_result"}
 
@@ -431,6 +451,7 @@ class TestExecutorRegistry:
 # WorkflowExecutor 测试
 # ============================================================
 
+
 class TestWorkflowExecutor:
     """工作流执行引擎测试。"""
 
@@ -439,10 +460,15 @@ class TestWorkflowExecutor:
         wf = WorkflowDefinition(
             name="简单链",
             nodes=[
-                NodeDefinition(id="n1", type=NodeType.CODE, inputs=[],
-                               config={"code": "result = '第一步'"}),
-                NodeDefinition(id="n2", type=NodeType.AGGREGATOR, inputs=["n1"],
-                               config={"aggregation_type": "latest"}),
+                NodeDefinition(
+                    id="n1", type=NodeType.CODE, inputs=[], config={"code": "result = '第一步'"}
+                ),
+                NodeDefinition(
+                    id="n2",
+                    type=NodeType.AGGREGATOR,
+                    inputs=["n1"],
+                    config={"aggregation_type": "latest"},
+                ),
             ],
             start_node="n1",
             end_nodes=["n2"],
@@ -457,19 +483,36 @@ class TestWorkflowExecutor:
         wf = WorkflowDefinition(
             name="条件分支",
             nodes=[
-                NodeDefinition(id="start", type=NodeType.CODE, inputs=[],
-                               config={"code": "result = 0.8"}),
-                NodeDefinition(id="check", type=NodeType.CONDITION,
-                               inputs=["start"],
-                               config={"condition": "{{start}} > 0.5",
-                                       "branches": {"true": "yes", "false": "no"}}),
-                NodeDefinition(id="yes", type=NodeType.CODE, inputs=["check"],
-                               config={"code": "result = '通过了'"}),
-                NodeDefinition(id="no", type=NodeType.CODE, inputs=["check"],
-                               config={"code": "result = '未通过'"}),
-                NodeDefinition(id="end", type=NodeType.AGGREGATOR,
-                               inputs=["yes", "no"],
-                               config={"aggregation_type": "latest"}),
+                NodeDefinition(
+                    id="start", type=NodeType.CODE, inputs=[], config={"code": "result = 0.8"}
+                ),
+                NodeDefinition(
+                    id="check",
+                    type=NodeType.CONDITION,
+                    inputs=["start"],
+                    config={
+                        "condition": "{{start}} > 0.5",
+                        "branches": {"true": "yes", "false": "no"},
+                    },
+                ),
+                NodeDefinition(
+                    id="yes",
+                    type=NodeType.CODE,
+                    inputs=["check"],
+                    config={"code": "result = '通过了'"},
+                ),
+                NodeDefinition(
+                    id="no",
+                    type=NodeType.CODE,
+                    inputs=["check"],
+                    config={"code": "result = '未通过'"},
+                ),
+                NodeDefinition(
+                    id="end",
+                    type=NodeType.AGGREGATOR,
+                    inputs=["yes", "no"],
+                    config={"aggregation_type": "latest"},
+                ),
             ],
             start_node="start",
             end_nodes=["end"],
@@ -501,13 +544,25 @@ class TestWorkflowExecutor:
         wf = WorkflowDefinition(
             name="降级测试",
             nodes=[
-                NodeDefinition(id="n1", type=NodeType.CODE, inputs=[],
-                               config={"code": "import os\nresult = '危险操作'"},
-                               fallback="n1_fb"),
-                NodeDefinition(id="n1_fb", type=NodeType.CODE, inputs=[],
-                               config={"code": "result = '安全降级'"}),
-                NodeDefinition(id="n2", type=NodeType.AGGREGATOR, inputs=["n1"],
-                               config={"aggregation_type": "latest"}),
+                NodeDefinition(
+                    id="n1",
+                    type=NodeType.CODE,
+                    inputs=[],
+                    config={"code": "import os\nresult = '危险操作'"},
+                    fallback="n1_fb",
+                ),
+                NodeDefinition(
+                    id="n1_fb",
+                    type=NodeType.CODE,
+                    inputs=[],
+                    config={"code": "result = '安全降级'"},
+                ),
+                NodeDefinition(
+                    id="n2",
+                    type=NodeType.AGGREGATOR,
+                    inputs=["n1"],
+                    config={"aggregation_type": "latest"},
+                ),
             ],
             start_node="n1",
             end_nodes=["n2"],
@@ -522,8 +577,12 @@ class TestWorkflowExecutor:
         wf = WorkflowDefinition(
             name="检查点测试",
             nodes=[
-                NodeDefinition(id="n1", type=NodeType.CODE, inputs=[],
-                               config={"code": "result = 'checkpoint_test'"}),
+                NodeDefinition(
+                    id="n1",
+                    type=NodeType.CODE,
+                    inputs=[],
+                    config={"code": "result = 'checkpoint_test'"},
+                ),
             ],
             start_node="n1",
             end_nodes=["n1"],
@@ -539,34 +598,44 @@ class TestWorkflowExecutor:
 # 便捷API测试
 # ============================================================
 
+
 class TestConvenienceAPI:
     """便捷API测试。"""
 
     def test_create_simple_workflow(self):
         """快捷创建线性工作流。"""
-        wf = create_simple_workflow("测试工作流", [
-            {"type": "code", "config": {"code": "result = 'step1'"}},
-            {"type": "code", "config": {"code": "result = 'step2'"}},
-            {"type": "aggregator", "config": {"aggregation_type": "latest"}},
-        ])
+        wf = create_simple_workflow(
+            "测试工作流",
+            [
+                {"type": "code", "config": {"code": "result = 'step1'"}},
+                {"type": "code", "config": {"code": "result = 'step2'"}},
+                {"type": "aggregator", "config": {"aggregation_type": "latest"}},
+            ],
+        )
         assert wf.name == "测试工作流"
         assert len(wf.nodes) == 3
         assert wf.start_node == "node_0"
 
     def test_validate_workflow(self):
         """快捷验证工作流。"""
-        wf = create_simple_workflow("验证测试", [
-            {"type": "llm", "config": {"prompt_template": "测试"}},
-        ])
+        wf = create_simple_workflow(
+            "验证测试",
+            [
+                {"type": "llm", "config": {"prompt_template": "测试"}},
+            ],
+        )
         valid, msg = validate_workflow(wf)
         assert valid is True
 
     def test_run_workflow(self):
         """快捷执行工作流。"""
-        wf = create_simple_workflow("运行测试", [
-            {"type": "code", "config": {"code": "result = 42"}},
-            {"type": "aggregator", "config": {"aggregation_type": "latest"}},
-        ])
+        wf = create_simple_workflow(
+            "运行测试",
+            [
+                {"type": "code", "config": {"code": "result = 42"}},
+                {"type": "aggregator", "config": {"aggregation_type": "latest"}},
+            ],
+        )
         result = run_workflow(wf)
         assert result["status"] in ("completed", "partial")
         assert result["total_count"] == 2

@@ -31,33 +31,53 @@ import json
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # ============================================================
 # 统一 Token 字典（规范定义，供主题校验与文档生成）
 # ============================================================
 
-CANONICAL_TOKENS: List[str] = [
-    "--bg", "--card", "--panel", "--text", "--text2", "--text3", "--border",
-    "--accent", "--accent2", "--self-bg", "--other-bg", "--user-bg", "--ai-bg",
-    "--meeting-bg", "--meeting-border",
-    "--green", "--red", "--yellow", "--cyan", "--pink",
-    "--shadow", "--shadow-lg", "--radius", "--radius-sm",
+CANONICAL_TOKENS: list[str] = [
+    "--bg",
+    "--card",
+    "--panel",
+    "--text",
+    "--text2",
+    "--text3",
+    "--border",
+    "--accent",
+    "--accent2",
+    "--self-bg",
+    "--other-bg",
+    "--user-bg",
+    "--ai-bg",
+    "--meeting-bg",
+    "--meeting-border",
+    "--green",
+    "--red",
+    "--yellow",
+    "--cyan",
+    "--pink",
+    "--shadow",
+    "--shadow-lg",
+    "--radius",
+    "--radius-sm",
 ]
 
-THEME_CATEGORIES: List[str] = [
-    "glass",       # 液态玻璃
-    "pixel",       # 像素艺术
-    "animation",   # 动画叙事
-    "minimal",     # 极简禅意
-    "cyberpunk",   # 赛博朋克
-    "other",       # 其他
+THEME_CATEGORIES: list[str] = [
+    "glass",  # 液态玻璃
+    "pixel",  # 像素艺术
+    "animation",  # 动画叙事
+    "minimal",  # 极简禅意
+    "cyberpunk",  # 赛博朋克
+    "other",  # 其他
 ]
 
 
 @dataclass
 class ThemeInfo:
     """主题概要信息。"""
+
     id: str
     name: str
     version: str = "1.0.0"
@@ -66,14 +86,14 @@ class ThemeInfo:
     category: str = "other"
     preview: str = ""
     entry: str = "theme.css"
-    tokens: List[str] = field(default_factory=list)
-    dependencies: List[str] = field(default_factory=list)
+    tokens: list[str] = field(default_factory=list)
+    dependencies: list[str] = field(default_factory=list)
     homestream: str = ">=5.0.0"
     signature: str = ""
     source: str = ""
     license: str = "MIT"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "name": self.name,
@@ -92,7 +112,7 @@ class ThemeInfo:
         }
 
     @classmethod
-    def from_manifest(cls, data: Dict[str, Any]) -> "ThemeInfo":
+    def from_manifest(cls, data: dict[str, Any]) -> ThemeInfo:
         return cls(
             id=data.get("id", ""),
             name=data.get("name", data.get("id", "unknown")),
@@ -125,19 +145,19 @@ class ThemeManager:
 
     def __init__(
         self,
-        themes_dir: Optional[Path] = None,
-        registry_file: Optional[Path] = None,
+        themes_dir: Path | None = None,
+        registry_file: Path | None = None,
     ):
         self.themes_dir = (themes_dir or Path.cwd() / "themes").resolve()
         self.registry_file = (
             registry_file or (self.themes_dir.parent / "theme_registry.json")
         ).resolve()
         self.themes_dir.mkdir(parents=True, exist_ok=True)
-        self._registry: Dict[str, Any] = self._load_registry()
+        self._registry: dict[str, Any] = self._load_registry()
 
     # --- 注册表持久化 ---
 
-    def _load_registry(self) -> Dict[str, Any]:
+    def _load_registry(self) -> dict[str, Any]:
         if self.registry_file.exists():
             try:
                 return json.loads(self.registry_file.read_text(encoding="utf-8"))
@@ -153,9 +173,9 @@ class ThemeManager:
 
     # --- 发现与列举 ---
 
-    def discover(self) -> List[ThemeInfo]:
+    def discover(self) -> list[ThemeInfo]:
         """扫描 themes/ 目录，返回所有已安装主题。"""
-        themes: List[ThemeInfo] = []
+        themes: list[ThemeInfo] = []
         if not self.themes_dir.exists():
             return themes
         for child in sorted(self.themes_dir.iterdir()):
@@ -169,17 +189,17 @@ class ThemeManager:
                 themes.append(ThemeInfo.from_manifest(data))
         return themes
 
-    def list_themes(self) -> List[Dict[str, Any]]:
+    def list_themes(self) -> list[dict[str, Any]]:
         """列出所有主题（字典形式，含激活标记）。"""
         active = self.get_active()
         result = []
         for t in self.discover():
             d = t.to_dict()
-            d["active"] = (t.id == active)
+            d["active"] = t.id == active
             result.append(d)
         return result
 
-    def get_theme(self, theme_id: str) -> Optional[ThemeInfo]:
+    def get_theme(self, theme_id: str) -> ThemeInfo | None:
         """读取单个主题。"""
         for t in self.discover():
             if t.id == theme_id:
@@ -188,7 +208,7 @@ class ThemeManager:
 
     # --- 覆盖样式生成 ---
 
-    def get_override_css(self, theme_id: Optional[str] = None) -> str:
+    def get_override_css(self, theme_id: str | None = None) -> str:
         """生成可注入 <head> 的 :root 覆盖样式。
 
         theme_id 为 None 时使用当前激活主题；无激活主题返回空串。
@@ -205,7 +225,7 @@ class ThemeManager:
             return ""
         return css_path.read_text(encoding="utf-8")
 
-    def apply_theme(self, html: str, theme_id: Optional[str] = None) -> str:
+    def apply_theme(self, html: str, theme_id: str | None = None) -> str:
         """将主题覆盖样式注入 HTML 的 </head> 之前。
 
         若无可应用主题，原样返回。不改写任何页面常量，零风险。
@@ -236,7 +256,7 @@ class ThemeManager:
         self._save_registry()
         return True, f"已激活主题: {theme_id}"
 
-    def get_active(self) -> Optional[str]:
+    def get_active(self) -> str | None:
         """读取当前激活主题 id。"""
         return self._registry.get("active")
 
@@ -335,29 +355,36 @@ font-size:12px;color:var(--text)}
             '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n'
             '<meta charset="UTF-8">\n'
             '<meta name="viewport" content="width=device-width,initial-scale=1.0">\n'
-            '<title>主题预览 · ' + theme.name + '</title>\n'
-            '<style>\n' + self._PREVIEW_CSS + '</style>\n'
-            '<style id="homestream-theme">\n' + css + '\n</style>\n'
+            "<title>主题预览 · " + theme.name + "</title>\n"
+            "<style>\n" + self._PREVIEW_CSS + "</style>\n"
+            '<style id="homestream-theme">\n' + css + "\n</style>\n"
             '</head>\n<body>\n<div class="wrap">\n'
-            '  <h1>' + theme.name + '</h1>\n'
-            '  <div class="meta">作者：' + theme.author + ' · 版本：' + theme.version
-            + ' · 分类：' + theme.category + ' · 许可：' + theme.license + '</div>\n'
+            "  <h1>" + theme.name + "</h1>\n"
+            '  <div class="meta">作者：'
+            + theme.author
+            + " · 版本："
+            + theme.version
+            + " · 分类："
+            + theme.category
+            + " · 许可："
+            + theme.license
+            + "</div>\n"
             '  <div class="card">\n'
-            '    <p>' + theme.description + '</p>\n'
+            "    <p>" + theme.description + "</p>\n"
             '    <div style="margin-top:12px">\n'
-            '      <span class="tag">ID: ' + theme.id + '</span>\n'
-            '      <span class="tag">兼容: ' + theme.homestream + '</span>\n'
-            '      <span class="tag">Tokens: ' + str(len(theme.tokens)) + '</span>\n'
-            '    </div>\n  </div>\n'
+            '      <span class="tag">ID: ' + theme.id + "</span>\n"
+            '      <span class="tag">兼容: ' + theme.homestream + "</span>\n"
+            '      <span class="tag">Tokens: ' + str(len(theme.tokens)) + "</span>\n"
+            "    </div>\n  </div>\n"
             '  <div class="card">\n'
             '    <button class="btn">主操作按钮</button>\n'
             '    <button class="btn2">次操作按钮</button>\n'
-            '  </div>\n'
+            "  </div>\n"
             '  <div class="card">\n'
-            '    <strong>覆盖样式预览（theme.css）：</strong>\n'
-            '    <pre>' + css + '</pre>\n'
-            '  </div>\n'
-            '</div>\n</body>\n</html>'
+            "    <strong>覆盖样式预览（theme.css）：</strong>\n"
+            "    <pre>" + css + "</pre>\n"
+            "  </div>\n"
+            "</div>\n</body>\n</html>"
         )
 
 
@@ -365,12 +392,12 @@ font-size:12px;color:var(--text)}
 # 模块级便捷函数（供 CLI / 测试直接调用）
 # ============================================================
 
-_default_manager: Optional[ThemeManager] = None
+_default_manager: ThemeManager | None = None
 
 
 def get_theme_manager(
-    themes_dir: Optional[Path] = None,
-    registry_file: Optional[Path] = None,
+    themes_dir: Path | None = None,
+    registry_file: Path | None = None,
 ) -> ThemeManager:
     """获取（或创建）全局主题管理器实例。"""
     global _default_manager

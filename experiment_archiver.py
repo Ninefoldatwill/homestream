@@ -22,14 +22,13 @@
 
 from __future__ import annotations
 
-import os
 import json
+import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
 from pathlib import Path
+from typing import Any
 
-from ratchet_loop import ExperimentResult, ExperimentStatus, RatchetPhase
-
+from ratchet_loop import ExperimentResult, ExperimentStatus
 
 # ==================== 归档配置 ====================
 
@@ -46,6 +45,7 @@ ARCHIVE_INDEX = "index.json"
 
 
 # ==================== 归档适配器 ====================
+
 
 class ExperimentArchiver:
     """实验结果千寻归档适配器
@@ -65,7 +65,7 @@ class ExperimentArchiver:
     def __init__(
         self,
         archive_base: str = DEFAULT_ARCHIVE_BASE,
-        bookhouse_api: Optional[str] = None,
+        bookhouse_api: str | None = None,
     ):
         """
         Args:
@@ -97,9 +97,7 @@ class ExperimentArchiver:
             json.dump(json_data, f, indent=2, ensure_ascii=False)
 
         # 2. 写入Markdown人类可读报告
-        md_path = self.archive_base / ARCHIVE_MD_TEMPLATE.format(
-            experiment_id=result.experiment_id
-        )
+        md_path = self.archive_base / ARCHIVE_MD_TEMPLATE.format(experiment_id=result.experiment_id)
         md_content = self._format_markdown(result)
         with open(md_path, "w", encoding="utf-8") as f:
             f.write(md_content)
@@ -109,7 +107,7 @@ class ExperimentArchiver:
 
         return str(json_path)
 
-    def get_archive(self, experiment_id: str) -> Optional[Dict[str, Any]]:
+    def get_archive(self, experiment_id: str) -> dict[str, Any] | None:
         """获取已归档的实验结果
 
         Args:
@@ -118,19 +116,17 @@ class ExperimentArchiver:
         Returns:
             实验结果字典，不存在则返回None
         """
-        json_path = self.archive_base / ARCHIVE_JSON_TEMPLATE.format(
-            experiment_id=experiment_id
-        )
+        json_path = self.archive_base / ARCHIVE_JSON_TEMPLATE.format(experiment_id=experiment_id)
         if not json_path.exists():
             return None
 
-        with open(json_path, "r", encoding="utf-8") as f:
+        with open(json_path, encoding="utf-8") as f:
             return json.load(f)
 
     def list_archives(
         self,
-        status: Optional[ExperimentStatus] = None,
-    ) -> List[Dict[str, Any]]:
+        status: ExperimentStatus | None = None,
+    ) -> list[dict[str, Any]]:
         """列出已归档的实验
 
         Args:
@@ -145,7 +141,7 @@ class ExperimentArchiver:
             archives = [a for a in archives if a.get("status") == status.value]
         return archives
 
-    def search_archives(self, keyword: str) -> List[Dict[str, Any]]:
+    def search_archives(self, keyword: str) -> list[dict[str, Any]]:
         """搜索归档实验（关键词匹配名称/假设/标签）
 
         Args:
@@ -166,7 +162,7 @@ class ExperimentArchiver:
                 results.append(exp)
         return results
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """获取归档统计"""
         index = self._load_index()
         experiments = index.get("experiments", [])
@@ -226,18 +222,20 @@ class ExperimentArchiver:
         else:
             lines.append("（未定义明确标准）")
 
-        lines.extend([
-            "",
-            "## 执行结果",
-            "",
-            f"- **迭代次数**: {result.iterations}",
-            f"- **执行时长**: {result.duration:.2f}s",
-            f"- **停止条件**: {result.stop_condition or 'N/A'}",
-            f"- **停止原因**: {result.stop_reason or 'N/A'}",
-            "",
-            "### Maker输出",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## 执行结果",
+                "",
+                f"- **迭代次数**: {result.iterations}",
+                f"- **执行时长**: {result.duration:.2f}s",
+                f"- **停止条件**: {result.stop_condition or 'N/A'}",
+                f"- **停止原因**: {result.stop_reason or 'N/A'}",
+                "",
+                "### Maker输出",
+                "",
+            ]
+        )
 
         if result.outputs:
             for i, output in enumerate(result.outputs, 1):
@@ -245,13 +243,15 @@ class ExperimentArchiver:
         else:
             lines.append("（无输出）")
 
-        lines.extend([
-            "",
-            "## 验证结果",
-            "",
-            f"**验证{'通过 ✅' if result.verification_passed else '未通过 ❌'}**",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## 验证结果",
+                "",
+                f"**验证{'通过 ✅' if result.verification_passed else '未通过 ❌'}**",
+                "",
+            ]
+        )
 
         if result.verification_details:
             for detail in result.verification_details:
@@ -262,40 +262,48 @@ class ExperimentArchiver:
 
         # 棘轮锁定信息
         if result.status in (ExperimentStatus.LOCKED, ExperimentStatus.ARCHIVED):
-            lines.extend([
-                "",
-                "## 棘轮锁定",
-                "",
-                f"- **锁定时间**: {result.locked_at}",
-                f"- **Commit**: `{result.locked_commit or 'N/A'}`",
-                f"- **Tag**: `{result.locked_tag or 'N/A'}`",
-            ])
+            lines.extend(
+                [
+                    "",
+                    "## 棘轮锁定",
+                    "",
+                    f"- **锁定时间**: {result.locked_at}",
+                    f"- **Commit**: `{result.locked_commit or 'N/A'}`",
+                    f"- **Tag**: `{result.locked_tag or 'N/A'}`",
+                ]
+            )
 
         # 回滚信息
         if result.status == ExperimentStatus.ROLLED_BACK:
-            lines.extend([
-                "",
-                "## 回滚信息",
-                "",
-                f"- **回滚原因**: {result.rollback_reason}",
-                f"- **经验教训**: {result.lessons_learned}",
-            ])
+            lines.extend(
+                [
+                    "",
+                    "## 回滚信息",
+                    "",
+                    f"- **回滚原因**: {result.rollback_reason}",
+                    f"- **经验教训**: {result.lessons_learned}",
+                ]
+            )
 
         # 归档信息
         if result.archived_at:
-            lines.extend([
-                "",
-                "## 归档信息",
-                "",
-                f"- **归档时间**: {result.archived_at}",
-                f"- **归档路径**: `{result.archive_path}`",
-            ])
+            lines.extend(
+                [
+                    "",
+                    "## 归档信息",
+                    "",
+                    f"- **归档时间**: {result.archived_at}",
+                    f"- **归档路径**: `{result.archive_path}`",
+                ]
+            )
 
-        lines.extend([
-            "",
-            "---",
-            f"*归档者: 千寻 | 归档时间: {datetime.now().isoformat()}*",
-        ])
+        lines.extend(
+            [
+                "",
+                "---",
+                f"*归档者: 千寻 | 归档时间: {datetime.now().isoformat()}*",
+            ]
+        )
 
         return "\n".join(lines)
 
@@ -333,12 +341,12 @@ class ExperimentArchiver:
         with open(index_path, "w", encoding="utf-8") as f:
             json.dump(index, f, indent=2, ensure_ascii=False)
 
-    def _load_index(self) -> Dict[str, Any]:
+    def _load_index(self) -> dict[str, Any]:
         """加载归档索引"""
         index_path = self.archive_base / ARCHIVE_INDEX
         if not index_path.exists():
             return {"experiments": [], "last_updated": datetime.now().isoformat()}
-        with open(index_path, "r", encoding="utf-8") as f:
+        with open(index_path, encoding="utf-8") as f:
             return json.load(f)
 
     def _lock_dirs(self) -> None:
@@ -347,6 +355,7 @@ class ExperimentArchiver:
 
 
 # ==================== 便捷函数 ====================
+
 
 def create_archiver(
     archive_base: str = DEFAULT_ARCHIVE_BASE,
@@ -359,7 +368,8 @@ def create_archiver(
 
 if __name__ == "__main__":
     import sys
-    sys.stdout.reconfigure(encoding='utf-8')
+
+    sys.stdout.reconfigure(encoding="utf-8")
 
     print("=" * 60)
     print("桥v7 ExperimentArchiver — 千寻归档适配器验证")

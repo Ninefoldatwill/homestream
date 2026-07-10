@@ -37,63 +37,60 @@ program.md 实验指令格式:
 
 from __future__ import annotations
 
-import os
 import re
-import json
+import subprocess
+import threading
 import time
 import uuid
-import threading
-import subprocess
-from dataclasses import dataclass, field, asdict
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
+
+from condition_verifier import (
+    ConditionVerifier,
+    StopCondition,
+    VerifierConfig,
+)
 
 # 桥v7内部依赖
 from event_stream import (
-    Event,
+    EventSource,
     EventStream,
     EventType,
-    EventSource,
-    Action,
-    Observation,
-    _gen_event_id,
     create_action,
 )
-from condition_verifier import (
-    ConditionVerifier,
-    VerifierConfig,
-    VerificationResult,
-    StopCondition,
-)
-
 
 # ==================== 枚举 ====================
 
+
 class ExperimentStatus(str, Enum):
     """实验生命周期状态"""
-    PENDING = "pending"           # 等待启动
-    RUNNING = "running"           # Maker执行中
-    VERIFYING = "verifying"       # Reviewer验证中
-    LOCKED = "locked"             # 棘轮锁定（成功归档）
-    ROLLED_BACK = "rolled_back"   # 已回滚（失败丢弃）
-    TIMEOUT = "timeout"           # 超时终止
-    ARCHIVED = "archived"         # 已归档到千寻书阁
+
+    PENDING = "pending"  # 等待启动
+    RUNNING = "running"  # Maker执行中
+    VERIFYING = "verifying"  # Reviewer验证中
+    LOCKED = "locked"  # 棘轮锁定（成功归档）
+    ROLLED_BACK = "rolled_back"  # 已回滚（失败丢弃）
+    TIMEOUT = "timeout"  # 超时终止
+    ARCHIVED = "archived"  # 已归档到千寻书阁
 
 
 class RatchetPhase(str, Enum):
     """棘轮循环阶段"""
-    PARSE = "parse"           # 解析program.md
-    SPAWN = "spawn"           # 创建实验Worktree
-    EXECUTE = "execute"       # Maker执行实验
-    VERIFY = "verify"         # Reviewer验证
-    LOCK = "lock"             # 棘轮锁定
-    ROLLBACK = "rollback"     # 回滚
-    ARCHIVE = "archive"       # 归档
+
+    PARSE = "parse"  # 解析program.md
+    SPAWN = "spawn"  # 创建实验Worktree
+    EXECUTE = "execute"  # Maker执行实验
+    VERIFY = "verify"  # Reviewer验证
+    LOCK = "lock"  # 棘轮锁定
+    ROLLBACK = "rollback"  # 回滚
+    ARCHIVE = "archive"  # 归档
 
 
 # ==================== 数据类 ====================
+
 
 @dataclass
 class ExperimentConfig:
@@ -105,27 +102,30 @@ class ExperimentConfig:
     - rollback_on_fail: 失败时自动回滚（安全网）
     - archive_to: 归档目标（千寻书阁）
     """
-    name: str                                      # 实验唯一名称
-    maker: str = "澜舟"                             # 执行Agent
-    reviewer: str = "千寻"                           # 验证Agent
-    hypothesis: str = ""                            # 实验假设
-    success_criteria: List[str] = field(default_factory=list)  # 成功标准
-    description: str = ""                           # 实验描述
-    max_iterations: int = 10                        # 最大迭代
-    timeout: float = 300.0                          # 超时秒数
-    rollback_on_fail: bool = True                   # 失败自动回滚
-    archive_to: str = "bookhouse"                   # 归档目标
-    base_branch: str = "main"                       # 基于哪个分支
-    tags: List[str] = field(default_factory=list)   # 实验标签
+
+    name: str  # 实验唯一名称
+    maker: str = "澜舟"  # 执行Agent
+    reviewer: str = "千寻"  # 验证Agent
+    hypothesis: str = ""  # 实验假设
+    success_criteria: list[str] = field(default_factory=list)  # 成功标准
+    description: str = ""  # 实验描述
+    max_iterations: int = 10  # 最大迭代
+    timeout: float = 300.0  # 超时秒数
+    rollback_on_fail: bool = True  # 失败自动回滚
+    archive_to: str = "bookhouse"  # 归档目标
+    base_branch: str = "main"  # 基于哪个分支
+    tags: list[str] = field(default_factory=list)  # 实验标签
 
     # 运行时填充
-    experiment_id: str = ""                         # 自动生成
-    worktree_name: str = ""                         # 关联Worktree名
-    created_at: str = ""                            # 创建时间
+    experiment_id: str = ""  # 自动生成
+    worktree_name: str = ""  # 关联Worktree名
+    created_at: str = ""  # 创建时间
 
     def __post_init__(self):
         if not self.experiment_id:
-            self.experiment_id = f"exp_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:6]}"
+            self.experiment_id = (
+                f"exp_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:6]}"
+            )
         if not self.worktree_name:
             self.worktree_name = f"exp-{self.name}-{self.experiment_id[-6:]}"
         if not self.created_at:
@@ -135,39 +135,40 @@ class ExperimentConfig:
 @dataclass
 class ExperimentResult:
     """实验结果 — Maker执行完毕后的完整记录"""
+
     experiment_id: str
     config: ExperimentConfig
     status: ExperimentStatus = ExperimentStatus.PENDING
     phase: RatchetPhase = RatchetPhase.PARSE
 
     # Maker层结果
-    iterations: int = 0                             # 实际迭代次数
-    duration: float = 0.0                           # 执行时长(秒)
-    outputs: List[str] = field(default_factory=list)  # Maker输出列表
-    stop_condition: Optional[str] = None             # 停止条件
-    stop_reason: str = ""                            # 停止原因
+    iterations: int = 0  # 实际迭代次数
+    duration: float = 0.0  # 执行时长(秒)
+    outputs: list[str] = field(default_factory=list)  # Maker输出列表
+    stop_condition: str | None = None  # 停止条件
+    stop_reason: str = ""  # 停止原因
 
     # Reviewer层结果
-    verification_passed: bool = False                # 验证是否通过
-    verification_details: List[str] = field(default_factory=list)  # 逐条验证
-    reviewer_notes: str = ""                         # 审查备注
+    verification_passed: bool = False  # 验证是否通过
+    verification_details: list[str] = field(default_factory=list)  # 逐条验证
+    reviewer_notes: str = ""  # 审查备注
 
     # 棘轮锁定信息
-    locked_at: str = ""                             # 锁定时间
-    locked_commit: str = ""                         # 锁定的commit hash
-    locked_tag: str = ""                            # git tag名
+    locked_at: str = ""  # 锁定时间
+    locked_commit: str = ""  # 锁定的commit hash
+    locked_tag: str = ""  # git tag名
 
     # 回滚信息
-    rollback_reason: str = ""                       # 回滚原因
+    rollback_reason: str = ""  # 回滚原因
 
     # 归档信息
-    archived_at: str = ""                           # 归档时间
-    archive_path: str = ""                          # 归档路径
+    archived_at: str = ""  # 归档时间
+    archive_path: str = ""  # 归档路径
 
     # 教训记录（失败时填写）
-    lessons_learned: str = ""                       # 经验教训
+    lessons_learned: str = ""  # 经验教训
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """序列化为字典（用于JSON存储/归档）"""
         d = asdict(self)
         d["status"] = self.status.value
@@ -175,7 +176,7 @@ class ExperimentResult:
         return d
 
     @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> "ExperimentResult":
+    def from_dict(cls, d: dict[str, Any]) -> ExperimentResult:
         """从字典反序列化"""
         d["status"] = ExperimentStatus(d.get("status", "pending"))
         d["phase"] = RatchetPhase(d.get("phase", "parse"))
@@ -184,6 +185,7 @@ class ExperimentResult:
 
 
 # ==================== program.md 解析器 ====================
+
 
 class ProgramParser:
     """program.md 实验指令解析器
@@ -210,13 +212,10 @@ class ProgramParser:
     """
 
     # YAML frontmatter 正则
-    FRONTMATTER_RE = re.compile(
-        r'^---\s*\n(.*?)\n---\s*\n(.*)$',
-        re.DOTALL
-    )
+    FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n(.*)$", re.DOTALL)
 
     @classmethod
-    def parse(cls, content: str) -> Tuple[ExperimentConfig, str]:
+    def parse(cls, content: str) -> tuple[ExperimentConfig, str]:
         """解析program.md内容
 
         Args:
@@ -257,14 +256,14 @@ class ProgramParser:
         return config, markdown_body
 
     @classmethod
-    def parse_file(cls, file_path: str) -> Tuple[ExperimentConfig, str]:
+    def parse_file(cls, file_path: str) -> tuple[ExperimentConfig, str]:
         """解析program.md文件"""
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
         return cls.parse(content)
 
     @staticmethod
-    def _parse_lightweight_yaml(yaml_text: str) -> Dict[str, Any]:
+    def _parse_lightweight_yaml(yaml_text: str) -> dict[str, Any]:
         """轻量YAML解析（支持2级嵌套 + 列表）
 
         不引入PyYAML依赖，仅支持桥v7需要的子集：
@@ -276,7 +275,7 @@ class ProgramParser:
         - 嵌套: experiment:
                     name: "xxx"
         """
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
         lines = yaml_text.split("\n")
         current_key = None
         current_sub = None
@@ -302,7 +301,7 @@ class ProgramParser:
             # 二级嵌套 key: value (缩进 >= 2)
             indent = len(line) - len(line.lstrip())
             if indent >= 2 and current_sub and isinstance(result.get(current_sub), dict):
-                match = re.match(r'^(\w+)\s*:\s*(.*)$', stripped)
+                match = re.match(r"^(\w+)\s*:\s*(.*)$", stripped)
                 if match:
                     key = match.group(1)
                     val = match.group(2).strip()
@@ -326,7 +325,7 @@ class ProgramParser:
                 continue
 
             # 顶级 key: value
-            match = re.match(r'^(\w+)\s*:\s*(.*)$', stripped)
+            match = re.match(r"^(\w+)\s*:\s*(.*)$", stripped)
             if match:
                 key = match.group(1)
                 val = match.group(2).strip()
@@ -353,7 +352,7 @@ class ProgramParser:
         return result
 
     @staticmethod
-    def _parse_list(value: Any) -> List[str]:
+    def _parse_list(value: Any) -> list[str]:
         """确保返回列表"""
         if isinstance(value, list):
             return [str(v).strip('"').strip("'") for v in value]
@@ -363,6 +362,7 @@ class ProgramParser:
 
 
 # ==================== Ratchet Loop 引擎核心 ====================
+
 
 class RatchetLoopEngine:
     """双层实验工坊引擎
@@ -388,7 +388,7 @@ class RatchetLoopEngine:
 
     def __init__(
         self,
-        stream: Optional[EventStream] = None,
+        stream: EventStream | None = None,
         worktree_manager=None,
         archiver=None,
     ):
@@ -397,7 +397,7 @@ class RatchetLoopEngine:
         self.archiver = archiver
 
         # 实验注册表
-        self._experiments: Dict[str, ExperimentResult] = {}
+        self._experiments: dict[str, ExperimentResult] = {}
         self._lock = threading.Lock()
 
         # 已锁定的实验（棘轮不可回退）
@@ -408,8 +408,9 @@ class RatchetLoopEngine:
     def run_experiment(
         self,
         config: ExperimentConfig,
-        maker_callback: Optional[Callable[[ExperimentConfig], List[str]]] = None,
-        reviewer_callback: Optional[Callable[[ExperimentConfig, List[str]], Tuple[bool, List[str]]]] = None,
+        maker_callback: Callable[[ExperimentConfig], list[str]] | None = None,
+        reviewer_callback: Callable[[ExperimentConfig, list[str]], tuple[bool, list[str]]]
+        | None = None,
     ) -> ExperimentResult:
         """执行完整实验循环
 
@@ -437,7 +438,8 @@ class RatchetLoopEngine:
         worktree_created = False
         if self.worktree_manager:
             try:
-                from worktree_manager import WorktreeConfig, WorktreeRole, WorktreeStatus
+                from worktree_manager import WorktreeConfig, WorktreeRole
+
                 wt_config = WorktreeConfig(
                     name=config.worktree_name,
                     branch=f"experiment/{config.name}",
@@ -555,12 +557,12 @@ class RatchetLoopEngine:
 
         return result
 
-    def get_experiment(self, experiment_id: str) -> Optional[ExperimentResult]:
+    def get_experiment(self, experiment_id: str) -> ExperimentResult | None:
         """获取实验结果"""
         with self._lock:
             return self._experiments.get(experiment_id)
 
-    def list_experiments(self, status: Optional[ExperimentStatus] = None) -> List[ExperimentResult]:
+    def list_experiments(self, status: ExperimentStatus | None = None) -> list[ExperimentResult]:
         """列出实验（可按状态过滤）"""
         with self._lock:
             results = list(self._experiments.values())
@@ -573,14 +575,20 @@ class RatchetLoopEngine:
         with self._lock:
             return experiment_id in self._locked_experiments
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """获取实验统计"""
         with self._lock:
             total = len(self._experiments)
             locked = len(self._locked_experiments)
-            rolled_back = sum(1 for r in self._experiments.values() if r.status == ExperimentStatus.ROLLED_BACK)
-            archived = sum(1 for r in self._experiments.values() if r.status == ExperimentStatus.ARCHIVED)
-            running = sum(1 for r in self._experiments.values() if r.status == ExperimentStatus.RUNNING)
+            rolled_back = sum(
+                1 for r in self._experiments.values() if r.status == ExperimentStatus.ROLLED_BACK
+            )
+            archived = sum(
+                1 for r in self._experiments.values() if r.status == ExperimentStatus.ARCHIVED
+            )
+            running = sum(
+                1 for r in self._experiments.values() if r.status == ExperimentStatus.RUNNING
+            )
 
         return {
             "total": total,
@@ -597,7 +605,7 @@ class RatchetLoopEngine:
         self,
         config: ExperimentConfig,
         verifier: ConditionVerifier,
-    ) -> List[str]:
+    ) -> list[str]:
         """默认Maker执行（模拟，实际使用时传入maker_callback）
 
         模拟流程：
@@ -610,7 +618,7 @@ class RatchetLoopEngine:
 
         for i, criterion in enumerate(criteria):
             # 模拟迭代执行
-            output = f"[迭代{i+1}] 处理: {criterion}"
+            output = f"[迭代{i + 1}] 处理: {criterion}"
             outputs.append(output)
             verifier.notify_action("EXECUTE", output)
 
@@ -631,8 +639,8 @@ class RatchetLoopEngine:
     def _default_reviewer_verify(
         self,
         config: ExperimentConfig,
-        outputs: List[str],
-    ) -> Tuple[bool, List[str]]:
+        outputs: list[str],
+    ) -> tuple[bool, list[str]]:
         """默认Reviewer验证（自动检查success_criteria）
 
         自动验证逻辑：
@@ -673,19 +681,24 @@ class RatchetLoopEngine:
                 repo_path = self.worktree_manager.repo_path
                 # git add + commit
                 subprocess.run(
-                    ["git", "add", "-A"],
-                    capture_output=True, text=True, cwd=repo_path, timeout=10
+                    ["git", "add", "-A"], capture_output=True, text=True, cwd=repo_path, timeout=10
                 )
                 commit_msg = f"ratchet: lock experiment {config.name} ({result.experiment_id})"
                 commit_result = subprocess.run(
                     ["git", "commit", "-m", commit_msg],
-                    capture_output=True, text=True, cwd=repo_path, timeout=15
+                    capture_output=True,
+                    text=True,
+                    cwd=repo_path,
+                    timeout=15,
                 )
                 if commit_result.returncode == 0:
                     # 获取commit hash
                     hash_result = subprocess.run(
                         ["git", "rev-parse", "HEAD"],
-                        capture_output=True, text=True, cwd=repo_path, timeout=5
+                        capture_output=True,
+                        text=True,
+                        cwd=repo_path,
+                        timeout=5,
                     )
                     result.locked_commit = hash_result.stdout.strip()[:12]
 
@@ -693,7 +706,10 @@ class RatchetLoopEngine:
                 tag_name = f"ratchet/{config.name}/{result.experiment_id[-6:]}"
                 subprocess.run(
                     ["git", "tag", tag_name],
-                    capture_output=True, text=True, cwd=repo_path, timeout=5
+                    capture_output=True,
+                    text=True,
+                    cwd=repo_path,
+                    timeout=5,
                 )
                 result.locked_tag = tag_name
 
@@ -706,7 +722,7 @@ class RatchetLoopEngine:
         self._emit_event(
             EventType.DONE,
             f"[DONE] {config.reviewer}→系统: 实验 {config.name} 验证通过，棘轮锁定 "
-            f"(commit={result.locked_commit or 'N/A'}, tag={result.locked_tag or 'N/A'})"
+            f"(commit={result.locked_commit or 'N/A'}, tag={result.locked_tag or 'N/A'})",
         )
 
     def _handle_rollback(self, result: ExperimentResult, reason: str) -> None:
@@ -731,10 +747,7 @@ class RatchetLoopEngine:
             except Exception:
                 pass  # 清理失败不影响主流程
 
-        self._emit_event(
-            EventType.WARN,
-            f"[WARN] 实验 {config.name} 已回滚: {reason}"
-        )
+        self._emit_event(EventType.WARN, f"[WARN] 实验 {config.name} 已回滚: {reason}")
 
     def _emit_event(self, event_type: EventType, content: str) -> None:
         """发布事件到EventStream（如果可用）"""
@@ -755,10 +768,11 @@ class RatchetLoopEngine:
 
 # ==================== 便捷工厂函数 ====================
 
+
 def create_experiment_config(
     name: str,
     hypothesis: str = "",
-    success_criteria: Optional[List[str]] = None,
+    success_criteria: list[str] | None = None,
     maker: str = "澜舟",
     reviewer: str = "千寻",
     **kwargs,
@@ -775,7 +789,7 @@ def create_experiment_config(
 
 
 def create_ratchet_engine(
-    stream: Optional[EventStream] = None,
+    stream: EventStream | None = None,
     worktree_manager=None,
     archiver=None,
 ) -> RatchetLoopEngine:
@@ -791,7 +805,8 @@ def create_ratchet_engine(
 
 if __name__ == "__main__":
     import sys
-    sys.stdout.reconfigure(encoding='utf-8')
+
+    sys.stdout.reconfigure(encoding="utf-8")
 
     print("=" * 60)
     print("桥v7 Ratchet Loop — 双层实验工坊验证")
@@ -799,7 +814,7 @@ if __name__ == "__main__":
 
     # 1. 解析program.md
     print("\n① program.md 解析")
-    sample_program = '''---
+    sample_program = """---
 experiment:
   name: "test-skill-router-v2"
   maker: "澜舟"
@@ -815,7 +830,7 @@ experiment:
 ---
 # 实验内容
 测试SkillRouter v2双层路由性能...
-'''
+"""
     config, desc = ProgramParser.parse(sample_program)
     print(f"   名称: {config.name}")
     print(f"   假设: {config.hypothesis}")
@@ -828,7 +843,7 @@ experiment:
     result = engine.run_experiment(config)
 
     # 3. 查看结果
-    print(f"\n③ 实验结果")
+    print("\n③ 实验结果")
     print(f"   状态: {result.status.value}")
     print(f"   阶段: {result.phase.value}")
     print(f"   迭代: {result.iterations}")
@@ -843,7 +858,7 @@ experiment:
         print(f"   教训: {result.lessons_learned}")
 
     # 4. 统计
-    print(f"\n④ 引擎统计")
+    print("\n④ 引擎统计")
     stats = engine.get_stats()
     print(f"   总实验: {stats['total']}")
     print(f"   锁定: {stats['locked']}")

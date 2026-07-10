@@ -19,17 +19,14 @@ Skill Router 测试套件
 
 import os
 import sys
-import json
 import unittest
 
 # 添加项目目录到 path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from skill_router import (
-    SkillRouter,
     SkillEntry,
-    RouteResult,
-    Priority,
+    SkillRouter,
     create_router,
 )
 
@@ -50,7 +47,7 @@ class TestRegistryLoad(unittest.TestCase):
     def test_all_have_required_fields(self):
         """每个Skill必须有id/name/category/priority"""
         for skill in self.router.all_skills():
-            self.assertTrue(skill.id, f"Skill missing id")
+            self.assertTrue(skill.id, "Skill missing id")
             self.assertTrue(skill.name, f"Skill {skill.id} missing name")
             self.assertTrue(skill.category, f"Skill {skill.id} missing category")
             self.assertIn(skill.priority, [0, 1, 2, 3])
@@ -65,10 +62,7 @@ class TestRegistryLoad(unittest.TestCase):
     def test_all_p0_have_triggers(self):
         """P0核心Skill必须有触发词"""
         for skill in self.router.by_priority(0):
-            self.assertTrue(
-                skill.triggers,
-                f"P0 Skill '{skill.name}' has no triggers"
-            )
+            self.assertTrue(skill.triggers, f"P0 Skill '{skill.name}' has no triggers")
 
 
 class TestPrioritySort(unittest.TestCase):
@@ -84,7 +78,7 @@ class TestPrioritySort(unittest.TestCase):
             self.assertLessEqual(
                 skills[i].priority,
                 skills[i + 1].priority,
-                f"排序错误: {skills[i].name}(P{skills[i].priority}) > {skills[i+1].name}(P{skills[i+1].priority})"
+                f"排序错误: {skills[i].name}(P{skills[i].priority}) > {skills[i + 1].name}(P{skills[i + 1].priority})",
             )
 
     def test_p0_before_p3(self):
@@ -408,8 +402,10 @@ if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
 
-    print(f"\n{'='*60}")
-    print(f"Skill Router 测试结果: {result.testsRun - len(result.failures) - len(result.errors)}/{result.testsRun} 通过")
+    print(f"\n{'=' * 60}")
+    print(
+        f"Skill Router 测试结果: {result.testsRun - len(result.failures) - len(result.errors)}/{result.testsRun} 通过"
+    )
     if result.failures:
         print(f"失败: {len(result.failures)}")
         for name, err in result.failures:
@@ -418,4 +414,4 @@ if __name__ == "__main__":
         print(f"错误: {len(result.errors)}")
         for name, err in result.errors:
             print(f"  - {name}: {err[:200]}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")

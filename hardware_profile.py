@@ -24,29 +24,31 @@
 from __future__ import annotations
 
 import ctypes
+import logging
 import os
 import subprocess
-import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 class HardwareTier(Enum):
     """硬件档位枚举"""
-    NANO = "nano"       # 8GB RAM, 无GPU
-    MICRO = "micro"     # 16GB RAM, 4GB VRAM
-    LITE = "lite"       # 16GB RAM, 6GB VRAM (九重当前)
-    STD = "std"         # 32GB RAM, 8GB VRAM
-    PRO = "pro"         # 64GB RAM, 16GB VRAM
-    MAX = "max"         # 256GB+ RAM, 48GB+ VRAM
+
+    NANO = "nano"  # 8GB RAM, 无GPU
+    MICRO = "micro"  # 16GB RAM, 4GB VRAM
+    LITE = "lite"  # 16GB RAM, 6GB VRAM (九重当前)
+    STD = "std"  # 32GB RAM, 8GB VRAM
+    PRO = "pro"  # 64GB RAM, 16GB VRAM
+    MAX = "max"  # 256GB+ RAM, 48GB+ VRAM
 
 
 @dataclass
 class HardwareInfo:
     """硬件信息数据类"""
+
     total_ram_gb: float = 0.0
     available_ram_gb: float = 0.0
     gpu_name: str = "无GPU"
@@ -63,7 +65,7 @@ class HardwareInfo:
     def gpu_vram_total_gb(self) -> float:
         return self.gpu_vram_total_mb / 1024.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "total_ram_gb": round(self.total_ram_gb, 1),
             "available_ram_gb": round(self.available_ram_gb, 1),
@@ -78,6 +80,7 @@ class HardwareInfo:
 @dataclass
 class ModelRecommendation:
     """模型推荐结果"""
+
     tier: HardwareTier
     model_name: str
     quantization: str
@@ -94,6 +97,7 @@ def detect_hardware() -> HardwareInfo:
 
     # --- 内存检测 (Windows API) ---
     try:
+
         class MEMORYSTATUSEX(ctypes.Structure):
             _fields_ = [
                 ("dwLength", ctypes.c_ulong),
@@ -110,8 +114,8 @@ def detect_hardware() -> HardwareInfo:
         mem = MEMORYSTATUSEX()
         mem.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
         ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(mem))
-        info.total_ram_gb = mem.ullTotalPhys / (1024 ** 3)
-        info.available_ram_gb = mem.ullAvailPhys / (1024 ** 3)
+        info.total_ram_gb = mem.ullTotalPhys / (1024**3)
+        info.available_ram_gb = mem.ullAvailPhys / (1024**3)
         info.os_type = "windows"
     except Exception as e:
         logger.warning(f"内存检测失败: {e}")
@@ -120,9 +124,14 @@ def detect_hardware() -> HardwareInfo:
     # --- GPU检测 (nvidia-smi) ---
     try:
         result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name,memory.total,memory.free",
-             "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=5
+            [
+                "nvidia-smi",
+                "--query-gpu=name,memory.total,memory.free",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if result.returncode == 0 and result.stdout.strip():
             parts = result.stdout.strip().split(", ")
@@ -180,7 +189,7 @@ def get_model_recommendation(tier: HardwareTier) -> ModelRecommendation:
             estimated_vram_gb=0,
             can_full_gpu_offload=False,
             deployment_method="llama.cpp CPU only",
-            notes="入门级，CPU推理，速度较慢但可用"
+            notes="入门级，CPU推理，速度较慢但可用",
         ),
         HardwareTier.MICRO: ModelRecommendation(
             tier=HardwareTier.MICRO,
@@ -190,7 +199,7 @@ def get_model_recommendation(tier: HardwareTier) -> ModelRecommendation:
             estimated_vram_gb=4.0,
             can_full_gpu_offload=False,
             deployment_method="llama.cpp 部分GPU offload",
-            notes="4GB VRAM只能放部分层到GPU，剩余在CPU"
+            notes="4GB VRAM只能放部分层到GPU，剩余在CPU",
         ),
         HardwareTier.LITE: ModelRecommendation(
             tier=HardwareTier.LITE,
@@ -200,7 +209,7 @@ def get_model_recommendation(tier: HardwareTier) -> ModelRecommendation:
             estimated_vram_gb=4.5,
             can_full_gpu_offload=True,
             deployment_method="llama.cpp 全GPU offload (-ngl 99)",
-            notes="6GB VRAM可全offload，推理速度好"
+            notes="6GB VRAM可全offload，推理速度好",
         ),
         HardwareTier.STD: ModelRecommendation(
             tier=HardwareTier.STD,
@@ -210,7 +219,7 @@ def get_model_recommendation(tier: HardwareTier) -> ModelRecommendation:
             estimated_vram_gb=5.5,
             can_full_gpu_offload=True,
             deployment_method="llama.cpp 全GPU offload (-ngl 99)",
-            notes="9B模型，128K上下文，性价比最优"
+            notes="9B模型，128K上下文，性价比最优",
         ),
         HardwareTier.PRO: ModelRecommendation(
             tier=HardwareTier.PRO,
@@ -220,7 +229,7 @@ def get_model_recommendation(tier: HardwareTier) -> ModelRecommendation:
             estimated_vram_gb=5.5,
             can_full_gpu_offload=True,
             deployment_method="llama.cpp 全GPU offload",
-            notes="16GB VRAM可跑更大模型或更高精度"
+            notes="16GB VRAM可跑更大模型或更高精度",
         ),
         HardwareTier.MAX: ModelRecommendation(
             tier=HardwareTier.MAX,
@@ -230,7 +239,7 @@ def get_model_recommendation(tier: HardwareTier) -> ModelRecommendation:
             estimated_vram_gb=0,
             can_full_gpu_offload=False,
             deployment_method="llama.cpp 多卡/CPU+GPU混合",
-            notes="需要256GB RAM，82%精度保留"
+            notes="需要256GB RAM，82%精度保留",
         ),
     }
     return recommendations.get(tier, recommendations[HardwareTier.NANO])
@@ -253,7 +262,7 @@ def print_hardware_report():
     print(f"{'可用内存':<20} {info.available_ram_gb:.1f} GB{'':<30}")
     print(f"{'GPU型号':<20} {info.gpu_name:<40}")
     print(f"{'GPU显存':<20} {info.gpu_vram_total_gb:.1f} GB{'':<30}")
-    print(f"{'GPU可用显存':<20} {info.gpu_vram_free_mb/1024:.1f} GB{'':<30}")
+    print(f"{'GPU可用显存':<20} {info.gpu_vram_free_mb / 1024:.1f} GB{'':<30}")
     print("-" * 60)
     print(f"{'推荐档位':<20} {tier.value.upper():<40}")
     print(f"{'推荐模型':<20} {rec.model_name:<40}")

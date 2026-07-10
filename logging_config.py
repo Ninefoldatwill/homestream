@@ -6,6 +6,7 @@
 """
 
 import logging
+
 import structlog
 
 from log_sanitizer import redact_sensitive_data
@@ -29,14 +30,13 @@ def configure_logging(log_level: str = "INFO"):
     is_dev = log_level.upper() == "DEBUG"
 
     structlog.configure(
-        processors=shared_processors + [
+        processors=shared_processors
+        + [
             structlog.dev.ConsoleRenderer(colors=True)
             if is_dev
             else structlog.processors.JSONRenderer(),
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(logging, log_level.upper())
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(getattr(logging, log_level.upper())),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=True,

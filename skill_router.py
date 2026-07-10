@@ -26,47 +26,50 @@ Skill Router v1.0 — 轻量级技能调度中枢
 from __future__ import annotations
 
 import json
-import re
 import os
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass
 from enum import IntEnum
-from typing import Optional, Any
-
+from typing import Any
 
 # ─── 优先级枚举 ────────────────────────────────────────────
 
+
 class Priority(IntEnum):
-    P0_CORE = 0       # 核心：必选加载
-    P1_ENHANCE = 1    # 增强：常备技能
-    P2_SCENE = 2      # 场景：按需加载
-    P3_TOOL = 3       # 工具：低频使用
+    P0_CORE = 0  # 核心：必选加载
+    P1_ENHANCE = 1  # 增强：常备技能
+    P2_SCENE = 2  # 场景：按需加载
+    P3_TOOL = 3  # 工具：低频使用
 
 
 # ─── 数据模型 ──────────────────────────────────────────────
 
+
 @dataclass
 class SkillEntry:
     """单个Skill的注册信息"""
+
     id: str
     name: str
     category: str
-    priority: int                     # 0-3, 对应 Priority 枚举
-    role: str                         # 澜舟/灵犀/千寻/澜澜/all
-    triggers: list[str]               # 触发关键词
+    priority: int  # 0-3, 对应 Priority 枚举
+    role: str  # 澜舟/灵犀/千寻/澜澜/all
+    triggers: list[str]  # 触发关键词
     description: str
-    source: str = "user"              # user/market/builtin
-    status: str = "active"            # active/disabled/deprecated
-    hit_count: int = 0                # 调用次数（运行时统计）
-    last_used: Optional[str] = None   # 最后调用时间
+    source: str = "user"  # user/market/builtin
+    status: str = "active"  # active/disabled/deprecated
+    hit_count: int = 0  # 调用次数（运行时统计）
+    last_used: str | None = None  # 最后调用时间
 
 
 @dataclass
 class RouteResult:
     """路由推荐结果"""
-    recommended_skill: Optional[SkillEntry]
+
+    recommended_skill: SkillEntry | None
     candidates: list[SkillEntry]
-    confidence: float                 # 0.0 ~ 1.0
-    strategy: str                     # keyword/fallback/none
+    confidence: float  # 0.0 ~ 1.0
+    strategy: str  # keyword/fallback/none
     reason: str
 
     def summary(self) -> str:
@@ -82,6 +85,7 @@ class RouteResult:
 
 
 # ─── 核心路由器 ────────────────────────────────────────────
+
 
 class SkillRouter:
     """
@@ -100,7 +104,7 @@ class SkillRouter:
 
     def load(self, json_path: str) -> int:
         """从JSON文件加载注册表，返回加载数量"""
-        with open(json_path, "r", encoding="utf-8") as f:
+        with open(json_path, encoding="utf-8") as f:
             data = json.load(f)
 
         self._version = data.get("version", "0.0.0")
@@ -153,7 +157,7 @@ class SkillRouter:
         """注销Skill"""
         return self._skills.pop(skill_id, None) is not None
 
-    def get(self, skill_id: str) -> Optional[SkillEntry]:
+    def get(self, skill_id: str) -> SkillEntry | None:
         """按ID获取Skill"""
         return self._skills.get(skill_id)
 
@@ -178,10 +182,7 @@ class SkillRouter:
         """获取角色可用的Skill（含 role=all 的）"""
         if role == "all":
             return self.all_skills()
-        return [
-            s for s in self.all_skills()
-            if s.role == role or s.role == "all"
-        ]
+        return [s for s in self.all_skills() if s.role == role or s.role == "all"]
 
     # ── 核心路由 ────────────────────────────────────
 
@@ -289,7 +290,7 @@ class SkillRouter:
         这样保证低优先级但精确匹配的Skill不会被高优先级但无关的Skill挤掉。
         """
         query_lower = query.lower()
-        query_tokens = set(re.findall(r'[\w\u4e00-\u9fff]+', query_lower))
+        query_tokens = set(re.findall(r"[\w\u4e00-\u9fff]+", query_lower))
 
         scored: list[tuple[SkillEntry, float]] = []
 
@@ -303,15 +304,15 @@ class SkillRouter:
                     score += 2.0  # 精确包含
                 else:
                     # 模糊：触发词的token是否在query中
-                    trigger_tokens = set(re.findall(r'[\w\u4e00-\u9fff]+', trigger_lower))
+                    trigger_tokens = set(re.findall(r"[\w\u4e00-\u9fff]+", trigger_lower))
                     overlap = trigger_tokens & query_tokens
                     if overlap:
                         score += len(overlap) * 0.5
 
                     # 中文字符级匹配（解决分词问题）
                     # "图片生成" vs "生成图片" → 字符重叠但token不同
-                    trigger_cn_chars = set(c for c in trigger_lower if '\u4e00' <= c <= '\u9fff')
-                    query_cn_chars = set(c for c in query_lower if '\u4e00' <= c <= '\u9fff')
+                    trigger_cn_chars = set(c for c in trigger_lower if "\u4e00" <= c <= "\u9fff")
+                    query_cn_chars = set(c for c in query_lower if "\u4e00" <= c <= "\u9fff")
                     if trigger_cn_chars and query_cn_chars:
                         char_overlap = trigger_cn_chars & query_cn_chars
                         if len(char_overlap) >= 3:  # 至少3个汉字重叠才算匹配
@@ -320,7 +321,7 @@ class SkillRouter:
                                 score += 1.5 * ratio  # 字符级匹配加分
 
             # 2. 描述重叠
-            desc_tokens = set(re.findall(r'[\w\u4e00-\u9fff]+', skill.description.lower()))
+            desc_tokens = set(re.findall(r"[\w\u4e00-\u9fff]+", skill.description.lower()))
             desc_overlap = desc_tokens & query_tokens
             score += len(desc_overlap) * 0.3
 
@@ -392,6 +393,7 @@ class SkillRouter:
 
 
 # ─── 工厂函数 ──────────────────────────────────────────────
+
 
 def create_router(registry_path: str | None = None) -> SkillRouter:
     """

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from event_store import EventStore
@@ -33,10 +33,19 @@ logger = logging.getLogger(__name__)
 # ==================== 常量 ====================
 
 # EventType 合法值集合
-VALID_EVENT_TYPES = frozenset({
-    "INFO", "ASK", "TASK", "UPD", "DONE",
-    "WARN", "ACK", "PING", "LOG",
-})
+VALID_EVENT_TYPES = frozenset(
+    {
+        "INFO",
+        "ASK",
+        "TASK",
+        "UPD",
+        "DONE",
+        "WARN",
+        "ACK",
+        "PING",
+        "LOG",
+    }
+)
 
 # Agent 名称长度限制
 MAX_AGENT_NAME_LEN = 64
@@ -51,7 +60,8 @@ MAX_EVENTS_TO_CHECK = 500
 
 # ==================== 校验结果数据结构 ====================
 
-def _empty_result(name: str) -> Dict[str, Any]:
+
+def _empty_result(name: str) -> dict[str, Any]:
     """创建空的校验结果"""
     return {
         "name": name,
@@ -63,46 +73,45 @@ def _empty_result(name: str) -> Dict[str, Any]:
 
 
 def _add_issue(
-    result: Dict[str, Any],
+    result: dict[str, Any],
     severity: str,
     message: str,
     event_id: str = "",
     detail: str = "",
 ) -> None:
     """添加一个校验问题"""
-    result["issues"].append({
-        "severity": severity,
-        "message": message,
-        "event_id": event_id,
-        "detail": detail,
-    })
+    result["issues"].append(
+        {
+            "severity": severity,
+            "message": message,
+            "event_id": event_id,
+            "detail": detail,
+        }
+    )
     if severity == "error":
         result["status"] = "error"
     elif severity == "warn" and result["status"] != "error":
         result["status"] = "warn"
 
 
-def _calc_score(result: Dict[str, Any]) -> float:
+def _calc_score(result: dict[str, Any]) -> float:
     """根据问题数量和严重程度计算分数 (0.0-1.0)"""
     total = result["total_checked"]
     if total == 0:
         return 1.0
-    errors = sum(
-        1 for i in result["issues"] if i["severity"] == "error"
-    )
-    warns = sum(
-        1 for i in result["issues"] if i["severity"] == "warn"
-    )
+    errors = sum(1 for i in result["issues"] if i["severity"] == "error")
+    warns = sum(1 for i in result["issues"] if i["severity"] == "warn")
     penalty = (errors * 10 + warns * 2) / total
     return round(max(0.0, 1.0 - penalty), 4)
 
 
 # ==================== 1. 因果链完整性校验 ====================
 
+
 def validate_causal_chain(
-    events: List[Any],
-    event_store: Optional["EventStore"] = None,
-) -> Dict[str, Any]:
+    events: list[Any],
+    event_store: EventStore | None = None,
+) -> dict[str, Any]:
     """校验事件因果链完整性
 
     检查每个事件的 cause 字段（如果非空）所引用的事件是否存在。
@@ -155,7 +164,8 @@ def validate_causal_chain(
 
 # ==================== 2. 时间戳连续性校验 ====================
 
-def validate_timestamps(events: List[Any]) -> Dict[str, Any]:
+
+def validate_timestamps(events: list[Any]) -> dict[str, Any]:
     """校验时间戳连续性
 
     检查事件时间戳是否大致单调递增。
@@ -168,7 +178,7 @@ def validate_timestamps(events: List[Any]) -> Dict[str, Any]:
     result = _empty_result("\u65f6\u95f4\u6233\u8fde\u7eed\u6027")
 
     now = datetime.now()
-    prev_ts: Optional[datetime] = None
+    prev_ts: datetime | None = None
 
     for ev in events:
         result["total_checked"] += 1
@@ -177,7 +187,8 @@ def validate_timestamps(events: List[Any]) -> Dict[str, Any]:
 
         if ts is None:
             _add_issue(
-                result, "error",
+                result,
+                "error",
                 "\u65f6\u95f4\u6233\u4e3a\u7a7a",
                 event_id=ev_id,
             )
@@ -189,7 +200,8 @@ def validate_timestamps(events: List[Any]) -> Dict[str, Any]:
                 ts = datetime.fromisoformat(ts)
             except (ValueError, TypeError):
                 _add_issue(
-                    result, "error",
+                    result,
+                    "error",
                     "\u65f6\u95f4\u6233\u683c\u5f0f\u65e0\u6548",
                     event_id=ev_id,
                     detail=f"ts={str(ts)[:32]}",
@@ -198,7 +210,8 @@ def validate_timestamps(events: List[Any]) -> Dict[str, Any]:
 
         if not isinstance(ts, datetime):
             _add_issue(
-                result, "warn",
+                result,
+                "warn",
                 "\u65f6\u95f4\u6233\u7c7b\u578b\u5f02\u5e38",
                 event_id=ev_id,
                 detail=type(ts).__name__,
@@ -210,7 +223,8 @@ def validate_timestamps(events: List[Any]) -> Dict[str, Any]:
             delta = (ts - now).total_seconds()
             if delta > 5:
                 _add_issue(
-                    result, "warn",
+                    result,
+                    "warn",
                     "\u672a\u6765\u65f6\u95f4\u6233",
                     event_id=ev_id,
                     detail=f"\u8d85\u524d{delta:.0f}s",
@@ -221,7 +235,8 @@ def validate_timestamps(events: List[Any]) -> Dict[str, Any]:
             delta = (prev_ts - ts).total_seconds()
             if delta > 60:
                 _add_issue(
-                    result, "warn",
+                    result,
+                    "warn",
                     "\u65f6\u95f4\u5012\u6d41",
                     event_id=ev_id,
                     detail=f"\u5012\u9000{delta:.0f}s",
@@ -235,14 +250,15 @@ def validate_timestamps(events: List[Any]) -> Dict[str, Any]:
 
 # ==================== 3. 事件类型合法性校验 ====================
 
-def validate_event_types(events: List[Any]) -> Dict[str, Any]:
+
+def validate_event_types(events: list[Any]) -> dict[str, Any]:
     """校验事件类型合法性
 
     检查每个事件的 event_type 是否在 EventType 枚举定义的9种合法值中。
     """
     result = _empty_result("\u4e8b\u4ef6\u7c7b\u578b\u5408\u6cd5\u6027")
 
-    type_counter: Dict[str, int] = {}
+    type_counter: dict[str, int] = {}
 
     for ev in events:
         result["total_checked"] += 1
@@ -261,13 +277,15 @@ def validate_event_types(events: List[Any]) -> Dict[str, Any]:
 
         if not ev_type_str:
             _add_issue(
-                result, "error",
+                result,
+                "error",
                 "\u4e8b\u4ef6\u7c7b\u578b\u4e3a\u7a7a",
                 event_id=ev_id,
             )
         elif ev_type_str not in VALID_EVENT_TYPES:
             _add_issue(
-                result, "error",
+                result,
+                "error",
                 "\u975e\u6cd5\u4e8b\u4ef6\u7c7b\u578b",
                 event_id=ev_id,
                 detail=f"type={ev_type_str[:20]}",
@@ -280,7 +298,8 @@ def validate_event_types(events: List[Any]) -> Dict[str, Any]:
 
 # ==================== 4. Agent 身份有效性校验 ====================
 
-def validate_agent_identity(events: List[Any]) -> Dict[str, Any]:
+
+def validate_agent_identity(events: list[Any]) -> dict[str, Any]:
     """校验 Agent 身份有效性
 
     检查 sender 和 recipient 字段：
@@ -291,21 +310,24 @@ def validate_agent_identity(events: List[Any]) -> Dict[str, Any]:
     result = _empty_result("Agent \u8eab\u4efd\u6709\u6548\u6027")
 
     # 已知 Agent 集合（从事件中提取）
-    known_agents: Dict[str, int] = {}
+    known_agents: dict[str, int] = {}
 
     # 注入特征模式
     injection_patterns = [
-        "<script", "javascript:", "data:text/html",
-        "onerror=", "onload=", "eval(",
+        "<script",
+        "javascript:",
+        "data:text/html",
+        "onerror=",
+        "onload=",
+        "eval(",
     ]
 
-    def _check_agent_field(
-        value: str, field_name: str, ev_id: str
-    ) -> None:
+    def _check_agent_field(value: str, field_name: str, ev_id: str) -> None:
         """检查单个 agent 字段"""
         if not value or not value.strip():
             _add_issue(
-                result, "error",
+                result,
+                "error",
                 f"{field_name} \u4e3a\u7a7a",
                 event_id=ev_id,
             )
@@ -313,7 +335,8 @@ def validate_agent_identity(events: List[Any]) -> Dict[str, Any]:
 
         if len(value) > MAX_AGENT_NAME_LEN:
             _add_issue(
-                result, "warn",
+                result,
+                "warn",
                 f"{field_name} \u8d85\u957f",
                 event_id=ev_id,
                 detail=f"len={len(value)}",
@@ -323,7 +346,8 @@ def validate_agent_identity(events: List[Any]) -> Dict[str, Any]:
         for pattern in injection_patterns:
             if pattern in value_lower:
                 _add_issue(
-                    result, "error",
+                    result,
+                    "error",
                     f"{field_name} \u542b\u6ce8\u5165\u98ce\u9669",
                     event_id=ev_id,
                     detail=f"pattern={pattern}",
@@ -352,11 +376,12 @@ def validate_agent_identity(events: List[Any]) -> Dict[str, Any]:
 
 # ==================== 统一审计入口 ====================
 
+
 def run_full_audit(
-    event_store: Optional["EventStore"] = None,
+    event_store: EventStore | None = None,
     session_id: str = "default",
     max_events: int = MAX_EVENTS_TO_CHECK,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """对 EventStore 执行全量质量审计
 
     依次执行四维校验，汇总为统一的质量报告。
@@ -389,9 +414,7 @@ def run_full_audit(
 
     # 获取事件数据
     try:
-        events = event_store.query_by_session(
-            session_id, limit=max_events, newest_first=False
-        )
+        events = event_store.query_by_session(session_id, limit=max_events, newest_first=False)
     except Exception as e:
         logger.warning(f"\u6570\u636e\u8d28\u91cf\u5ba1\u8ba1\u67e5\u8be2\u5931\u8d25: {e}")
         return {
@@ -444,18 +467,8 @@ def run_full_audit(
 
     # 统计问题数
     total_issues = sum(len(c["issues"]) for c in checks.values())
-    error_count = sum(
-        1
-        for c in checks.values()
-        for i in c["issues"]
-        if i["severity"] == "error"
-    )
-    warn_count = sum(
-        1
-        for c in checks.values()
-        for i in c["issues"]
-        if i["severity"] == "warn"
-    )
+    error_count = sum(1 for c in checks.values() for i in c["issues"] if i["severity"] == "error")
+    warn_count = sum(1 for c in checks.values() for i in c["issues"] if i["severity"] == "warn")
 
     return {
         "timestamp": timestamp,

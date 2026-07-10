@@ -10,14 +10,11 @@ V8多模态生态·语音入口
 
 from __future__ import annotations
 
-import os
 import json
-import base64
 import logging
+import os
 import subprocess
 import tempfile
-from pathlib import Path
-from typing import Optional, List, Dict
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -26,34 +23,38 @@ logger = logging.getLogger(__name__)
 
 class STTEngine(Enum):
     """语音识别引擎"""
-    WHISPER_CPP = "whisper_cpp"      # 本地·离线·零费用
-    CLOUD_FALLBACK = "cloud_fallback" # 云端备选
+
+    WHISPER_CPP = "whisper_cpp"  # 本地·离线·零费用
+    CLOUD_FALLBACK = "cloud_fallback"  # 云端备选
 
 
 class STTLanguage(Enum):
     """支持的语言"""
-    ZH = "zh"       # 中文（默认）
-    EN = "en"       # 英文
-    AUTO = "auto"   # 自动检测
+
+    ZH = "zh"  # 中文（默认）
+    EN = "en"  # 英文
+    AUTO = "auto"  # 自动检测
 
 
 @dataclass
 class STTConfig:
     """STT配置"""
+
     engine: STTEngine = STTEngine.WHISPER_CPP
     language: STTLanguage = STTLanguage.AUTO
-    whisper_binary: str = "whisper-cli"       # whisper.cpp 可执行文件路径
-    whisper_model: str = "ggml-base-q5_1.bin" # 模型文件路径
+    whisper_binary: str = "whisper-cli"  # whisper.cpp 可执行文件路径
+    whisper_model: str = "ggml-base-q5_1.bin"  # 模型文件路径
     sample_rate: int = 16000
-    offline_only: bool = True                  # 开源线默认脱网
+    offline_only: bool = True  # 开源线默认脱网
 
 
 @dataclass
 class STTResult:
     """语音识别结果"""
+
     text: str
     language: str = "zh"
-    segments: List[Dict] = field(default_factory=list)
+    segments: list[dict] = field(default_factory=list)
     duration_ms: float = 0.0
     engine_used: str = "whisper_cpp"
 
@@ -61,13 +62,13 @@ class STTResult:
 class STTProvider:
     """语音转文字 Provider"""
 
-    def __init__(self, config: Optional[STTConfig] = None):
+    def __init__(self, config: STTConfig | None = None):
         self.config = config or STTConfig()
         self._whisper_available = self._check_whisper()
 
     # ── 公开API ──────────────────────────────────
 
-    def transcribe(self, audio_path: str, language: Optional[STTLanguage] = None) -> STTResult:
+    def transcribe(self, audio_path: str, language: STTLanguage | None = None) -> STTResult:
         """转录本地音频文件
 
         Args:
@@ -84,7 +85,7 @@ class STTProvider:
         elif not self.config.offline_only:
             return self._transcribe_cloud(audio_path, lang)
         else:
-            logger.warning(f"whisper.cpp 不可用且 offline_only=True，返回空结果")
+            logger.warning("whisper.cpp 不可用且 offline_only=True，返回空结果")
             return STTResult(text="[STT不可用]", engine_used="none")
 
     def transcribe_bytes(self, audio_bytes: bytes, format: str = "wav") -> STTResult:
@@ -110,8 +111,7 @@ class STTProvider:
         """检测 whisper.cpp 是否可用"""
         try:
             result = subprocess.run(
-                [self.config.whisper_binary, "--version"],
-                capture_output=True, text=True, timeout=5
+                [self.config.whisper_binary, "--version"], capture_output=True, text=True, timeout=5
             )
             return result.returncode == 0
         except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -123,17 +123,18 @@ class STTProvider:
         lang_arg = language.value if language != STTLanguage.AUTO else "auto"
         cmd = [
             self.config.whisper_binary,
-            "-m", self.config.whisper_model,
-            "-f", audio_path,
-            "-l", lang_arg,
-            "-oj",    # JSON输出
-            "-nt",    # 不翻译
+            "-m",
+            self.config.whisper_model,
+            "-f",
+            audio_path,
+            "-l",
+            lang_arg,
+            "-oj",  # JSON输出
+            "-nt",  # 不翻译
         ]
 
         try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=120
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             if result.returncode != 0:
                 logger.error(f"whisper 转录失败: {result.stderr}")
                 return STTResult(text="", engine_used="whisper_cpp")
@@ -166,9 +167,12 @@ class STTProvider:
 
 # ── 便捷工厂 ──────────────────────────────────
 
+
 def create_stt_provider(offline_only: bool = True) -> STTProvider:
     """创建STT Provider（开源线·默认离线）"""
-    return STTProvider(STTConfig(
-        engine=STTEngine.WHISPER_CPP,
-        offline_only=offline_only,
-    ))
+    return STTProvider(
+        STTConfig(
+            engine=STTEngine.WHISPER_CPP,
+            offline_only=offline_only,
+        )
+    )

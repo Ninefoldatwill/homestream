@@ -24,24 +24,22 @@ OpenBridge CLI — 五维重构版（Typer + Rich）
   openbridge test                运行测试
 """
 
+import json
 import os
-import sys
-import subprocess
 import platform
 import shutil
-import json
+import subprocess
+import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 import typer
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
-from rich.align import Align
-from rich.text import Text
 from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
+from rich.table import Table
+from rich.text import Text
 
 # ============================================================
 # 常量
@@ -75,23 +73,28 @@ console = Console()
 # 版本展示
 # ============================================================
 
+
 def version_callback(value: bool):
     if value:
         # Rich 格式化版本展示（独树一帜！）
         version_text = Text()
-        version_text.append(f"OpenBridge ", style="bold cyan")
+        version_text.append("OpenBridge ", style="bold cyan")
         version_text.append(f"v{VERSION}", style="bold green")
         version_text.append("\n")
         version_text.append("弹性模式 + ICP协议 + 双保障 + 自进化生态", style="italic")
         version_text.append("\n")
-        version_text.append(f"Python {platform.python_version()} on {platform.system()}", style="dim")
+        version_text.append(
+            f"Python {platform.python_version()} on {platform.system()}", style="dim"
+        )
         console.print(Panel(version_text, title="[bold]🌉 OpenBridge[/bold]", border_style="cyan"))
         raise typer.Exit()
 
 
 @app.callback()
 def main_callback(
-    version: bool = typer.Option(False, "--version", "-v", help="显示版本号", callback=version_callback, is_eager=True),
+    version: bool = typer.Option(
+        False, "--version", "-v", help="显示版本号", callback=version_callback, is_eager=True
+    ),
 ):
     """OpenBridge — 有温度的自进化AI生态操作系统
 
@@ -109,20 +112,23 @@ def main_callback(
 # init 命令 — Rich进度条 + 硬件检测
 # ============================================================
 
+
 @app.command()
 def init(
     force: bool = typer.Option(False, "--force", "-f", help="覆盖已有.env文件"),
-    mode: Optional[str] = typer.Option(None, "--mode", "-m", help="非交互模式：solo/team/ecosystem"),
+    mode: str | None = typer.Option(None, "--mode", "-m", help="非交互模式：solo/team/ecosystem"),
 ):
     """初始化项目（硬件检测 + 模式推荐 + .env创建 + 环境验证）
 
     非交互模式（用于脚本/CI）:
       [cyan]openbridge init --mode team --force[/]
     """
-    console.print(Panel(
-        "[bold cyan]OpenBridge 初始化向导[/bold cyan]\n融众之优，铸己之新",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            "[bold cyan]OpenBridge 初始化向导[/bold cyan]\n融众之优，铸己之新",
+            border_style="cyan",
+        )
+    )
 
     with Progress(
         SpinnerColumn(),
@@ -131,7 +137,6 @@ def init(
         TaskProgressColumn(),
         console=console,
     ) as progress:
-
         # Step 1: 硬件检测
         task1 = progress.add_task("[cyan][1/4] 检测硬件环境...", total=100)
         hw = _detect_hardware()
@@ -155,7 +160,9 @@ def init(
         "ecosystem": ("🟣 Ecosystem", "生态扩展（完整功能+外部服务）", "magenta"),
     }
     label, desc, color = mode_info[recommended]
-    console.print(Panel(f"[bold]推荐: {label}[/bold]\n{desc}", title="模式推荐", border_style=color))
+    console.print(
+        Panel(f"[bold]推荐: {label}[/bold]\n{desc}", title="模式推荐", border_style=color)
+    )
 
     # 交互选择模式或使用指定模式
     if mode:
@@ -184,20 +191,23 @@ def init(
     _verify_environment_rich()
 
     # 完成面板（独树一帜！）
-    console.print(Panel(
-        "[bold green]✓ 初始化完成![/bold green]\n\n"
-        "[cyan]下一步:[/cyan]\n"
-        "  1. 编辑 .env 填入 Agent Token 和 API Key\n"
-        "  2. [cyan]openbridge start[/cyan] 启动服务\n"
-        "  3. 访问 [link=http://localhost:3458/docs]http://localhost:3458/docs[/link]",
-        title="[bold]🎉 欢迎加入九重生态[/bold]",
-        border_style="green",
-    ))
+    console.print(
+        Panel(
+            "[bold green]✓ 初始化完成![/bold green]\n\n"
+            "[cyan]下一步:[/cyan]\n"
+            "  1. 编辑 .env 填入 Agent Token 和 API Key\n"
+            "  2. [cyan]openbridge start[/cyan] 启动服务\n"
+            "  3. 访问 [link=http://localhost:3458/docs]http://localhost:3458/docs[/link]",
+            title="[bold]🎉 欢迎加入九重生态[/bold]",
+            border_style="green",
+        )
+    )
 
 
 # ============================================================
 # start 命令
 # ============================================================
+
 
 @app.command()
 def start(
@@ -213,12 +223,14 @@ def start(
     if PID_FILE.exists():
         old_pid = PID_FILE.read_text().strip()
         if _is_process_running(old_pid):
-            console.print(Panel(
-                f"[yellow]服务已在运行[/yellow] (PID: {old_pid})\n\n"
-                "[cyan]openbridge stop[/cyan]  停止服务\n"
-                "[cyan]openbridge status[/cyan]  查看状态",
-                border_style="yellow",
-            ))
+            console.print(
+                Panel(
+                    f"[yellow]服务已在运行[/yellow] (PID: {old_pid})\n\n"
+                    "[cyan]openbridge stop[/cyan]  停止服务\n"
+                    "[cyan]openbridge status[/cyan]  查看状态",
+                    border_style="yellow",
+                )
+            )
             return
         else:
             PID_FILE.unlink()
@@ -247,26 +259,32 @@ def start(
         time.sleep(2)
 
         if _check_health(port):
-            console.print(Panel(
-                f"[bold green]✓ 服务已启动[/bold green] (PID: {proc.pid})\n\n"
-                f"[link=http://localhost:{port}/docs]API文档[/link]\n"
-                f"[link=http://localhost:{port}/meeting]会议室[/link]\n"
-                f"[link=http://localhost:{port}/metrics]指标[/link]",
-                border_style="green",
-            ))
+            console.print(
+                Panel(
+                    f"[bold green]✓ 服务已启动[/bold green] (PID: {proc.pid})\n\n"
+                    f"[link=http://localhost:{port}/docs]API文档[/link]\n"
+                    f"[link=http://localhost:{port}/meeting]会议室[/link]\n"
+                    f"[link=http://localhost:{port}/metrics]指标[/link]",
+                    border_style="green",
+                )
+            )
         else:
-            console.print(Panel(
-                "[yellow]服务可能启动失败[/yellow]\n[cyan]openbridge doctor[/cyan] 诊断问题",
-                border_style="yellow",
-            ))
+            console.print(
+                Panel(
+                    "[yellow]服务可能启动失败[/yellow]\n[cyan]openbridge doctor[/cyan] 诊断问题",
+                    border_style="yellow",
+                )
+            )
     else:
-        console.print(Panel(
-            f"[cyan]前台运行[/cyan]\n\n"
-            f"地址: http://localhost:{port}\n"
-            f"API: http://localhost:{port}/docs\n"
-            f"[dim]按 Ctrl+C 停止[/dim]",
-            border_style="cyan",
-        ))
+        console.print(
+            Panel(
+                f"[cyan]前台运行[/cyan]\n\n"
+                f"地址: http://localhost:{port}\n"
+                f"API: http://localhost:{port}/docs\n"
+                f"[dim]按 Ctrl+C 停止[/dim]",
+                border_style="cyan",
+            )
+        )
 
         env = os.environ.copy()
         env["HOST"] = host
@@ -282,6 +300,7 @@ def start(
 # ============================================================
 # stop 命令
 # ============================================================
+
 
 @app.command()
 def stop(
@@ -326,6 +345,7 @@ def stop(
 # ============================================================
 # status 命令 — Rich表格+面板
 # ============================================================
+
 
 @app.command()
 def status(
@@ -389,7 +409,11 @@ def status(
             f"[bold {dual_color}]{dual_status}[/bold {dual_color}]\n\n"
             f"主线路: L1(Qwen) + L2(GLM) — 10秒超时\n"
             f"复线:   L3(DeepSeek) — 15秒超时\n"
-            + ("主线路失败→自动切换复线" if dual_enabled else "[dim]设置 MODEL_ROUTER_DUAL_REDUNDANCY=true[/dim]"),
+            + (
+                "主线路失败→自动切换复线"
+                if dual_enabled
+                else "[dim]设置 MODEL_ROUTER_DUAL_REDUNDANCY=true[/dim]"
+            ),
             title="[bold]双保障[/bold]",
             border_style=dual_color,
         )
@@ -400,9 +424,10 @@ def status(
 # mode 命令 — Rich功能矩阵表格（独树一帜！）
 # ============================================================
 
+
 @app.command()
 def mode(
-    mode_name: Optional[str] = typer.Argument(None, help="模式名: solo/team/ecosystem"),
+    mode_name: str | None = typer.Argument(None, help="模式名: solo/team/ecosystem"),
 ):
     """查看或切换弹性模式
 
@@ -468,15 +493,17 @@ def mode(
             feature_table.add_row(feat, s_mark, t_mark, e_mark)
 
         console.print(feature_table)
-        console.print(Panel(
-            f"[bold]当前模式: {mode_labels.get(current, current)}[/bold]\n"
-            f"{mode_desc.get(current, '未配置')}\n\n"
-            "[cyan]切换模式:[/cyan]\n"
-            "  [green]openbridge mode solo[/]       轻量模式\n"
-            "  [cyan]openbridge mode team[/]        团队模式（推荐）\n"
-            "  [magenta]openbridge mode ecosystem[/]  生态模式",
-            border_style=current_color,
-        ))
+        console.print(
+            Panel(
+                f"[bold]当前模式: {mode_labels.get(current, current)}[/bold]\n"
+                f"{mode_desc.get(current, '未配置')}\n\n"
+                "[cyan]切换模式:[/cyan]\n"
+                "  [green]openbridge mode solo[/]       轻量模式\n"
+                "  [cyan]openbridge mode team[/]        团队模式（推荐）\n"
+                "  [magenta]openbridge mode ecosystem[/]  生态模式",
+                border_style=current_color,
+            )
+        )
     else:
         # 切换模式
         valid_modes = ["solo", "team", "ecosystem"]
@@ -499,20 +526,27 @@ def mode(
         # 显示切换后的功能矩阵
         color = mode_colors[mode_name]
         label = mode_labels[mode_name]
-        enabled = [feat for feat, s, t, e in all_features if {"solo": s, "team": t, "ecosystem": e}[mode_name]]
+        enabled = [
+            feat
+            for feat, s, t, e in all_features
+            if {"solo": s, "team": t, "ecosystem": e}[mode_name]
+        ]
 
-        console.print(Panel(
-            f"[bold]模式已切换: {label}[/bold]\n\n"
-            f"[bold]启用 {len(enabled)} 个功能:[/bold]\n"
-            f"  {', '.join(enabled)}\n\n"
-            f"[dim]重启服务使配置生效: openbridge stop && openbridge start[/dim]",
-            border_style=color,
-        ))
+        console.print(
+            Panel(
+                f"[bold]模式已切换: {label}[/bold]\n\n"
+                f"[bold]启用 {len(enabled)} 个功能:[/bold]\n"
+                f"  {', '.join(enabled)}\n\n"
+                f"[dim]重启服务使配置生效: openbridge stop && openbridge start[/dim]",
+                border_style=color,
+            )
+        )
 
 
 # ============================================================
 # doctor 命令 — Rich面板+表格全息诊断
 # ============================================================
+
 
 @app.command()
 def doctor(
@@ -529,11 +563,12 @@ def doctor(
       5. 双保障配置
       6. 数据库状态
     """
-    console.print(Panel(
-        "[bold cyan]OpenBridge 全息诊断[/bold cyan]\n"
-        "六项检查 + 自动修复（--fix）",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            "[bold cyan]OpenBridge 全息诊断[/bold cyan]\n六项检查 + 自动修复（--fix）",
+            border_style="cyan",
+        )
+    )
 
     issues = []
 
@@ -544,7 +579,9 @@ def doctor(
     py_table.add_column("状态", width=6)
 
     py_ok = sys.version_info >= (3, 10)
-    py_table.add_row("Python版本", platform.python_version(), "[green]✓[/green]" if py_ok else "[red]✗[/red]")
+    py_table.add_row(
+        "Python版本", platform.python_version(), "[green]✓[/green]" if py_ok else "[red]✗[/red]"
+    )
 
     # 关键依赖
     deps = ["fastapi", "uvicorn", "pydantic", "structlog", "prometheus_client", "typer", "rich"]
@@ -562,7 +599,11 @@ def doctor(
     console.print(py_table)
 
     # 2. .env配置
-    env_checks = [("AGENT_TOKEN", "Agent Token"), ("OPENBRIDGE_MODE", "部署模式"), ("DEEPSEEK_API_KEY", "DeepSeek复线")]
+    env_checks = [
+        ("AGENT_TOKEN", "Agent Token"),
+        ("OPENBRIDGE_MODE", "部署模式"),
+        ("DEEPSEEK_API_KEY", "DeepSeek复线"),
+    ]
     env_table = Table(title="[2/6] 配置文件", box=box.SIMPLE, show_header=True)
     env_table.add_column("配置项", style="cyan")
     env_table.add_column("描述")
@@ -593,16 +634,23 @@ def doctor(
     svc_status = "[green]✓ 运行中[/green]" if health else "[yellow]⚠ 未运行[/yellow]"
     if not health:
         issues.append("服务未运行")
-    console.print(Panel(
-        f"[3/6] 服务状态\n\n{svc_status}\n"
-        + (f"版本: {health.get('version', '?')}\n模式: {health.get('mode', '?')}" if health else "[dim]启动服务: openbridge start[/dim]"),
-        border_style="green" if health else "yellow",
-    ))
+    console.print(
+        Panel(
+            f"[3/6] 服务状态\n\n{svc_status}\n"
+            + (
+                f"版本: {health.get('version', '?')}\n模式: {health.get('mode', '?')}"
+                if health
+                else "[dim]启动服务: openbridge start[/dim]"
+            ),
+            border_style="green" if health else "yellow",
+        )
+    )
 
     # 4. 模型路由
     try:
         sys.path.insert(0, str(PROJECT_ROOT))
         from model_router import ModelRouter
+
         router = ModelRouter()
         router.auto_init_from_env()
         providers = router.registry.get_all()
@@ -635,14 +683,20 @@ def doctor(
 
     dual_color = "green" if dual_enabled else "yellow"
     dual_status = "✓ 已启用" if dual_enabled else "⚠ 未启用"
-    console.print(Panel(
-        f"[5/6] 双保障配置\n\n"
-        f"[bold]{dual_status}[/bold]\n\n"
-        f"主线路: L1(Qwen本地) + L2(GLM免费) — 10秒超时\n"
-        f"复线:   L3(DeepSeek) — 15秒超时\n"
-        + ("主线路失败→10秒内自动切换复线" if dual_enabled else "[dim]启用: MODEL_ROUTER_DUAL_REDUNDANCY=true[/dim]"),
-        border_style=dual_color,
-    ))
+    console.print(
+        Panel(
+            f"[5/6] 双保障配置\n\n"
+            f"[bold]{dual_status}[/bold]\n\n"
+            f"主线路: L1(Qwen本地) + L2(GLM免费) — 10秒超时\n"
+            f"复线:   L3(DeepSeek) — 15秒超时\n"
+            + (
+                "主线路失败→10秒内自动切换复线"
+                if dual_enabled
+                else "[dim]启用: MODEL_ROUTER_DUAL_REDUNDANCY=true[/dim]"
+            ),
+            border_style=dual_color,
+        )
+    )
     if not dual_enabled:
         issues.append("双保障未启用")
 
@@ -650,31 +704,38 @@ def doctor(
     db_path = PROJECT_ROOT / "events_v7.db"
     db_status = "[green]✓[/green]" if db_path.exists() else "[yellow]首次启动自动创建[/yellow]"
     db_info = f"{db_path.stat().st_size / (1024 * 1024):.1f} MB" if db_path.exists() else "不存在"
-    console.print(Panel(
-        f"[6/6] 数据库\n\n{db_status}\n大小: {db_info}",
-        border_style="green" if db_path.exists() else "yellow",
-    ))
+    console.print(
+        Panel(
+            f"[6/6] 数据库\n\n{db_status}\n大小: {db_info}",
+            border_style="green" if db_path.exists() else "yellow",
+        )
+    )
 
     # 总结面板
     if issues:
-        console.print(Panel(
-            f"[bold yellow]发现 {len(issues)} 个问题:[/bold yellow]\n\n"
-            + "\n".join(f"  {i+1}. {issue}" for i, issue in enumerate(issues))
-            + "\n\n[dim]使用 --fix 尝试自动修复[/dim]",
-            title="[bold]诊断总结[/bold]",
-            border_style="yellow",
-        ))
+        console.print(
+            Panel(
+                f"[bold yellow]发现 {len(issues)} 个问题:[/bold yellow]\n\n"
+                + "\n".join(f"  {i + 1}. {issue}" for i, issue in enumerate(issues))
+                + "\n\n[dim]使用 --fix 尝试自动修复[/dim]",
+                title="[bold]诊断总结[/bold]",
+                border_style="yellow",
+            )
+        )
     else:
-        console.print(Panel(
-            "[bold green]✓ 所有检查通过![/bold green]\n\n系统健康，服务就绪",
-            title="[bold]诊断总结[/bold]",
-            border_style="green",
-        ))
+        console.print(
+            Panel(
+                "[bold green]✓ 所有检查通过![/bold green]\n\n系统健康，服务就绪",
+                title="[bold]诊断总结[/bold]",
+                border_style="green",
+            )
+        )
 
 
 # ============================================================
 # test 命令
 # ============================================================
+
 
 @app.command()
 def test(
@@ -719,6 +780,7 @@ def _get_theme_manager():
     """获取主题管理器（延迟导入，避免无依赖时报错）。"""
     sys.path.insert(0, str(PROJECT_ROOT))
     from theme_manager import ThemeManager
+
     return ThemeManager()
 
 
@@ -749,8 +811,9 @@ def themes_list():
 
     for i, t in enumerate(themes, 1):
         status = "[green]激活[/green]" if t.get("active") else "[dim]未激活[/dim]"
-        table.add_row(str(i), t["id"], t["name"][:20], t.get("category", ""),
-                      t.get("author", "")[:12], status)
+        table.add_row(
+            str(i), t["id"], t["name"][:20], t.get("category", ""), t.get("author", "")[:12], status
+        )
 
     console.print(table)
     console.print(f"\n[dim]共 {len(themes)} 个主题 | 激活: openbridge themes activate <id>[/dim]")
@@ -826,6 +889,7 @@ def themes_preview(
     console.print(f"[green]  √ 预览已生成: {out}[/green]")
     if open_browser:
         import webbrowser
+
         webbrowser.open(out.as_uri())
 
 
@@ -836,7 +900,9 @@ def skills_list():
 
     skills_dir = PROJECT_ROOT / "skills"
     if not skills_dir.exists():
-        console.print("[yellow]  skills/ 目录不存在，使用 [cyan]openbridge skills add[/cyan] 安装技能[/yellow]")
+        console.print(
+            "[yellow]  skills/ 目录不存在，使用 [cyan]openbridge skills add[/cyan] 安装技能[/yellow]"
+        )
         return
 
     skill_dirs = [d for d in skills_dir.iterdir() if d.is_dir() and (d / "SKILL.md").exists()]
@@ -861,14 +927,16 @@ def skills_list():
         table.add_row(str(i), name, version, desc[:38], stype)
 
     console.print(table)
-    console.print(f"\n[dim]共 {len(skill_dirs)} 个技能 | 安装更多: openbridge skills add <name>[/dim]")
+    console.print(
+        f"\n[dim]共 {len(skill_dirs)} 个技能 | 安装更多: openbridge skills add <name>[/dim]"
+    )
 
 
 @skills_app.command("add")
 def skills_add(
     name_or_path: str = typer.Argument(..., help="技能名称或路径/URL"),
     shared: bool = typer.Option(False, "--shared", "-s", help="安装为全员共享技能"),
-    agent: Optional[str] = typer.Option(None, "--agent", "-a", help="授权给指定Agent"),
+    agent: str | None = typer.Option(None, "--agent", "-a", help="授权给指定Agent"),
 ):
     """安装技能（npx风格一键安装）
 
@@ -908,6 +976,7 @@ def skills_add(
             console.print(f"[yellow]  技能已存在: {target_dir}（使用 --force 覆盖）[/yellow]")
             raise typer.Exit(code=1)
         import shutil as _shutil
+
         _shutil.copytree(skill_path, target_dir)
         console.print(f"[green]  ✓ 已复制到 skills/{name}/[/green]")
 
@@ -916,6 +985,7 @@ def skills_add(
         try:
             sys.path.insert(0, str(PROJECT_ROOT))
             from plugin_registry import get_shared_registry
+
             registry = get_shared_registry(PROJECT_ROOT / "skills")
 
             if shared:
@@ -934,15 +1004,17 @@ def skills_add(
         except ImportError:
             console.print("[yellow]  共享注册表不可用，仅本地安装[/yellow]")
 
-    console.print(Panel(
-        f"[bold green]✓ 技能安装成功[/bold green]\n\n"
-        f"  名称: [cyan]{name}[/cyan]\n"
-        f"  版本: {version}\n"
-        f"  路径: skills/{name}/\n"
-        f"  {'共享: 全员可用' if shared else '授权: 仅本地'}\n\n"
-        f"[dim]使用 [cyan]openbridge skills list[/cyan] 查看所有技能[/dim]",
-        border_style="green",
-    ))
+    console.print(
+        Panel(
+            f"[bold green]✓ 技能安装成功[/bold green]\n\n"
+            f"  名称: [cyan]{name}[/cyan]\n"
+            f"  版本: {version}\n"
+            f"  路径: skills/{name}/\n"
+            f"  {'共享: 全员可用' if shared else '授权: 仅本地'}\n\n"
+            f"[dim]使用 [cyan]openbridge skills list[/cyan] 查看所有技能[/dim]",
+            border_style="green",
+        )
+    )
 
 
 @skills_app.command("remove")
@@ -963,6 +1035,7 @@ def skills_remove(
             return
 
     import shutil as _shutil
+
     _shutil.rmtree(skill_dir)
     console.print(f"[green]✓ 已移除技能: {name}[/green]")
 
@@ -970,10 +1043,11 @@ def skills_remove(
     try:
         sys.path.insert(0, str(PROJECT_ROOT))
         from plugin_registry import get_shared_registry
+
         registry = get_shared_registry(PROJECT_ROOT / "skills")
         if name in registry._shared_skills:
             registry.unshare(name)
-            console.print(f"[dim]  已从共享注册表移除[/dim]")
+            console.print("[dim]  已从共享注册表移除[/dim]")
     except (ImportError, Exception):
         pass
 
@@ -1127,13 +1201,13 @@ def skills_quality(
                 raise typer.Exit(code=1)
         return
 
-    console.print(f"[red]  请指定SKILL.md文件或skills/目录[/red]")
+    console.print("[red]  请指定SKILL.md文件或skills/目录[/red]")
     raise typer.Exit(code=1)
 
 
 @skills_app.command("agents")
 def skills_agents(
-    agent_id: Optional[str] = typer.Option(None, "--agent", "-a", help="查看指定Agent的技能"),
+    agent_id: str | None = typer.Option(None, "--agent", "-a", help="查看指定Agent的技能"),
 ):
     """查看多Agent共享技能状态"""
     console.print("[cyan]多Agent共享技能注册表[/cyan]\n")
@@ -1141,6 +1215,7 @@ def skills_agents(
     try:
         sys.path.insert(0, str(PROJECT_ROOT))
         from plugin_registry import get_shared_registry
+
         registry = get_shared_registry(PROJECT_ROOT / "skills")
     except ImportError:
         console.print("[red]  共享注册表不可用[/red]")
@@ -1185,7 +1260,9 @@ def skills_agents(
 
         console.print(agent_table)
     else:
-        console.print("[yellow]  尚无注册Agent（使用 openbridge skills add --agent <id> 注册）[/yellow]")
+        console.print(
+            "[yellow]  尚无注册Agent（使用 openbridge skills add --agent <id> 注册）[/yellow]"
+        )
 
     # 共享技能列表
     if shared:
@@ -1202,41 +1279,53 @@ def skills_agents(
 
         console.print(shared_table)
     else:
-        console.print("\n[yellow]  尚无共享技能（使用 openbridge skills add --shared <name> 安装）[/yellow]")
+        console.print(
+            "\n[yellow]  尚无共享技能（使用 openbridge skills add --shared <name> 安装）[/yellow]"
+        )
 
     # 统计
-    console.print(Panel(
-        f"Agent: {stats['registered_agents']}  |  "
-        f"共享技能: {stats['shared_skills']}  |  "
-        f"总授权: {stats['total_grants']}  |  "
-        f"Agent均技能: {stats['avg_skills_per_agent']:.1f}",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            f"Agent: {stats['registered_agents']}  |  "
+            f"共享技能: {stats['shared_skills']}  |  "
+            f"总授权: {stats['total_grants']}  |  "
+            f"Agent均技能: {stats['avg_skills_per_agent']:.1f}",
+            border_style="cyan",
+        )
+    )
 
 
 # ============================================================
 # 辅助函数
 # ============================================================
 
+
 def _detect_hardware() -> dict:
     """检测硬件信息（psutil可选，缺失时降级）"""
     import multiprocessing
+
     try:
         import psutil
+
         memory_gb = psutil.virtual_memory().total / (1024**3)
     except ImportError:
         # psutil未安装时降级：用os估算
-        import os
         memory_gb = 0.0  # 无法检测，降级为0
         try:
             # Windows: 用wmic尝试获取内存
             if platform.system() == "Windows":
                 r = subprocess.run(
                     ["wmic", "OS", "get", "TotalVisibleMemorySize"],
-                    capture_output=True, text=True, timeout=5,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
                 if r.returncode == 0 and r.stdout.strip():
-                    lines = [l.strip() for l in r.stdout.splitlines() if l.strip() and l.strip().isdigit()]
+                    lines = [
+                        l.strip()
+                        for l in r.stdout.splitlines()
+                        if l.strip() and l.strip().isdigit()
+                    ]
                     if lines:
                         memory_gb = int(lines[0]) / (1024**2)  # KB→GB
         except Exception:
@@ -1252,7 +1341,9 @@ def _detect_hardware() -> dict:
     try:
         result = subprocess.run(
             ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if result.returncode == 0 and result.stdout.strip():
             hw["gpu"] = result.stdout.strip().split("\n")[0]
@@ -1324,7 +1415,8 @@ def _is_process_running(pid: str) -> bool:
         if platform.system() == "Windows":
             result = subprocess.run(
                 ["tasklist", "/FI", f"PID eq {pid}"],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             return pid in result.stdout
         else:
@@ -1340,7 +1432,8 @@ def _find_pid_by_port(port: int) -> str:
         if platform.system() == "Windows":
             result = subprocess.run(
                 ["netstat", "-ano", "-p", "tcp"],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             for line in result.stdout.splitlines():
                 if f":{port}" in line and "LISTENING" in line:
@@ -1349,7 +1442,8 @@ def _find_pid_by_port(port: int) -> str:
         else:
             result = subprocess.run(
                 ["lsof", "-i", f":{port}", "-t"],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             return result.stdout.strip()
     except Exception:
@@ -1361,6 +1455,7 @@ def _check_health(port: int) -> bool:
     """检查服务健康状态"""
     try:
         import urllib.request
+
         url = f"http://localhost:{port}/health"
         req = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -1372,8 +1467,9 @@ def _check_health(port: int) -> bool:
 def _get_health(port: int) -> dict:
     """获取服务健康信息"""
     try:
-        import urllib.request
         import json as _json
+        import urllib.request
+
         url = f"http://localhost:{port}/health"
         req = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -1386,7 +1482,8 @@ def _get_health(port: int) -> dict:
 # skills 命令组辅助函数
 # ============================================================
 
-def _resolve_skill_path(name_or_path: str) -> Optional[Path]:
+
+def _resolve_skill_path(name_or_path: str) -> Path | None:
     """解析技能名称或路径为目录Path。"""
     # 1. 绝对/相对路径
     p = Path(name_or_path)
@@ -1419,7 +1516,7 @@ def _parse_skill_md(skill_md_path: Path) -> tuple:
     )
 
 
-def _parse_skill_md_raw(skill_md_path: Path) -> Optional[dict]:
+def _parse_skill_md_raw(skill_md_path: Path) -> dict | None:
     """解析SKILL.md的YAML frontmatter，返回字典。"""
     try:
         content = skill_md_path.read_text(encoding="utf-8")
@@ -1491,7 +1588,9 @@ def _parse_skill_md_raw(skill_md_path: Path) -> Optional[dict]:
 
         # 内联数组 [a, b, c]
         if value.startswith("[") and value.endswith("]"):
-            data[key] = [x.strip().strip('"').strip("'") for x in value[1:-1].split(",") if x.strip()]
+            data[key] = [
+                x.strip().strip('"').strip("'") for x in value[1:-1].split(",") if x.strip()
+            ]
             current_dict = None
             continue
 

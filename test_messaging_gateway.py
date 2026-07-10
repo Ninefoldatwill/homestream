@@ -9,31 +9,28 @@ messaging_gateway.py 测试 — 多平台IM网关验证
 - MessagingGateway 协调器
 """
 
-import pytest
 import time
 
 from messaging_gateway import (
+    CLIAdapter,
+    MessageAdapter,
     MessageRole,
     MessageType,
-    UnifiedMessage,
-    SlashCommand,
-    SlashCommandRouter,
-    SessionResetMode,
-    Session,
-    SessionManager,
-    MessageAdapter,
-    WebSocketAdapter,
-    WebhookAdapter,
-    CLIAdapter,
     MessagingGateway,
+    SessionManager,
+    SessionResetMode,
+    SlashCommandRouter,
+    UnifiedMessage,
+    WebhookAdapter,
+    WebSocketAdapter,
     create_gateway,
     format_message_for_platform,
 )
 
-
 # ============================================================
 # UnifiedMessage 测试
 # ============================================================
+
 
 class TestUnifiedMessage:
     """统一消息格式测试。"""
@@ -103,6 +100,7 @@ class TestUnifiedMessage:
 # SlashCommandRouter 测试
 # ============================================================
 
+
 class TestSlashCommandRouter:
     """斜杠命令路由测试。"""
 
@@ -124,8 +122,10 @@ class TestSlashCommandRouter:
         """命令路由处理。"""
         router = SlashCommandRouter()
         msg = UnifiedMessage(
-            from_platform="ws", from_user="user1",
-            text="/new", session_id="ses_1",
+            from_platform="ws",
+            from_user="user1",
+            text="/new",
+            session_id="ses_1",
         )
         response = router.route(msg)
         assert response is not None
@@ -135,7 +135,8 @@ class TestSlashCommandRouter:
         """帮助命令。"""
         router = SlashCommandRouter()
         msg = UnifiedMessage(
-            from_platform="ws", from_user="user1",
+            from_platform="ws",
+            from_user="user1",
             text="/help",
         )
         response = router.route(msg)
@@ -146,7 +147,8 @@ class TestSlashCommandRouter:
         """模型切换命令。"""
         router = SlashCommandRouter()
         msg = UnifiedMessage(
-            from_platform="ws", from_user="user1",
+            from_platform="ws",
+            from_user="user1",
             text="/model L2",
         )
         response = router.route(msg)
@@ -157,7 +159,8 @@ class TestSlashCommandRouter:
         """未知命令。"""
         router = SlashCommandRouter()
         msg = UnifiedMessage(
-            from_platform="ws", from_user="user1",
+            from_platform="ws",
+            from_user="user1",
             text="/unknown_cmd",
         )
         response = router.route(msg)
@@ -175,10 +178,10 @@ class TestSlashCommandRouter:
     def test_register_custom_command(self):
         """注册自定义命令。"""
         router = SlashCommandRouter()
-        router.register("/custom", "自定义命令",
-                        lambda msg, args: f"自定义响应: {args}")
+        router.register("/custom", "自定义命令", lambda msg, args: f"自定义响应: {args}")
         msg = UnifiedMessage(
-            from_platform="ws", from_user="user1",
+            from_platform="ws",
+            from_user="user1",
             text="/custom 参数1",
         )
         response = router.route(msg)
@@ -188,9 +191,13 @@ class TestSlashCommandRouter:
     def test_command_with_platform_filter(self):
         """平台过滤命令。"""
         router = SlashCommandRouter()
-        router.register("/admin", "管理员命令",
-                        lambda msg, args: "管理操作",
-                        platforms={"ws"}, requires_auth=True)
+        router.register(
+            "/admin",
+            "管理员命令",
+            lambda msg, args: "管理操作",
+            platforms={"ws"},
+            requires_auth=True,
+        )
         # ws平台可用
         msg = UnifiedMessage(from_platform="ws", text="/admin")
         response = router.route(msg)
@@ -206,6 +213,7 @@ class TestSlashCommandRouter:
 # ============================================================
 # SessionManager 测试
 # ============================================================
+
 
 class TestSessionManager:
     """会话管理器测试。"""
@@ -302,16 +310,21 @@ class TestSessionManager:
 # MessageAdapter 测试
 # ============================================================
 
+
 class TestWebSocketAdapter:
     """WebSocket适配器测试。"""
 
     def test_receive_dict(self):
         """接收字典消息。"""
         adapter = WebSocketAdapter()
-        msg = adapter.receive({
-            "role": "user", "text": "你好",
-            "from": "user1", "session_id": "ses_1",
-        })
+        msg = adapter.receive(
+            {
+                "role": "user",
+                "text": "你好",
+                "from": "user1",
+                "session_id": "ses_1",
+            }
+        )
         assert msg.from_platform == "ws"
         assert msg.text == "你好"
 
@@ -349,11 +362,13 @@ class TestWebhookAdapter:
     def test_receive_json(self):
         """接收Webhook JSON。"""
         adapter = WebhookAdapter()
-        msg = adapter.receive({
-            "content": "webhook消息",
-            "user_id": "ext_user",
-            "session_id": "ses_ext",
-        })
+        msg = adapter.receive(
+            {
+                "content": "webhook消息",
+                "user_id": "ext_user",
+                "session_id": "ses_ext",
+            }
+        )
         assert msg.from_platform == "webhook"
         assert msg.text == "webhook消息"
 
@@ -420,6 +435,7 @@ class TestCLIAdapter:
 # MessagingGateway 协调器测试
 # ============================================================
 
+
 class TestMessagingGateway:
     """消息网关协调器测试。"""
 
@@ -477,9 +493,15 @@ class TestMessagingGateway:
 
         class CustomAdapter(MessageAdapter):
             platform_name = "custom"
-            def receive(self, raw): return UnifiedMessage(from_platform="custom", text=str(raw))
-            def send(self, msg): return f"custom: {msg.text}"
-            def validate(self, raw): return True
+
+            def receive(self, raw):
+                return UnifiedMessage(from_platform="custom", text=str(raw))
+
+            def send(self, msg):
+                return f"custom: {msg.text}"
+
+            def validate(self, raw):
+                return True
 
         gw.register_adapter(CustomAdapter())
         assert "custom" in gw.list_adapters()
@@ -487,8 +509,7 @@ class TestMessagingGateway:
     def test_register_custom_command(self):
         """注册自定义命令。"""
         gw = MessagingGateway()
-        gw.register_command("/ping", "Ping测试",
-                           lambda msg, args: "pong!")
+        gw.register_command("/ping", "Ping测试", lambda msg, args: "pong!")
         commands = gw.list_commands()
         names = [c["name"] for c in commands]
         assert "/ping" in names

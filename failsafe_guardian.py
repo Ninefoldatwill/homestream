@@ -12,15 +12,14 @@ from __future__ import annotations
 """
 
 import asyncio
-import time
 import threading
-import json
-import os
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import IntEnum
-from typing import Optional, Dict, List, Callable, Any
+import time
 from collections import deque
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import IntEnum
+from typing import Any
 
 import structlog
 
@@ -31,18 +30,20 @@ logger = structlog.get_logger("bridge_v7.failsafe")
 # Degradation levels (increasing severity)
 # ===========================================================================
 
+
 class DegradationLevel(IntEnum):
     """五级优雅降级。数字越大降级越深。"""
-    L0_FULL = 0        # 全功能运行
-    L1_THROTTLE = 1    # 限速：非核心endpoint降低QPS
-    L2_REDUCED = 2     # 削减：关闭实验性功能(多模态/工作树)
-    L3_ESSENTIAL = 3   # 核心：仅L1模型+ICP+事件流
-    L4_SAFE_MODE = 4   # 安全模式：只读·拒绝写入·等待人工介入
+
+    L0_FULL = 0  # 全功能运行
+    L1_THROTTLE = 1  # 限速：非核心endpoint降低QPS
+    L2_REDUCED = 2  # 削减：关闭实验性功能(多模态/工作树)
+    L3_ESSENTIAL = 3  # 核心：仅L1模型+ICP+事件流
+    L4_SAFE_MODE = 4  # 安全模式：只读·拒绝写入·等待人工介入
 
 
 DEGRADATION_TRIGGERS = {
     DegradationLevel.L1_THROTTLE: {
-        "rpm_spike_ratio": 2.0,       # RPM突增2倍 → L1
+        "rpm_spike_ratio": 2.0,  # RPM突增2倍 → L1
         "consecutive_errors": 10,
         "memory_mb": 2048,
     },
@@ -58,7 +59,7 @@ DEGRADATION_TRIGGERS = {
     },
     DegradationLevel.L4_SAFE_MODE: {
         "consecutive_errors": 500,
-        "crash_loop_count": 3,        # 连续崩溃3次 → L4
+        "crash_loop_count": 3,  # 连续崩溃3次 → L4
         "memory_mb": 8192,
     },
 }
@@ -68,15 +69,17 @@ DEGRADATION_TRIGGERS = {
 # RPM → TPM rate control
 # ===========================================================================
 
+
 @dataclass
 class TokenBudget:
     """滑动窗口token预算。"""
-    max_tpm: int = 100000             # 每分钟最大token
+
+    max_tpm: int = 100000  # 每分钟最大token
     window_sec: float = 60.0
     _spent: deque = field(default_factory=lambda: deque(maxlen=1000))
     _total_tokens: int = 0
 
-    def consume(self, tokens: int, now: Optional[float] = None) -> bool:
+    def consume(self, tokens: int, now: float | None = None) -> bool:
         """尝试消费token。返回是否允许。"""
         now = now or time.time()
         cutoff = now - self.window_sec
@@ -104,6 +107,7 @@ class TokenBudget:
 @dataclass
 class RateMonitor:
     """请求速率监控器。"""
+
     window_sec: float = 60.0
     _requests: deque = field(default_factory=deque)
     _error_count: int = 0
@@ -156,6 +160,7 @@ class RateMonitor:
 # Supervisor watchdog
 # ===========================================================================
 
+
 class WatchdogSupervisor:
     """监管者模式：外部审核线程，独立于AI执行路径。"""
 
@@ -166,14 +171,14 @@ class WatchdogSupervisor:
         self.token_budget = TokenBudget()
         self._current_level = DegradationLevel.L0_FULL
         self._running = False
-        self._thread: Optional[threading.Thread] = None
-        self._callbacks: Dict[DegradationLevel, List[Callable]] = {
+        self._thread: threading.Thread | None = None
+        self._callbacks: dict[DegradationLevel, list[Callable]] = {
             level: [] for level in DegradationLevel
         }
         self._lock = threading.Lock()
 
         # 断路器：按关键依赖分舱
-        self.circuit_breakers: Dict[str, CircuitBreaker] = {
+        self.circuit_breakers: dict[str, CircuitBreaker] = {
             "llm": CircuitBreaker("llm", failure_threshold=5),
             "search": CircuitBreaker("search", failure_threshold=3),
             "database": CircuitBreaker("database", failure_threshold=5),
@@ -231,47 +236,60 @@ class WatchdogSupervisor:
         mem_mb = self._get_memory_usage()
 
         # 检查触发条件（从高到低）
-        if (m._consecutive_errors >= DEGRADATION_TRIGGERS[DegradationLevel.L4_SAFE_MODE]["consecutive_errors"]
-                or m.is_crash_looping
-                or mem_mb > DEGRADATION_TRIGGERS[DegradationLevel.L4_SAFE_MODE]["memory_mb"]):
+        if (
+            m._consecutive_errors
+            >= DEGRADATION_TRIGGERS[DegradationLevel.L4_SAFE_MODE]["consecutive_errors"]
+            or m.is_crash_looping
+            or mem_mb > DEGRADATION_TRIGGERS[DegradationLevel.L4_SAFE_MODE]["memory_mb"]
+        ):
             return DegradationLevel.L4_SAFE_MODE
 
         triggers_l3 = DEGRADATION_TRIGGERS[DegradationLevel.L3_ESSENTIAL]
-        if (m.spike_ratio > triggers_l3["rpm_spike_ratio"]
-                or m._consecutive_errors >= triggers_l3["consecutive_errors"]
-                or mem_mb > triggers_l3["memory_mb"]):
+        if (
+            m.spike_ratio > triggers_l3["rpm_spike_ratio"]
+            or m._consecutive_errors >= triggers_l3["consecutive_errors"]
+            or mem_mb > triggers_l3["memory_mb"]
+        ):
             return DegradationLevel.L3_ESSENTIAL
 
         triggers_l2 = DEGRADATION_TRIGGERS[DegradationLevel.L2_REDUCED]
-        if (m.spike_ratio > triggers_l2["rpm_spike_ratio"]
-                or m._consecutive_errors >= triggers_l2["consecutive_errors"]
-                or mem_mb > triggers_l2["memory_mb"]):
+        if (
+            m.spike_ratio > triggers_l2["rpm_spike_ratio"]
+            or m._consecutive_errors >= triggers_l2["consecutive_errors"]
+            or mem_mb > triggers_l2["memory_mb"]
+        ):
             return DegradationLevel.L2_REDUCED
 
         triggers_l1 = DEGRADATION_TRIGGERS[DegradationLevel.L1_THROTTLE]
-        if (m.spike_ratio > triggers_l1["rpm_spike_ratio"]
-                or m._consecutive_errors >= triggers_l1["consecutive_errors"]
-                or mem_mb > triggers_l1["memory_mb"]):
+        if (
+            m.spike_ratio > triggers_l1["rpm_spike_ratio"]
+            or m._consecutive_errors >= triggers_l1["consecutive_errors"]
+            or mem_mb > triggers_l1["memory_mb"]
+        ):
             return DegradationLevel.L1_THROTTLE
 
         # 恢复检查：降级后条件消失则逐步恢复
         if self._current_level > DegradationLevel.L1_THROTTLE:
-            if (m.spike_ratio <= triggers_l1["rpm_spike_ratio"] * 0.5
-                    and m._consecutive_errors < triggers_l1["consecutive_errors"] * 0.3
-                    and mem_mb < triggers_l1["memory_mb"]):
+            if (
+                m.spike_ratio <= triggers_l1["rpm_spike_ratio"] * 0.5
+                and m._consecutive_errors < triggers_l1["consecutive_errors"] * 0.3
+                and mem_mb < triggers_l1["memory_mb"]
+            ):
                 return DegradationLevel(max(0, self._current_level - 1))
 
         return DegradationLevel.L0_FULL
 
     def _transition(self, new_level: DegradationLevel):
         direction = "DEGRADE" if new_level > self._current_level else "RECOVER"
-        logger.warning("failsafe.level_transition",
-                       from_level=self._current_level.name,
-                       to_level=new_level.name,
-                       direction=direction,
-                       rpm=self.monitor.current_rpm,
-                       errors=self.monitor._consecutive_errors,
-                       tpm=self.token_budget.current_tpm)
+        logger.warning(
+            "failsafe.level_transition",
+            from_level=self._current_level.name,
+            to_level=new_level.name,
+            direction=direction,
+            rpm=self.monitor.current_rpm,
+            errors=self.monitor._consecutive_errors,
+            tpm=self.token_budget.current_tpm,
+        )
 
         # 执行回调
         for cb in self._callbacks[new_level]:
@@ -285,6 +303,7 @@ class WatchdogSupervisor:
         """获取进程内存使用量(MB)。"""
         try:
             import psutil
+
             proc = psutil.Process()
             return proc.memory_info().rss / (1024 * 1024)
         except ImportError:
@@ -330,13 +349,15 @@ class WatchdogSupervisor:
 # Circuit Breaker (5-state with hysteresis)
 # ===========================================================================
 
+
 class CircuitState(IntEnum):
     """断路器五状态。"""
-    CLOSED = 0         # 正常闭合
-    OPEN = 1           # 断开
-    HALF_OPEN = 2      # 探测中
+
+    CLOSED = 0  # 正常闭合
+    OPEN = 1  # 断开
+    HALF_OPEN = 2  # 探测中
     OPEN_EXTENDED = 3  # 扩展断开（防抖动）
-    PERMANENT = 4      # 永久断开（需人工恢复）
+    PERMANENT = 4  # 永久断开（需人工恢复）
 
 
 @dataclass
@@ -426,22 +447,25 @@ class CircuitBreaker:
                     self._state = CircuitState.PERMANENT
                     logger.error("failsafe.circuit_permanent", breaker=self.name)
                 else:
-                    logger.warning("failsafe.circuit_open_extended",
-                                   breaker=self.name,
-                                   extended_count=self._extended_count)
+                    logger.warning(
+                        "failsafe.circuit_open_extended",
+                        breaker=self.name,
+                        extended_count=self._extended_count,
+                    )
                 return
 
             if self._state in (CircuitState.CLOSED,):
                 if self._failures >= self.failure_threshold:
                     self._state = CircuitState.OPEN
-                    logger.warning("failsafe.circuit_open",
-                                   breaker=self.name,
-                                   failures=self._failures)
+                    logger.warning(
+                        "failsafe.circuit_open", breaker=self.name, failures=self._failures
+                    )
 
 
 # ===========================================================================
 # Bulkhead isolation
 # ===========================================================================
+
 
 @dataclass
 class BulkheadExecutor:
@@ -449,15 +473,17 @@ class BulkheadExecutor:
     隔舱模式：按资源类型隔离并发，防止一个服务拖垮全部。
     """
 
-    limits: Dict[str, int] = field(default_factory=lambda: {
-        "llm": 10,
-        "search": 5,
-        "database": 20,
-        "external_api": 3,
-        "memory": 8,
-    })
+    limits: dict[str, int] = field(
+        default_factory=lambda: {
+            "llm": 10,
+            "search": 5,
+            "database": 20,
+            "external_api": 3,
+            "memory": 8,
+        }
+    )
 
-    _semaphores: Dict[str, asyncio.Semaphore] = field(default_factory=dict)
+    _semaphores: dict[str, asyncio.Semaphore] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def _get_semaphore(self, resource: str) -> asyncio.Semaphore:
@@ -473,7 +499,7 @@ class BulkheadExecutor:
         async with sem:
             return await coro
 
-    def get_status(self) -> Dict[str, Dict[str, Any]]:
+    def get_status(self) -> dict[str, dict[str, Any]]:
         """返回各资源池占用情况。"""
         status = {}
         for resource, sem in self._semaphores.items():
@@ -488,7 +514,8 @@ class BulkheadExecutor:
 # Error classification
 # ===========================================================================
 
-def is_retriable_error(exception: Exception, status_code: Optional[int] = None) -> bool:
+
+def is_retriable_error(exception: Exception, status_code: int | None = None) -> bool:
     """
     判断错误是否属于可重试的瞬态错误。
     可重试：连接超时、Connection Refused、HTTP 502/503/504
@@ -499,13 +526,24 @@ def is_retriable_error(exception: Exception, status_code: Optional[int] = None) 
 
     msg = str(exception).lower()
     retriable_signals = [
-        "timeout", "timed out", "connection refused", "connection reset",
-        "no route to host", "temporary failure", "dns resolution",
-        "ssl handshake", "broken pipe",
+        "timeout",
+        "timed out",
+        "connection refused",
+        "connection reset",
+        "no route to host",
+        "temporary failure",
+        "dns resolution",
+        "ssl handshake",
+        "broken pipe",
     ]
     non_retriable_signals = [
-        "invalid", "unauthorized", "forbidden", "not found",
-        "bad request", "validation", "authentication",
+        "invalid",
+        "unauthorized",
+        "forbidden",
+        "not found",
+        "bad request",
+        "validation",
+        "authentication",
     ]
 
     if any(s in msg for s in non_retriable_signals):
@@ -517,21 +555,21 @@ def is_retriable_error(exception: Exception, status_code: Optional[int] = None) 
 # Canary upgrade
 # ===========================================================================
 
+
 class CanaryUpgrader:
     """Canary灰度升级：新版本先在1%流量验证，逐步扩大到100%。"""
 
-    def __init__(self, new_version: str, current_version: str,
-                 watchdog: WatchdogSupervisor):
+    def __init__(self, new_version: str, current_version: str, watchdog: WatchdogSupervisor):
         self.new_version = new_version
         self.current_version = current_version
         self.watchdog = watchdog
         # Canary stages: (ratio, min_seconds, error_rate_threshold)
         self.stages = [
-            (0.01, 300, 0.05),    # 1%流量 5分钟 错误率<5%
-            (0.05, 600, 0.08),    # 5%流量 10分钟 <8%
-            (0.25, 1200, 0.10),   # 25%流量 20分钟 <10%
-            (0.50, 1800, 0.15),   # 50%流量 30分钟 <15%
-            (1.00, 3600, 0.20),   # 100%流量 1小时 <20%
+            (0.01, 300, 0.05),  # 1%流量 5分钟 错误率<5%
+            (0.05, 600, 0.08),  # 5%流量 10分钟 <8%
+            (0.25, 1200, 0.10),  # 25%流量 20分钟 <10%
+            (0.50, 1800, 0.15),  # 50%流量 30分钟 <15%
+            (1.00, 3600, 0.20),  # 100%流量 1小时 <20%
         ]
         self.current_stage_idx: int = 0
         self.stage_started: float = 0.0
@@ -557,24 +595,29 @@ class CanaryUpgrader:
             self.stage_started = time.time()
             self.stage_error_count = 0
             self.stage_request_count = 0
-        logger.info("failsafe.canary_started",
-                    from_version=self.current_version,
-                    to_version=self.new_version,
-                    stage=1)
+        logger.info(
+            "failsafe.canary_started",
+            from_version=self.current_version,
+            to_version=self.new_version,
+            stage=1,
+        )
 
     def rollback(self):
         """紧急回滚到旧版本。"""
         with self._lock:
             self._active = False
-        logger.warning("failsafe.canary_rolled_back",
-                       from_version=self.new_version,
-                       to_version=self.current_version)
+        logger.warning(
+            "failsafe.canary_rolled_back",
+            from_version=self.new_version,
+            to_version=self.current_version,
+        )
 
     def should_use_new_version(self) -> bool:
         """当前请求是否应该路由到新版本。"""
         if not self._active:
             return False
         import random
+
         return random.random() < self.canary_ratio
 
     def record_result(self, success: bool):
@@ -595,14 +638,19 @@ class CanaryUpgrader:
         if elapsed < min_sec:
             return
 
-        error_rate = (self.stage_error_count / self.stage_request_count
-                      if self.stage_request_count > 10 else 0.0)
+        error_rate = (
+            self.stage_error_count / self.stage_request_count
+            if self.stage_request_count > 10
+            else 0.0
+        )
 
         if error_rate > error_max:
-            logger.warning("failsafe.canary_error_rate_exceeded",
-                           stage=self.current_stage_idx + 1,
-                           error_rate=round(error_rate, 3),
-                           threshold=error_max)
+            logger.warning(
+                "failsafe.canary_error_rate_exceeded",
+                stage=self.current_stage_idx + 1,
+                error_rate=round(error_rate, 3),
+                threshold=error_max,
+            )
             self.rollback()
             return
 
@@ -613,14 +661,13 @@ class CanaryUpgrader:
         self.stage_request_count = 0
 
         if self.current_stage_idx >= len(self.stages):
-            logger.info("failsafe.canary_completed",
-                        version=self.new_version)
+            logger.info("failsafe.canary_completed", version=self.new_version)
             self._active = False
         else:
             next_ratio = self.stages[self.current_stage_idx][0]
-            logger.info("failsafe.canary_advanced",
-                        stage=self.current_stage_idx + 1,
-                        ratio=next_ratio)
+            logger.info(
+                "failsafe.canary_advanced", stage=self.current_stage_idx + 1, ratio=next_ratio
+            )
 
     def get_status(self) -> dict:
         return {
@@ -630,8 +677,7 @@ class CanaryUpgrader:
             "stage": self.current_stage_idx + 1,
             "total_stages": len(self.stages),
             "canary_ratio": self.canary_ratio,
-            "stage_elapsed": round(time.time() - self.stage_started, 1)
-            if self._active else 0,
+            "stage_elapsed": round(time.time() - self.stage_started, 1) if self._active else 0,
             "stage_requests": self.stage_request_count,
             "stage_errors": self.stage_error_count,
         }
@@ -641,12 +687,12 @@ class CanaryUpgrader:
 # Health status aggregator
 # ===========================================================================
 
-def get_full_health(watchdog: WatchdogSupervisor,
-                    canary: Optional[CanaryUpgrader] = None) -> dict:
+
+def get_full_health(watchdog: WatchdogSupervisor, canary: CanaryUpgrader | None = None) -> dict:
     """全量健康报告。"""
     status = {
         "failsafe": watchdog.get_status(),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
     if canary:
         status["canary"] = canary.get_status()

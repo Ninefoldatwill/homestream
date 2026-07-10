@@ -16,76 +16,92 @@ V8核心能力：
 v6兼容层：保留v6全部API端点
 """
 
-from fastapi import FastAPI, HTTPException, Query, Body, Request
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
-from datetime import datetime
-import sqlite3
-import uuid
 import json
 import os
 import re
-import subprocess
-import asyncio
-import shutil
+import sqlite3
+import uuid
+from datetime import datetime
+from typing import Any, Optional
 
 import structlog
+from fastapi import Body, FastAPI, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+
+from actions import (
+    create_handoff,
+)
 from config import AGENT_TOKENS, V6_DB_PATH, V7_DB_PATH, settings
-from logging_config import configure_logging
+from event_store import EventStore, make_persistent_stream
+from event_stream import (
+    Action,
+    Event,
+    EventSource,
+    EventStream,
+    EventType,
+    _gen_event_id,
+    create_action,
+    create_done_action,
+    parse_handoff_text,
+    parse_icp_message,
+)
+from group_chat import CHANNELS, GroupChatManager
 from middleware import setup_observability
 from model_router import ModelRouter, RouterStrategy
+from modes import DeployMode, get_mode_config, get_mode_info, switch_mode  # 6/27弹性模式
+from observatory import collect_observatory_data  # 可观测性数据聚合·7/8
+from permission_guard import (  # P1权限守卫·6/30
+    ActionScope,
+    check_permission,
+    get_audit_trail,
+    get_permission_boundary_report,
+)
+from prompt_security import (  # P0安全注入·6/29
+    build_safe_prompt,
+    validate_icp_content,
+)
 from providers.base_provider import ChatMessage, ProviderTier
-
-from event_stream import (
-    EventStream, Event, Action, Observation, EventType, EventSource,
-    parse_icp_message, parse_handoff_text, _gen_event_id,
-    create_action, create_task_action, create_ask_action,
-    create_done_action, create_warn_action,
-)
-from event_store import EventStore, make_persistent_stream
-from actions import (
-    create_assign_task, create_handoff, create_review,
-    create_query_knowledge, create_update_learning,
-)
-from observations import (
-    create_message_received, create_task_assigned,
-    create_task_done_obs, create_error_obs, create_security_obs,
-)
+from rate_limiter import RateLimitMiddleware  # P1限流保护·6/30
 from worktree_manager import (
-    WorktreeManager, WorktreeConfig, WorktreeRole, WorktreeStatus,
-    create_maker_worktree, create_reviewer_worktree,
-    create_researcher_worktree, create_coordinator_worktree,
+    WorktreeConfig,
+    WorktreeManager,
+    WorktreeRole,
 )
 from worktree_subscribers import (
-    ReviewerSubscriber, WorktreeSubscriber,
-    WorktreeCreateRequest, WorktreeActionRequest,
-    WorktreeResponse, ReviewSubmitRequest,
+    ReviewSubmitRequest,
+    WorktreeActionRequest,
+    WorktreeCreateRequest,
+    WorktreeResponse,
 )
-from group_chat import GroupChatManager, GROUP_MEMBERS, CHANNELS
 from ws_manager import ConnectionManager
-from modes import get_mode_config, get_mode_info, switch_mode, DeployMode  # 6/27弹性模式
-from prompt_security import sanitize_user_input, validate_icp_content, build_safe_prompt  # P0安全注入·6/29
-from permission_guard import (  # P1权限守卫·6/30
-    check_permission, check_skill_permission, get_audit_trail,
-    get_permission_boundary_report, ActionScope, REGISTERED_AGENTS,
-)
-from rate_limiter import get_limiter_for_endpoint, RateLimitMiddleware  # P1限流保护·6/30
-from observatory import collect_observatory_data  # 可观测性数据聚合·7/8
+
 # ─── 运行模式检测 ────────────────────────────────────────
 # 物理隔离：通过 .openbridge_mode 文件控制
 # "team"=完整书阁3460·"opensource"=静态知识快照
 _mode_file = os.path.join(os.path.dirname(__file__), ".openbridge_mode")
 if os.path.exists(_mode_file):
-    with open(_mode_file, encoding='utf-8') as _f:
+    with open(_mode_file, encoding="utf-8") as _f:
         _mode = _f.read().strip()
         if _mode in ("opensource", "team", "private"):
             os.environ["OPENBRIDGE_MODE"] = _mode
             print(f"[Mode] OPENBRIDGE_MODE={_mode} (from .openbridge_mode)")
 
-from bookhouse_client import (  # 书阁知识桥梁·6/30
-    search as book_search, get_book, get_building, list_tags,
-    get_stats as book_stats, add_book, health_check as book_health,
+from bookhouse_client import (
+    add_book,
+    get_book,
+    get_building,
+    list_tags,
 )
+from bookhouse_client import (
+    get_stats as book_stats,
+)
+from bookhouse_client import (
+    health_check as book_health,
+)
+from bookhouse_client import (  # 书阁知识桥梁·6/30
+    search as book_search,
+)
+
 # P1模块整合·6/30: bridge_v7_adapter 使用延迟导入(_get_adapter中)避免skillopt依赖问题
 
 # 结构化日志
@@ -110,10 +126,10 @@ app.add_middleware(RateLimitMiddleware)
 # ==================== 全局状态 ====================
 
 # EventStore 持久化实例（v7.1 新增）
-_event_store: Optional[EventStore] = None
+_event_store: EventStore | None = None
 
 # EventStream引擎实例（改为持久化版本）
-streams: Dict[str, EventStream] = {}
+streams: dict[str, EventStream] = {}
 
 # DB路径从config.py加载（不再硬编码）
 DB_PATH = V6_DB_PATH
@@ -129,16 +145,16 @@ VALID_TRANSITIONS = {
 }
 
 # 任务存储（内存版，后续可持久化）
-tasks: Dict[str, Dict[str, Any]] = {}
+tasks: dict[str, dict[str, Any]] = {}
 
 # Worktree管理器实例（Day 2新增）
 worktree_manager = WorktreeManager()
 
 # WebSocket连接管理器（v7.1新增）
-_ws_manager: Optional[ConnectionManager] = None
+_ws_manager: ConnectionManager | None = None
 
 # 群聊管理器实例（v7.2新增 - 统一通讯）
-_group_chat_manager: Optional[GroupChatManager] = None
+_group_chat_manager: GroupChatManager | None = None
 
 # BridgeV7Adapter 单例（V8模块整合 - SkillOpt融合枢纽）
 _adapter_instance = None  # 延迟类型标注，避免skillopt依赖
@@ -149,9 +165,10 @@ def _get_adapter():
     global _adapter_instance
     if _adapter_instance is None:
         from bridge_v7_adapter import BridgeV7Config, create_bridge_v7_adapter  # 延迟导入
+
         cfg = BridgeV7Config(
             event_stream_persist=True,
-            event_store_path=V7_DB_PATH.replace(".db","") + "_adapter_events.db",
+            event_store_path=V7_DB_PATH.replace(".db", "") + "_adapter_events.db",
             rollout_timeout=120.0,
         )
         _adapter_instance = create_bridge_v7_adapter(config=cfg)
@@ -182,12 +199,14 @@ def get_group_chat_manager() -> GroupChatManager:
     """获取群聊管理器（API端点入口）"""
     return _ensure_group_chat()
 
+
 # ModelRouter实例（v7.2新增 - 硬件自适应多模型路由）
 # 延迟初始化：首次调用时才执行auto_init_from_env()，避免模块加载时的异步操作影响测试
 model_router = ModelRouter(strategy=RouterStrategy.COST_FIRST)
 
 
 # ==================== 辅助函数 ====================
+
 
 def get_db():
     """获取DB连接"""
@@ -224,12 +243,13 @@ def get_or_create_stream(session_id: str = "default") -> EventStream:
 
 def _register_default_subscribers(stream: EventStream):
     """注册默认的事件订阅者
-    
+
     融优主义：每个Subscriber有独立职责
     - KanbanSubscriber: 监听TASK/DONE → 自动创建/更新Kanban任务
     - LearningSubscriber: 监听trigger_learning → 自动记录.learnings/
     - SecuritySubscriber: 监听WARN → 安全审查
     """
+
     def kanban_subscriber(event: Event):
         """Kanban订阅者：TASK→创建任务 / DONE→更新状态"""
         if event.event_type == EventType.TASK:
@@ -238,13 +258,13 @@ def _register_default_subscribers(stream: EventStream):
         elif event.event_type == EventType.DONE:
             # TODO: 调用Kanban API更新状态
             pass
-    
+
     def learning_subscriber(event: Event):
         """学习订阅者：trigger_learning=True → 记录.learnings/"""
         if event.trigger_learning and event.learning_type:
             learning_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".learnings")
             os.makedirs(learning_dir, exist_ok=True)
-            
+
             file_map = {
                 "error": "ERRORS.md",
                 "correction": "LEARNINGS.md",
@@ -253,15 +273,15 @@ def _register_default_subscribers(stream: EventStream):
             }
             filename = file_map.get(event.learning_type, "LEARNINGS.md")
             filepath = os.path.join(learning_dir, filename)
-            
+
             # 追加记录
             entry = f"\n- [{event.learning_type}] {event.content} (from: {event.sender}, {datetime.now().strftime('%Y-%m-%d %H:%M')})"
             try:
-                with open(filepath, 'a', encoding='utf-8') as f:
+                with open(filepath, "a", encoding="utf-8") as f:
                     f.write(entry)
             except Exception as e:
                 logger.error("learning_subscriber_write_failed", error=str(e))
-    
+
     # 注册类型订阅
     stream.subscribe_by_type(EventType.TASK, kanban_subscriber)
     stream.subscribe_by_type(EventType.DONE, kanban_subscriber)
@@ -269,7 +289,7 @@ def _register_default_subscribers(stream: EventStream):
     stream.subscribe_by_type(EventType.DONE, learning_subscriber)
 
 
-def resolve_agent(token: Optional[str] = None, agent_name: Optional[str] = None) -> str:
+def resolve_agent(token: str | None = None, agent_name: str | None = None) -> str:
     """从token或agent_name解析Agent名称"""
     if token and token in AGENT_TOKENS:
         return AGENT_TOKENS[token]
@@ -289,10 +309,12 @@ def persist_event_to_db(event: Event) -> bool:
                 event.event_id,
                 event.sender,
                 event.recipient,
-                json.dumps(event.model_dump(mode="json"), ensure_ascii=False) if event.handoff else event.content,
+                json.dumps(event.model_dump(mode="json"), ensure_ascii=False)
+                if event.handoff
+                else event.content,
                 "v7_event",
                 event.timestamp.isoformat(),
-            )
+            ),
         )
         conn.commit()
         conn.close()
@@ -304,54 +326,60 @@ def persist_event_to_db(event: Event) -> bool:
 
 # ==================== 请求/响应模型 ====================
 
+
 class SendMessageRequest(BaseModel):
     """发送消息请求（兼容v6 API）"""
+
     content: str
     recipient: str
-    sender: Optional[str] = None
-    token: Optional[str] = None
+    sender: str | None = None
+    token: str | None = None
 
 
 class EventResponse(BaseModel):
     """事件响应"""
+
     event_id: str
     event_type: str
     sender: str
     recipient: str
     content: str
     timestamp: str
-    cause: Optional[str] = None
-    handoff: Optional[Dict[str, Any]] = None
-    confidence: Optional[float] = None
+    cause: str | None = None
+    handoff: dict[str, Any] | None = None
+    confidence: float | None = None
 
 
 class TaskLifecycleRequest(BaseModel):
     """任务生命周期转换请求"""
+
     task_id: str
     from_state: str
     to_state: str
-    comment: Optional[str] = None
-    changed_by: Optional[str] = None
+    comment: str | None = None
+    changed_by: str | None = None
 
 
 class HandoffRequest(BaseModel):
     """Handoff请求（5要素）"""
+
     task_id: str
     builder_agent: str
     reviewer_agent: str
     what_done: str
-    where_artifacts: List[str] = []
+    where_artifacts: list[str] = []
     how_verify: str = ""
-    known_issues: List[str] = []
+    known_issues: list[str] = []
     what_next: str = ""
-    confidence: Optional[float] = None
+    confidence: float | None = None
 
 
 class EventsQueryParams(BaseModel):
     """事件查询参数"""
+
     session_id: str = "default"
-    agent_name: Optional[str] = None
-    event_type: Optional[str] = None
+    agent_name: str | None = None
+    event_type: str | None = None
     limit: int = 50
 
 
@@ -1260,7 +1288,6 @@ window.addEventListener('resize',function(){Object.values(charts).forEach(c=>c&&
 </html>"""
 
 
-
 # ============================================================
 # 千面设计市场 — 主题注入（最小化改动，不改写任何页面常量）
 # ============================================================
@@ -1286,7 +1313,7 @@ _MOBILE_TAB_BAR = (
     '<a href="/chat"><span class="tab-icon">💬</span>聊天</a>'
     '<a href="/observatory"><span class="tab-icon">📊</span>观测台</a>'
     '<a href="/group"><span class="tab-icon">👥</span>群聊</a>'
-    '</div>'
+    "</div>"
 )
 
 
@@ -1312,6 +1339,7 @@ def apply_theme_to_page(html: str, request: Optional["Request"] = None) -> str:
     """
     try:
         from theme_manager import ThemeManager
+
         tm = ThemeManager()
         theme_id = None
         if request is not None:
@@ -1326,15 +1354,18 @@ def apply_theme_to_page(html: str, request: Optional["Request"] = None) -> str:
 # PWA 普大众化接口 — 静态文件路由
 # ============================================================
 
+
 @app.get("/manifest.json")
 async def serve_manifest():
     """PWA 清单文件"""
-    from fastapi.responses import JSONResponse
     import json as _json
+
+    from fastapi.responses import JSONResponse
+
     _base = os.path.dirname(os.path.abspath(__file__))
     _path = os.path.join(_base, "manifest.json")
     if os.path.exists(_path):
-        with open(_path, "r", encoding="utf-8") as f:
+        with open(_path, encoding="utf-8") as f:
             return JSONResponse(_json.load(f))
     return JSONResponse({"error": "manifest not found"}, status_code=404)
 
@@ -1343,10 +1374,11 @@ async def serve_manifest():
 async def serve_sw():
     """Service Worker 脚本"""
     from fastapi.responses import PlainTextResponse
+
     _base = os.path.dirname(os.path.abspath(__file__))
     _path = os.path.join(_base, "sw.js")
     if os.path.exists(_path):
-        with open(_path, "r", encoding="utf-8") as f:
+        with open(_path, encoding="utf-8") as f:
             return PlainTextResponse(f.read(), media_type="application/javascript")
     return PlainTextResponse("// SW not found", status_code=404)
 
@@ -1355,10 +1387,11 @@ async def serve_sw():
 async def serve_offline():
     """离线回退页面"""
     from fastapi.responses import HTMLResponse
+
     _base = os.path.dirname(os.path.abspath(__file__))
     _path = os.path.join(_base, "offline.html")
     if os.path.exists(_path):
-        with open(_path, "r", encoding="utf-8") as f:
+        with open(_path, encoding="utf-8") as f:
             return HTMLResponse(f.read())
     return HTMLResponse("<h1>Offline</h1>", status_code=404)
 
@@ -1367,11 +1400,13 @@ async def serve_offline():
 async def serve_assets(file_path: str):
     """静态资源服务（图标、CSS等）"""
     from fastapi.responses import FileResponse
+
     _base = os.path.dirname(os.path.abspath(__file__))
     _full = os.path.join(_base, "assets", file_path)
     if os.path.exists(_full) and os.path.isfile(_full):
         return FileResponse(_full)
     from fastapi import HTTPException as _HTTPException
+
     raise _HTTPException(status_code=404, detail="Asset not found")
 
 
@@ -1379,6 +1414,7 @@ async def serve_assets(file_path: str):
 async def root(request: Request):
     """V8仪表盘"""
     from fastapi.responses import HTMLResponse
+
     return HTMLResponse(apply_theme_to_page(V8_DASHBOARD, request))
 
 
@@ -1386,8 +1422,10 @@ async def root(request: Request):
 async def theme_preview(theme_id: str):
     """千面设计市场 — 整页主题预览"""
     from fastapi.responses import HTMLResponse
+
     try:
         from theme_manager import ThemeManager
+
         tm = ThemeManager()
         return HTMLResponse(tm.preview_html(theme_id))
     except Exception as e:
@@ -1405,24 +1443,24 @@ async def health():
     }
 
 
-
 # ==================== 6/27 弹性模式管理API ====================
+
 
 @app.get("/api/mode")
 async def get_mode():
     """获取当前部署模式配置"""
-    from modes import get_mode_info
     return get_mode_info()
 
 
 @app.post("/api/mode/switch")
 async def switch_mode_api(new_mode: str):
     """切换部署模式（需要重启服务生效）"""
-    from modes import DeployMode, switch_mode
     try:
         mode = DeployMode(new_mode.lower())
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"无效的模式: {new_mode}，请使用 solo/team/ecosystem")
+        raise HTTPException(
+            status_code=400, detail=f"无效的模式: {new_mode}，请使用 solo/team/ecosystem"
+        )
     result = switch_mode(mode)
     return result
 
@@ -1430,22 +1468,25 @@ async def switch_mode_api(new_mode: str):
 @app.get("/api/mode/features")
 async def list_features():
     """列出所有功能开关及其状态"""
-    from modes import FeatureFlag, MODE_FEATURE_MAP, get_mode_config
+    from modes import MODE_FEATURE_MAP, FeatureFlag
+
     config = get_mode_config()
     features = []
     for flag in FeatureFlag:
-        features.append({
-            "name": flag.value,
-            "enabled": config.is_enabled(flag),
-            "mode_default": flag in MODE_FEATURE_MAP[config.mode],
-        })
+        features.append(
+            {
+                "name": flag.value,
+                "enabled": config.is_enabled(flag),
+                "mode_default": flag in MODE_FEATURE_MAP[config.mode],
+            }
+        )
     return {"mode": config.mode.value, "features": features}
 
 
 @app.post("/api/v7/events/send", response_model=EventResponse)
 async def send_event(req: SendMessageRequest):
     """发送事件（融合ICP v1.1 + EventStream）
-    
+
     流程：
     1. 从token或sender识别Agent
     2. 解析content中的ICP标签
@@ -1455,31 +1496,36 @@ async def send_event(req: SendMessageRequest):
     """
     # 1. 识别Agent
     sender = resolve_agent(req.token, req.sender)
-    
+
     # 1.5 P0安全注入：验证ICP内容安全性（在解析前过滤注入攻击）
     is_content_safe, safe_content = validate_icp_content(req.content)
     if not is_content_safe:
         _sec_logger = structlog.get_logger()
-        _sec_logger.warning("icp_injection_detected", endpoint="send_event",
-                           sender=sender, original_length=len(req.content), filtered=True)
-    
+        _sec_logger.warning(
+            "icp_injection_detected",
+            endpoint="send_event",
+            sender=sender,
+            original_length=len(req.content),
+            filtered=True,
+        )
+
     # 2. 解析ICP标签（使用安全过滤后的内容）
     parsed = parse_icp_message(safe_content)
     event_type = parsed.get("event_type", EventType.INFO)
     content = parsed.get("content", req.content)
     parsed_sender = parsed.get("sender") or sender
     parsed_recipient = parsed.get("recipient") or req.recipient
-    
+
     # 如果解析出了sender/recipient，优先用解析结果
     if parsed.get("sender"):
         parsed_sender = parsed["sender"]
     if parsed.get("recipient"):
         parsed_recipient = parsed["recipient"]
-    
+
     # 3. 创建Event
     # 尝试解析Handoff
     handoff = parse_handoff_text(content)
-    
+
     event = Action(
         event_id=_gen_event_id("act"),
         event_type=event_type,
@@ -1489,14 +1535,14 @@ async def send_event(req: SendMessageRequest):
         source=EventSource.AGENT,
         handoff=handoff,
     )
-    
+
     # 4. 发布到EventStream
     stream = get_or_create_stream()
     event_id = stream.publish(event)
-    
+
     # 5. 持久化
     persist_event_to_db(event)
-    
+
     # 6. 返回
     return EventResponse(
         event_id=event.event_id,
@@ -1514,15 +1560,15 @@ async def send_event(req: SendMessageRequest):
 @app.get("/api/v7/events")
 async def get_events(
     session_id: str = Query("default"),
-    agent_name: Optional[str] = Query(None),
-    event_type: Optional[str] = Query(None),
+    agent_name: str | None = Query(None),
+    event_type: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
 ):
     """查询事件（支持过滤）"""
     stream = get_or_create_stream(session_id)
-    
+
     events = stream.events
-    
+
     # 过滤
     if agent_name:
         events = [e for e in events if e.sender == agent_name or e.recipient == agent_name]
@@ -1532,10 +1578,10 @@ async def get_events(
             events = [e for e in events if e.event_type == et]
         except ValueError:
             pass
-    
+
     # 限制 + 最新在前
     events = events[-limit:][::-1]
-    
+
     return {
         "session_id": session_id,
         "total": len(events),
@@ -1548,7 +1594,7 @@ async def get_cause_chain(event_id: str, session_id: str = Query("default")):
     """获取因果链"""
     stream = get_or_create_stream(session_id)
     chain = stream.get_cause_chain(event_id)
-    
+
     return {
         "event_id": event_id,
         "chain_length": len(chain),
@@ -1570,7 +1616,7 @@ async def get_cause_chain(event_id: str, session_id: str = Query("default")):
 async def handoff_task(req: HandoffRequest):
     """Handoff任务（融合agent-team-orchestration的5要素）"""
     stream = get_or_create_stream()
-    
+
     event = create_handoff(
         task_id=req.task_id,
         build_agent=req.builder_agent,
@@ -1582,10 +1628,10 @@ async def handoff_task(req: HandoffRequest):
         what_next=req.what_next,
         confidence=req.confidence,
     )
-    
+
     event_id = stream.publish(event)
     persist_event_to_db(event)
-    
+
     return {
         "event_id": event_id,
         "task_id": req.task_id,
@@ -1597,38 +1643,40 @@ async def handoff_task(req: HandoffRequest):
 @app.post("/api/v7/tasks/lifecycle")
 async def update_task_lifecycle(req: TaskLifecycleRequest):
     """更新任务生命周期（融合agent-team-orchestration）
-    
+
     状态机：
     inbox → assigned → in_progress → review → done | failed
-    
+
     规则：
     - 每次转换必须comment（who/what/why）
     - 非法转换返回400
     """
     task_id = req.task_id
-    
+
     # 验证状态转换合法性
     valid_next = VALID_TRANSITIONS.get(req.from_state, [])
     if req.to_state not in valid_next:
         raise HTTPException(
             status_code=400,
-            detail=f"非法状态转换: {req.from_state} → {req.to_state}，合法目标: {valid_next}"
+            detail=f"非法状态转换: {req.from_state} → {req.to_state}，合法目标: {valid_next}",
         )
-    
+
     # 更新任务状态
     if task_id not in tasks:
         tasks[task_id] = {"state": "inbox", "history": []}
-    
+
     task = tasks[task_id]
     task["state"] = req.to_state
-    task["history"].append({
-        "from": req.from_state,
-        "to": req.to_state,
-        "comment": req.comment,
-        "changed_by": req.changed_by or "system",
-        "timestamp": datetime.now().isoformat(),
-    })
-    
+    task["history"].append(
+        {
+            "from": req.from_state,
+            "to": req.to_state,
+            "comment": req.comment,
+            "changed_by": req.changed_by or "system",
+            "timestamp": datetime.now().isoformat(),
+        }
+    )
+
     # 发布状态变更事件
     stream = get_or_create_stream()
     event = create_action(
@@ -1639,7 +1687,7 @@ async def update_task_lifecycle(req: TaskLifecycleRequest):
     )
     stream.publish(event)
     persist_event_to_db(event)
-    
+
     return {
         "task_id": task_id,
         "from_state": req.from_state,
@@ -1679,6 +1727,7 @@ async def get_stats(session_id: str = Query("default")):
 
 # ==================== 可观测性 API（7/8新增） ====================
 
+
 @app.get("/api/v7/observatory")
 async def observatory(session_id: str = Query("default")):
     """可观测性仪表盘数据 — 8面板聚合
@@ -1701,19 +1750,24 @@ async def observatory(session_id: str = Query("default")):
 
 # ==================== ModelRouter API（v7.2新增） ====================
 
+
 class ModelChatRequest(BaseModel):
     """模型聊天请求"""
+
     prompt: str = Field(..., description="用户输入")
     system: str = Field("", description="系统提示词（可选）")
     max_tokens: int = Field(512, description="最大输出token")
     temperature: float = Field(0.7, description="温度参数")
-    prefer_tier: Optional[str] = Field(None, description="临时指定层级（L1/L2/L3）")
+    prefer_tier: str | None = Field(None, description="临时指定层级（L1/L2/L3）")
 
 
 class StrategyRequest(BaseModel):
     """路由策略切换请求"""
-    strategy: str = Field(..., description="路由策略: cost_first / quality_first / speed_first / tier_specified")
-    tier: Optional[str] = Field(None, description="指定层级（仅tier_specified策略有效）")
+
+    strategy: str = Field(
+        ..., description="路由策略: cost_first / quality_first / speed_first / tier_specified"
+    )
+    tier: str | None = Field(None, description="指定层级（仅tier_specified策略有效）")
 
 
 @app.get("/api/v7/models/status")
@@ -1733,7 +1787,7 @@ async def model_chat(req: ModelChatRequest):
 
     自动路由到最优Provider，支持降级。
     填了GLM_API_KEY自动启用L2，填了DEEPSEEK_API_KEY自动启用L3。
-    
+
     V8安全注入：Prompt注入防护（prompt_security模块）。
     """
     # === P0安全注入：隔离system与user，防止注入攻击 ===
@@ -1745,9 +1799,13 @@ async def model_chat(req: ModelChatRequest):
     # 检测是否有注入尝试（日志告警）
     is_input_safe, _ = validate_icp_content(req.prompt)
     if not is_input_safe:
-        _logger.warning("prompt_injection_detected", endpoint="model_chat", 
-                       original_length=len(req.prompt), filtered=True)
-    
+        _logger.warning(
+            "prompt_injection_detected",
+            endpoint="model_chat",
+            original_length=len(req.prompt),
+            filtered=True,
+        )
+
     # 构建消息（使用安全隔离后的prompt）
     messages = []
     if req.system:
@@ -1827,7 +1885,8 @@ async def get_hardware_report():
     展示当前机器硬件信息和推荐模型配置。
     开源用户可根据自己的硬件锚点开拓最优适配。
     """
-    from hardware_profile import detect_hardware, recommend_tier, get_model_recommendation
+    from hardware_profile import detect_hardware, get_model_recommendation, recommend_tier
+
     info = detect_hardware()
     tier = recommend_tier(info)
     rec = get_model_recommendation(tier)
@@ -1848,11 +1907,11 @@ async def get_hardware_report():
 
 # ==================== SkillRouter v2 API（双层路由） ====================
 
-from skill_router_v2 import SkillRouterV2, create_router_v2, CATEGORY_MODEL_MAP
 from providers.base_provider import ProviderTier as _PT
+from skill_router_v2 import CATEGORY_MODEL_MAP, SkillRouterV2, create_router_v2
 
 # SkillRouter v2 全局实例
-_skill_router_v2: Optional[SkillRouterV2] = None
+_skill_router_v2: SkillRouterV2 | None = None
 
 
 def _get_skill_router_v2() -> SkillRouterV2:
@@ -1900,7 +1959,7 @@ async def skill_stats():
 
 
 @app.get("/api/v7/skills/list")
-async def skill_list(role: str = "all", priority: Optional[int] = None, category: Optional[str] = None):
+async def skill_list(role: str = "all", priority: int | None = None, category: str | None = None):
     """列出所有Skill（支持过滤）"""
     router = _get_skill_router_v2()
     skills = router.all_skills(active_only=True)
@@ -1913,10 +1972,16 @@ async def skill_list(role: str = "all", priority: Optional[int] = None, category
     return {
         "total": len(skills),
         "skills": [
-            {"id": s.id, "name": s.name, "category": s.category,
-             "priority": s.priority, "role": s.role,
-             "triggers": s.triggers, "description": s.description,
-             "model_tier": CATEGORY_MODEL_MAP.get(s.category, _PT.L1).value}
+            {
+                "id": s.id,
+                "name": s.name,
+                "category": s.category,
+                "priority": s.priority,
+                "role": s.role,
+                "triggers": s.triggers,
+                "description": s.description,
+                "model_tier": CATEGORY_MODEL_MAP.get(s.category, _PT.L1).value,
+            }
             for s in skills
         ],
     }
@@ -1953,7 +2018,8 @@ async def skill_execute(payload: dict):
         model_router.auto_init_from_env()
 
     result = router.route_with_model(
-        query, role=role,
+        query,
+        role=role,
         model_router=model_router,
         system_prompt=system_prompt,
         max_tokens=max_tokens,
@@ -1963,10 +2029,11 @@ async def skill_execute(payload: dict):
 
 # ==================== v6兼容层 ====================
 
+
 @app.post("/api/v6/send")
 async def v6_compat_send(req: SendMessageRequest):
     """v6兼容：发送消息
-    
+
     将v6的文本消息转译为v7 Event，内部走EventStream全流程
     """
     result = await send_event(req)
@@ -1981,22 +2048,22 @@ async def v6_compat_send(req: SendMessageRequest):
 async def v6_compat_inbox(
     agent_name: str,
     limit: int = Query(50, ge=1, le=200),
-    before: Optional[str] = Query(None),
-    before_id: Optional[str] = Query(None),
+    before: str | None = Query(None),
+    before_id: str | None = Query(None),
 ):
     """v6兼容：收件箱
-    
+
     从EventStream中过滤recipient=agent_name的事件
     支持v6.1的DESC排序+cursor分页
     """
     stream = get_or_create_stream()
-    
+
     # 获取所有发往此Agent的事件
     events = [e for e in stream.events if e.recipient == agent_name]
-    
+
     # DESC排序（最新在前）
     events = sorted(events, key=lambda e: e.timestamp, reverse=True)
-    
+
     # cursor分页
     has_more = False
     if before and len(events) > limit:
@@ -2007,29 +2074,31 @@ async def v6_compat_inbox(
                 cursor_idx = i
                 break
         if cursor_idx is not None:
-            events = events[cursor_idx:cursor_idx + limit]
+            events = events[cursor_idx : cursor_idx + limit]
             has_more = cursor_idx + limit < len(events)
     elif len(events) > limit:
         has_more = True
-    
+
     events = events[:limit]
-    
+
     # 转为v6格式
     messages = []
     for e in events:
         icp_text = stream.to_icp_v1_format(e)
-        messages.append({
-            "id": e.event_id,
-            "sender": e.sender,
-            "recipient": e.recipient,
-            "content": icp_text,  # ICP v1.1文本格式
-            "channel": "v7_event",
-            "created_at": e.timestamp.isoformat(),
-            "event_type": e.event_type.value,
-            "has_handoff": e.handoff is not None,
-            "has_wal": e.wal_entry is not None,
-        })
-    
+        messages.append(
+            {
+                "id": e.event_id,
+                "sender": e.sender,
+                "recipient": e.recipient,
+                "content": icp_text,  # ICP v1.1文本格式
+                "channel": "v7_event",
+                "created_at": e.timestamp.isoformat(),
+                "event_type": e.event_type.value,
+                "has_handoff": e.handoff is not None,
+                "has_wal": e.wal_entry is not None,
+            }
+        )
+
     return {
         "agent": agent_name,
         "messages": messages,
@@ -2053,6 +2122,7 @@ async def v6_compat_status():
 
 # ==================== Worktree API端点（Day 2新增）====================
 
+
 @app.post("/api/v7/worktree/create", response_model=WorktreeResponse)
 async def create_worktree(req: WorktreeCreateRequest):
     """创建Worktree（三源融优: A主文件隔离 + B副端口/DB + C自角色映射）"""
@@ -2063,7 +2133,7 @@ async def create_worktree(req: WorktreeCreateRequest):
         "coordinator": WorktreeRole.COORDINATOR,
     }
     role = role_map.get(req.role, WorktreeRole.MAKER)
-    
+
     config = WorktreeConfig(
         name=req.name,
         branch=req.branch or f"{'feat' if role == WorktreeRole.MAKER else req.role}/{req.name}",
@@ -2073,11 +2143,11 @@ async def create_worktree(req: WorktreeCreateRequest):
         review_required=req.review_required,
         reviewer=req.reviewer,
     )
-    
+
     try:
         path = worktree_manager.create_worktree(config)
         ports = worktree_manager.assign_ports(req.name)
-        
+
         return WorktreeResponse(
             name=req.name,
             status=config.status.value,
@@ -2122,19 +2192,21 @@ async def worktree_action(req: WorktreeActionRequest):
         if not success:
             raise HTTPException(status_code=404, detail=f"Worktree '{req.name}' 不存在")
         return {"name": req.name, "action": "lock", "status": "locked"}
-    
+
     elif req.action == "unlock":
         success = worktree_manager.unlock_worktree(req.name)
         if not success:
             raise HTTPException(status_code=404, detail=f"Worktree '{req.name}' 不存在")
         return {"name": req.name, "action": "unlock", "status": "active"}
-    
+
     elif req.action == "merge":
         success = worktree_manager.verify_and_merge(req.name)
         if not success:
-            raise HTTPException(status_code=400, detail=f"Worktree '{req.name}' 合并失败（可能在审查中）")
+            raise HTTPException(
+                status_code=400, detail=f"Worktree '{req.name}' 合并失败（可能在审查中）"
+            )
         return {"name": req.name, "action": "merge", "status": "completed"}
-    
+
     elif req.action == "remove":
         try:
             success = worktree_manager.remove_worktree(req.name, force=req.force)
@@ -2143,13 +2215,18 @@ async def worktree_action(req: WorktreeActionRequest):
             return {"name": req.name, "action": "remove", "status": "removed"}
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
-    
+
     elif req.action == "assign_reviewer":
         success = worktree_manager.assign_reviewer(req.name, req.reviewer)
         if not success:
             raise HTTPException(status_code=404, detail=f"Worktree '{req.name}' 不存在")
-        return {"name": req.name, "action": "assign_reviewer", "reviewer": req.reviewer, "status": "reviewing"}
-    
+        return {
+            "name": req.name,
+            "action": "assign_reviewer",
+            "reviewer": req.reviewer,
+            "status": "reviewing",
+        }
+
     else:
         raise HTTPException(status_code=400, detail=f"未知操作: {req.action}")
 
@@ -2160,13 +2237,13 @@ async def submit_review(req: ReviewSubmitRequest):
     wt = worktree_manager.get_worktree(req.worktree_name)
     if not wt:
         raise HTTPException(status_code=404, detail=f"Worktree '{req.worktree_name}' 不存在")
-    
+
     stream = get_or_create_stream()
-    
+
     if req.verdict == "pass":
         # 审查通过 → 解锁 + 通知
         worktree_manager.unlock_worktree(req.worktree_name)
-        
+
         event = create_done_action(
             sender=req.reviewer,
             recipient=wt.agent,
@@ -2178,18 +2255,18 @@ async def submit_review(req: ReviewSubmitRequest):
             what_next="可以合并回主分支",
         )
         stream.publish(event)
-        
+
         return {
             "worktree": req.worktree_name,
             "verdict": "pass",
             "reviewer": req.reviewer,
             "status": "unlocked",
         }
-    
+
     elif req.verdict == "fail":
         # 审查不通过 → 解锁但通知修改
         worktree_manager.unlock_worktree(req.worktree_name)
-        
+
         event = create_action(
             sender=req.reviewer,
             recipient=wt.agent,
@@ -2197,7 +2274,7 @@ async def submit_review(req: ReviewSubmitRequest):
             content=f"[WARN] 审查未通过: Worktree {req.worktree_name}。问题: {', '.join(req.issues)}。{req.comments}",
         )
         stream.publish(event)
-        
+
         return {
             "worktree": req.worktree_name,
             "verdict": "fail",
@@ -2205,7 +2282,7 @@ async def submit_review(req: ReviewSubmitRequest):
             "issues": req.issues,
             "status": "needs_revision",
         }
-    
+
     else:
         raise HTTPException(status_code=400, detail=f"verdict必须是pass或fail，收到: {req.verdict}")
 
@@ -2230,29 +2307,35 @@ async def get_worktree_stats():
 
 # 频道定义（复用v6架构）
 CHANNELS = {
-    "#general":  {"name": "综合大厅",   "members": list(AGENT_TOKENS.values()), "assignee_default": None},
-    "#tech":     {"name": "技术研发",   "members": ["澜舟", "灵犀"],  "assignee_default": "澜舟"},
-    "#creative": {"name": "创意工坊",   "members": ["千寻", "澜澜"],  "assignee_default": "千寻"},
-    "#admin":    {"name": "行政管理",   "members": ["澜澜", "九重"],  "assignee_default": "澜澜"},
+    "#general": {
+        "name": "综合大厅",
+        "members": list(AGENT_TOKENS.values()),
+        "assignee_default": None,
+    },
+    "#tech": {"name": "技术研发", "members": ["澜舟", "灵犀"], "assignee_default": "澜舟"},
+    "#creative": {"name": "创意工坊", "members": ["千寻", "澜澜"], "assignee_default": "千寻"},
+    "#admin": {"name": "行政管理", "members": ["澜澜", "九重"], "assignee_default": "澜澜"},
 }
 
 # Kanban回调存储
-kanban_callbacks: Dict[str, Dict[str, Any]] = {}
+kanban_callbacks: dict[str, dict[str, Any]] = {}
 
 
 class ChannelSendRequest(BaseModel):
     """频道发送请求（会议室闭环）"""
+
     content: str
-    channel: Optional[str] = None
-    recipient: Optional[str] = None
-    sender: Optional[str] = None
-    token: Optional[str] = None
+    channel: str | None = None
+    recipient: str | None = None
+    sender: str | None = None
+    token: str | None = None
 
 
 class KanbanCallbackRequest(BaseModel):
     """Kanban回调请求（会议室闭环）"""
+
     event: str
-    task: Dict[str, Any] = Field(default_factory=dict)
+    task: dict[str, Any] = Field(default_factory=dict)
     channel: str = "#general"
 
 
@@ -2276,11 +2359,11 @@ async def channels_send(req: ChannelSendRequest):
     content = req.content
 
     # 解析 @提及
-    mentions = re.findall(r'@(\S+)', content)
+    mentions = re.findall(r"@(\S+)", content)
     valid_mentions = [m for m in mentions if m in AGENT_TOKENS.values()]
 
     # 解析内容中的频道标签
-    ch_match = re.match(r'(#\w+)', content)
+    ch_match = re.match(r"(#\w+)", content)
     if ch_match and ch_match.group(1) in CHANNELS:
         channel = ch_match.group(1)
 
@@ -2305,8 +2388,13 @@ async def channels_send(req: ChannelSendRequest):
     is_chat_safe, safe_chat_content = validate_icp_content(content)
     if not is_chat_safe:
         _chat_sec_logger = structlog.get_logger()
-        _chat_sec_logger.warning("chat_injection_detected", endpoint="group_message",
-                                 sender=sender, channel=channel, filtered=True)
+        _chat_sec_logger.warning(
+            "chat_injection_detected",
+            endpoint="group_message",
+            sender=sender,
+            channel=channel,
+            filtered=True,
+        )
     content = safe_chat_content
 
     # 3. 创建Event
@@ -2348,6 +2436,7 @@ async def channels_send(req: ChannelSendRequest):
     if task_intent["is_task"] and channel:
         try:
             import requests as http_requests
+
             assignee = CHANNELS.get(channel, {}).get("assignee_default")
             payload = {
                 "title": task_intent["title"],
@@ -2454,11 +2543,11 @@ async def kanban_callback_history(limit: int = Query(50, ge=1, le=200)):
 def _detect_task_intent(content: str) -> dict:
     """检测消息中的任务创建意图（复用v6逻辑 + v7 ICP兼容）"""
     patterns = [
-        r'【任务】\s*(.+)',
-        r'(?:创建|新建|添加)任务[:：]\s*(.+)',
-        r'(?:TODO|TASK)[：:]\s*(.+)',
-        r'\[TASK\]\s*(.+)',           # ICP v1.1标签格式
-        r'需要(.+?)(?:完成|处理|解决)',
+        r"【任务】\s*(.+)",
+        r"(?:创建|新建|添加)任务[:：]\s*(.+)",
+        r"(?:TODO|TASK)[：:]\s*(.+)",
+        r"\[TASK\]\s*(.+)",  # ICP v1.1标签格式
+        r"需要(.+?)(?:完成|处理|解决)",
     ]
     for pat in patterns:
         m = re.search(pat, content)
@@ -2486,7 +2575,7 @@ _LINGXI_CHANNEL_RULES = {
 }
 
 
-def _detect_lingxi_channel(user_msg: str, reply: str) -> Optional[str]:
+def _detect_lingxi_channel(user_msg: str, reply: str) -> str | None:
     """根据灵犀对话内容判断应该同步到哪个频道（九重频道路由规则）
 
     规则：简报→#tech | 资料包→#general | 私聊→None(不同步)
@@ -2531,15 +2620,20 @@ def _sync_lingxi_to_group(user_message: str, reply: str, mode: str):
             mentions=[],
             event_tag="UPD",
         )
-        logger.info("lingxi_sync_ok", channel=target_channel, mode=mode,
-                    reply_len=len(reply), user_msg_len=len(user_message))
+        logger.info(
+            "lingxi_sync_ok",
+            channel=target_channel,
+            mode=mode,
+            reply_len=len(reply),
+            user_msg_len=len(user_message),
+        )
     except Exception as e:
         logger.warning("lingxi_sync_failed", error=str(e))
 
 
 # ==================== 会议室前端页面（v7风格）====================
 
-V7_HTML_PAGE = '''<!DOCTYPE html>
+V7_HTML_PAGE = """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -2950,19 +3044,20 @@ window.addEventListener("DOMContentLoaded", function(){
 });
 </script>
 </body>
-</html>'''
+</html>"""
 
 
 @app.get("/meeting")
 async def meeting_room(request: Request):
     """会议室前端页面（v7 EventStream风格）"""
     from fastapi.responses import HTMLResponse
+
     return HTMLResponse(apply_theme_to_page(V7_HTML_PAGE, request))
 
 
 # ==================== 灵犀独立聊天界面 ====================
 
-LINGXI_CHAT_PAGE = '''
+LINGXI_CHAT_PAGE = """
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -3182,13 +3277,14 @@ function showGroupNotif(msg){
 }
 </script>
 </body>
-</html>'''
+</html>"""
 
 
 @app.get("/lingxi")
 async def lingxi_chat(request: Request):
     """灵犀独立沟通界面（桌面入口）"""
     from fastapi.responses import HTMLResponse
+
     return HTMLResponse(apply_theme_to_page(LINGXI_CHAT_PAGE, request))
 
 
@@ -3215,7 +3311,7 @@ async def lingxi_chat_api(req: LingxiChatRequest):
         import httpx
 
         if req.mode == "chat":
-                        # === chat模式：直接调DeepSeek Flash API + 完整灵犀人设（v3·身份锚定版） ===
+            # === chat模式：直接调DeepSeek Flash API + 完整灵犀人设（v3·身份锚定版） ===
             lingxi_system = (
                 "=== Identity ===\n"
                 "You are a HomeStream AI assistant, running inside the HomeStream agent ecosystem.\n"
@@ -3248,7 +3344,6 @@ async def lingxi_chat_api(req: LingxiChatRequest):
                 "Never leak private data | Mark confidence when uncertain | Flag risks first | Ask before external publishing"
             )
 
-
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.post(
                     "https://api.deepseek.com/v1/chat/completions",
@@ -3273,7 +3368,10 @@ async def lingxi_chat_api(req: LingxiChatRequest):
                     _sync_lingxi_to_group(req.message, reply, "chat")
                     return {"ok": True, "reply": reply, "mode": "chat", "source": "deepseek-flash"}
                 else:
-                    return {"ok": False, "error": f"API error {resp.status_code}: {resp.text[:200]}"}
+                    return {
+                        "ok": False,
+                        "error": f"API error {resp.status_code}: {resp.text[:200]}",
+                    }
 
         elif req.mode == "work":
             try:
@@ -3295,17 +3393,26 @@ async def lingxi_chat_api(req: LingxiChatRequest):
                         if reply:
                             # 方案C：灵犀回复自动同步到群聊
                             _sync_lingxi_to_group(req.message, reply, "work")
-                            return {"ok": True, "reply": reply, "mode": "work", "source": "openclaw-gateway"}
+                            return {
+                                "ok": True,
+                                "reply": reply,
+                                "mode": "work",
+                                "source": "openclaw-gateway",
+                            }
                         return {"ok": False, "error": f"Gateway空回复: {str(data)[:200]}"}
                     hint = f"Gateway({resp.status_code})"
-                    if resp.status_code == 599: hint += " 灵犀离线"
-                    elif resp.status_code == 504: hint += " 超时"
+                    if resp.status_code == 599:
+                        hint += " 灵犀离线"
+                    elif resp.status_code == 504:
+                        hint += " 超时"
                     return {"ok": False, "error": hint}
             except Exception as e:
                 err = str(e)
                 hint = "连接失败"
-                if "timeout" in err.lower(): hint = "超时"
-                elif "refused" in err.lower(): hint = "Gateway未启动"
+                if "timeout" in err.lower():
+                    hint = "超时"
+                elif "refused" in err.lower():
+                    hint = "Gateway未启动"
                 return {"ok": False, "error": f"{hint}: {err[:100]}"}
         else:
             return {"ok": False, "error": f"未知模式: {req.mode}"}
@@ -3314,17 +3421,20 @@ async def lingxi_chat_api(req: LingxiChatRequest):
         logger.error(f"灵犀异常: {e}", exc_info=True)
         return {"ok": False, "error": f"内部错误: {str(e)[:200]}"}
 
+
 # ============================================================
 # 群聊API
 # ============================================================
 
+
 class GroupMessageRequest(BaseModel):
     """群聊消息请求体（FastAPI Pydantic模型）"""
+
     sender: str
     content: str
     msg_type: str = "text"
     channel: str = "#general"
-    mentions: Optional[List[str]] = None
+    mentions: list[str] | None = None
     event_tag: str = ""
 
 
@@ -3332,8 +3442,11 @@ class GroupMessageRequest(BaseModel):
 async def group_send(req: GroupMessageRequest):
     manager = get_group_chat_manager()
     msg = manager.send_message(
-        sender=req.sender, content=req.content, msg_type=req.msg_type,
-        mentions=req.mentions or [], channel=req.channel or "#general",
+        sender=req.sender,
+        content=req.content,
+        msg_type=req.msg_type,
+        mentions=req.mentions or [],
+        channel=req.channel or "#general",
         event_tag=req.event_tag or "",
     )
     return {"ok": True, "msg_id": msg.msg_id, "message": msg.to_dict()}
@@ -3343,8 +3456,11 @@ async def group_send(req: GroupMessageRequest):
 async def group_notify(req: GroupMessageRequest):
     manager = get_group_chat_manager()
     msg = manager.send_message(
-        sender=req.sender, content=req.content, msg_type="notify",
-        mentions=req.mentions or [], channel=req.channel or "#general",
+        sender=req.sender,
+        content=req.content,
+        msg_type="notify",
+        mentions=req.mentions or [],
+        channel=req.channel or "#general",
         event_tag="system_notify" if not req.event_tag else req.event_tag,
     )
     return {"ok": True, "msg_id": msg.msg_id, "message": msg.to_dict()}
@@ -3368,15 +3484,16 @@ async def group_stats():
     manager = get_group_chat_manager()
     return {"ok": True, **manager.get_stats()}
 
+
 # ============================================================
 # 前端页面
 # ============================================================
 
 UNIFIED_CHAT_PAGE = (
-    "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>九重工"
+    '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>九重工'
     "作室 - 会议室</title>\n<style>\n:root{--bg:#f5f5f5;--panel:#fff;--border:#e0e0e0;--text:#1a1a2e;--text2:#666;--text3:#999;--accent:#4A90D9;--accent2:#6c5ce7;--meetin"
     "g-bg:#FFF8E1;--meeting-border:#FFD54F;--self-bg:#4A90D9;--other-bg:#fff;--radius:12px}\n*{margin:0;padding:0;box-sizing:border-box}\nbody{font-family:-apple-sys"
-    "tem,\"Microsoft YaHei\",\"Segoe UI\",sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}\n.header"
+    'tem,"Microsoft YaHei","Segoe UI",sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}\n.header'
     "{background:var(--panel);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:14px;flex-shrink:0}\n.header .group-icon{wi"
     "dth:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;c"
     "olor:#fff;font-size:18px;font-weight:700;flex-shrink:0}\n.header .info h1{font-size:16px;font-weight:600;color:var(--text)}\n.header .info p{font-size:12px;colo"
@@ -3406,7 +3523,7 @@ UNIFIED_CHAT_PAGE = (
     "%;border-left:4px solid #FF9800}\n.meeting-card .mt-title{font-size:15px;font-weight:600;color:#E65100;margin-bottom:8px}\n.meeting-card .mt-row{font-size:13px;"
     "color:#5D4037;margin-bottom:4px;display:flex;gap:6px}\n.meeting-card .mt-label{font-weight:600;min-width:50px;color:#8D6E63}\n.meeting-card .mt-agenda{margin:6p"
     "x 0;padding-left:8px}\n.meeting-card .mt-agenda li{font-size:13px;color:#5D4037;margin-bottom:3px;list-style:none;padding-left:14px;position:relative}\n.meeting"
-    "-card .mt-agenda li:before{content:\"\";position:absolute;left:0;top:8px;width:5px;height:5px;border-radius:50%;background:#FF9800}\n.meeting-card .mt-attendees"
+    '-card .mt-agenda li:before{content:"";position:absolute;left:0;top:8px;width:5px;height:5px;border-radius:50%;background:#FF9800}\n.meeting-card .mt-attendees'
     "{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}\n.meeting-card .mt-badge{background:#FFE0B2;color:#E65100;padding:2px 8px;border-radius:10px;font-size:11px"
     ";font-weight:500}\n.empty-state{text-align:center;color:var(--text3);padding:40px 20px}\n.empty-state .icon{font-size:36px;margin-bottom:12px;color:var(--accent"
     ");font-weight:700}\n.empty-state .title{font-size:15px;font-weight:600;margin-bottom:6px;color:var(--text)}\n.empty-state .desc{font-size:13px;line-height:1.6}"
@@ -3425,84 +3542,84 @@ UNIFIED_CHAT_PAGE = (
     ":8px;font-size:14px;cursor:pointer}\n.meeting-modal .btn-cancel{background:var(--bg);color:var(--text2)}\n.meeting-modal .btn-confirm{background:var(--accent);c"
     "olor:#fff}\n.scrollbar::-webkit-scrollbar{width:5px}\n.scrollbar::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:3px}\n.footer{padding:6px 20p"
     "x;font-size:11px;color:var(--text3);text-align:center;border-top:1px solid var(--border);background:var(--panel)}\n@media(max-width:700px){.sidebar{display:none"
-    "}.msg-row{max-width:90%}.input-wrap select{width:80px}}\n</style>\n</head>\n<body>\n\n<div class=\"header\">\n<div class=\"group-icon\">9</div>\n<div class=\"in"
-    "fo\">\n<h1>九重工作室 会议室</h1>\n<p id=\"memberSummary\">加载中...</p>\n</div>\n<div class=\"actions\">\n<button class=\"btn\" onclick=\"scrollToBottom()\" title=\"跳到底部"
-    "\">最新</button>\n<button class=\"btn btn-meeting\" onclick=\"openMeetingModal()\">会议通知</button>\n</div>\n</div>\n\n<div class=\"main\">\n<aside class=\"sidebar s"
-    "crollbar\">\n<h3>频道</h3>\n<div class=\"ch-list\" id=\"chList\">\n<button class=\"ch-btn active\" data-ch=\"#all\"><span class=\"ch-hash\">*</span>全部消息</button>"
-    "\n<button class=\"ch-btn\" data-ch=\"#general\"><span class=\"ch-hash\">#</span>综合大厅</button>\n<button class=\"ch-btn\" data-ch=\"#tech\"><span class=\"ch-hash"
-    "\">#</span>技术研发</button>\n<button class=\"ch-btn\" data-ch=\"#creative\"><span class=\"ch-hash\">#</span>创意工坊</button>\n<button class=\"ch-btn\" data-ch=\"#admi"
-    "n\"><span class=\"ch-hash\">#</span>行政管理</button>\n</div>\n<h3>成员</h3>\n<div id=\"memberList\"></div>\n</aside>\n\n<section class=\"chat-area\">\n<div class=\"m"
-    "sgs scrollbar\" id=\"msgs\"></div>\n<div class=\"input-area\">\n<div class=\"input-wrap\">\n<select id=\"chSel\">\n<option value=\"#general\">#general</option>"
-    "\n<option value=\"#tech\">#tech</option>\n<option value=\"#creative\">#creative</option>\n<option value=\"#admin\">#admin</option>\n</select>\n<textarea id=\"ms"
-    "gInput\" placeholder=\"输入消息，@提及成员，Enter发送...\" rows=\"1\" autofocus></textarea>\n<button class=\"btn-send\" id=\"sendBtn\" onclick=\"sendMsg()\">发送</button>\n</"
-    "div>\n</div>\n</section>\n</div>\n\n<div class=\"meeting-modal\" id=\"meetingModal\">\n<div class=\"modal-box\">\n<h2>发起会议通知</h2>\n<label>会议标题</label>\n<input i"
-    "d=\"mtTitle\" placeholder=\"例如：V8架构冲刺会议\">\n<label>会议时间</label>\n<input id=\"mtTime\" placeholder=\"例如：2026-06-24 14:00\">\n<label>会议地点</label>\n<input id=\"mtL"
-    "ocation\" value=\"线上会议室\" placeholder=\"线上会议室 / 3号会议室\">\n<label>通知频道</label>\n<select id=\"mtChannel\" style=\"width:100%;padding:9px 12px;border:1px solid var"
-    "(--border);border-radius:8px;font-size:14px;margin-top:4px\">\n<option value=\"#general\">#general 综合大厅</option>\n<option value=\"#tech\">#tech 技术研发</option>\n<"
-    "option value=\"#creative\">#creative 创意工坊</option>\n<option value=\"#admin\">#admin 行政管理</option>\n</select>\n<label>议程（每行一条）</label>\n<textarea id=\"mtAgenda\""
-    " rows=\"4\" placeholder=\"回顾今日进度&#10;讨论SkillRouter设计&#10;分配明日任务\"></textarea>\n<div class=\"modal-actions\">\n<button class=\"btn-cancel\" onclick=\"closeMeetin"
-    "gModal()\">取消</button>\n<button class=\"btn-confirm\" onclick=\"sendMeeting()\">发送通知</button>\n</div>\n</div>\n</div>\n\n<div class=\"footer\">OpenBridge V8(3458) EventSt"
-    "ream Kanban(8643) 书阁(3460) ICP v1.1</div>\n\n<script>\nvar API = location.origin;\nvar SELF = \"九重\";\nvar curCh = \"#all\";\nvar lastTs = \"\";\nvar ws = null;"
-    "\nvar members = [];\n\nvar MEMBER_COLORS = {\"九重\":\"#DAA520\",\"澜澜\":\"#4A90D9\",\"灵犀\":\"#9B59B6\",\"澜舟\":\"#2ECC71\",\"千寻\":\"#E67E22\"};\nvar MEMBER_INITIAL"
-    "S = {\"九重\":\"九\",\"澜澜\":\"澜\",\"灵犀\":\"犀\",\"澜舟\":\"舟\",\"千寻\":\"寻\"};\nvar MEMBER_NAMES = [\"九重\",\"澜澜\",\"灵犀\",\"澜舟\",\"千寻\"];\nvar CHANNEL_NAMES = {\"#gener"
-    "al\":\"综合大厅\",\"#tech\":\"技术研发\",\"#creative\":\"创意工坊\",\"#admin\":\"行政管理\"};\n\nfunction esc(t){var d=document.createElement(\"div\");d.textContent=t;return d."
-    "innerHTML}\nfunction fmt(iso){try{var d=new Date(iso);return d.toLocaleString(\"zh-CN\",{month:\"short\",day:\"numeric\",hour:\"2-digit\",minute:\"2-digit\"})}c"
-    "atch(e){return iso}}\nfunction nl2br(t){return t.split(String.fromCharCode(10)).join(\"<br>\")}\nfunction scrollToBottom(){var b=document.getElementById(\"msgs"
-    "\");b.scrollTop=b.scrollHeight}\n\nfunction getAvatar(name){\n  var c = MEMBER_COLORS[name] || \"#888\";\n  var i = MEMBER_INITIALS[name] || (name ? name[0] : "
+    '}.msg-row{max-width:90%}.input-wrap select{width:80px}}\n</style>\n</head>\n<body>\n\n<div class="header">\n<div class="group-icon">9</div>\n<div class="in'
+    'fo">\n<h1>九重工作室 会议室</h1>\n<p id="memberSummary">加载中...</p>\n</div>\n<div class="actions">\n<button class="btn" onclick="scrollToBottom()" title="跳到底部'
+    '">最新</button>\n<button class="btn btn-meeting" onclick="openMeetingModal()">会议通知</button>\n</div>\n</div>\n\n<div class="main">\n<aside class="sidebar s'
+    'crollbar">\n<h3>频道</h3>\n<div class="ch-list" id="chList">\n<button class="ch-btn active" data-ch="#all"><span class="ch-hash">*</span>全部消息</button>'
+    '\n<button class="ch-btn" data-ch="#general"><span class="ch-hash">#</span>综合大厅</button>\n<button class="ch-btn" data-ch="#tech"><span class="ch-hash'
+    '">#</span>技术研发</button>\n<button class="ch-btn" data-ch="#creative"><span class="ch-hash">#</span>创意工坊</button>\n<button class="ch-btn" data-ch="#admi'
+    'n"><span class="ch-hash">#</span>行政管理</button>\n</div>\n<h3>成员</h3>\n<div id="memberList"></div>\n</aside>\n\n<section class="chat-area">\n<div class="m'
+    'sgs scrollbar" id="msgs"></div>\n<div class="input-area">\n<div class="input-wrap">\n<select id="chSel">\n<option value="#general">#general</option>'
+    '\n<option value="#tech">#tech</option>\n<option value="#creative">#creative</option>\n<option value="#admin">#admin</option>\n</select>\n<textarea id="ms'
+    'gInput" placeholder="输入消息，@提及成员，Enter发送..." rows="1" autofocus></textarea>\n<button class="btn-send" id="sendBtn" onclick="sendMsg()">发送</button>\n</'
+    'div>\n</div>\n</section>\n</div>\n\n<div class="meeting-modal" id="meetingModal">\n<div class="modal-box">\n<h2>发起会议通知</h2>\n<label>会议标题</label>\n<input i'
+    'd="mtTitle" placeholder="例如：V8架构冲刺会议">\n<label>会议时间</label>\n<input id="mtTime" placeholder="例如：2026-06-24 14:00">\n<label>会议地点</label>\n<input id="mtL'
+    'ocation" value="线上会议室" placeholder="线上会议室 / 3号会议室">\n<label>通知频道</label>\n<select id="mtChannel" style="width:100%;padding:9px 12px;border:1px solid var'
+    '(--border);border-radius:8px;font-size:14px;margin-top:4px">\n<option value="#general">#general 综合大厅</option>\n<option value="#tech">#tech 技术研发</option>\n<'
+    'option value="#creative">#creative 创意工坊</option>\n<option value="#admin">#admin 行政管理</option>\n</select>\n<label>议程（每行一条）</label>\n<textarea id="mtAgenda"'
+    ' rows="4" placeholder="回顾今日进度&#10;讨论SkillRouter设计&#10;分配明日任务"></textarea>\n<div class="modal-actions">\n<button class="btn-cancel" onclick="closeMeetin'
+    'gModal()">取消</button>\n<button class="btn-confirm" onclick="sendMeeting()">发送通知</button>\n</div>\n</div>\n</div>\n\n<div class="footer">OpenBridge V8(3458) EventSt'
+    'ream Kanban(8643) 书阁(3460) ICP v1.1</div>\n\n<script>\nvar API = location.origin;\nvar SELF = "九重";\nvar curCh = "#all";\nvar lastTs = "";\nvar ws = null;'
+    '\nvar members = [];\n\nvar MEMBER_COLORS = {"九重":"#DAA520","澜澜":"#4A90D9","灵犀":"#9B59B6","澜舟":"#2ECC71","千寻":"#E67E22"};\nvar MEMBER_INITIAL'
+    'S = {"九重":"九","澜澜":"澜","灵犀":"犀","澜舟":"舟","千寻":"寻"};\nvar MEMBER_NAMES = ["九重","澜澜","灵犀","澜舟","千寻"];\nvar CHANNEL_NAMES = {"#gener'
+    'al":"综合大厅","#tech":"技术研发","#creative":"创意工坊","#admin":"行政管理"};\n\nfunction esc(t){var d=document.createElement("div");d.textContent=t;return d.'
+    'innerHTML}\nfunction fmt(iso){try{var d=new Date(iso);return d.toLocaleString("zh-CN",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}c'
+    'atch(e){return iso}}\nfunction nl2br(t){return t.split(String.fromCharCode(10)).join("<br>")}\nfunction scrollToBottom(){var b=document.getElementById("msgs'
+    '");b.scrollTop=b.scrollHeight}\n\nfunction getAvatar(name){\n  var c = MEMBER_COLORS[name] || "#888";\n  var i = MEMBER_INITIALS[name] || (name ? name[0] : '
     "\"?\");\n  return '<div class=\"msg-avatar\" style=\"background:'+c+'\">'+i+'</div>';\n}\n\nfunction renderMentions(text){\n  var result = esc(text);\n  for(var"
-    " i=0;i<MEMBER_NAMES.length;i++){\n    var pattern = \"@\"+MEMBER_NAMES[i];\n    result = result.split(pattern).join('<span class=\"msg-mention\">'+pattern+'</sp"
+    ' i=0;i<MEMBER_NAMES.length;i++){\n    var pattern = "@"+MEMBER_NAMES[i];\n    result = result.split(pattern).join(\'<span class="msg-mention">\'+pattern+\'</sp'
     "an>');\n  }\n  return result;\n}\n\nfunction parseEventTag(content){\n  var m = content.match(/^\\[(INFO|TASK|WARN|DONE|ASK|UPD)\\]/);\n  if(m) return {tag:m[1]"
-    ", text:content.substring(m[0].length)};\n  return {tag:\"\", text:content};\n}\n\nfunction addMsgToView(m){\n  var box=document.getElementById(\"msgs\");\n  var"
-    " isSelf = m.sender === SELF;\n  var div=document.createElement(\"div\");\n\n  if(m.msg_type === \"meeting\" && m.meeting_data){\n    var md = m.meeting_data;\n "
-    "   div.className=\"meeting-card\";\n    var agendaHtml = \"\";\n    if(md.agenda && md.agenda.length>0){\n      agendaHtml = '<div class=\"mt-agenda\">';\n     "
-    " for(var i=0;i<md.agenda.length;i++){agendaHtml += \"<li>\"+esc(md.agenda[i])+\"</li>\"}\n      agendaHtml += \"</div>\";\n    }\n    var attendeesHtml = \"\";"
+    ', text:content.substring(m[0].length)};\n  return {tag:"", text:content};\n}\n\nfunction addMsgToView(m){\n  var box=document.getElementById("msgs");\n  var'
+    ' isSelf = m.sender === SELF;\n  var div=document.createElement("div");\n\n  if(m.msg_type === "meeting" && m.meeting_data){\n    var md = m.meeting_data;\n '
+    '   div.className="meeting-card";\n    var agendaHtml = "";\n    if(md.agenda && md.agenda.length>0){\n      agendaHtml = \'<div class="mt-agenda">\';\n     '
+    ' for(var i=0;i<md.agenda.length;i++){agendaHtml += "<li>"+esc(md.agenda[i])+"</li>"}\n      agendaHtml += "</div>";\n    }\n    var attendeesHtml = "";'
     "\n    if(md.attendees && md.attendees.length>0){\n      attendeesHtml = '<div class=\"mt-attendees\">';\n      for(var j=0;j<md.attendees.length;j++){attendeesH"
-    "tml += '<span class=\"mt-badge\">'+esc(md.attendees[j])+'</span>'}\n      attendeesHtml += \"</div>\";\n    }\n    var senderLine = esc(m.sender) + \" - \" + fm"
+    'tml += \'<span class="mt-badge">\'+esc(md.attendees[j])+\'</span>\'}\n      attendeesHtml += "</div>";\n    }\n    var senderLine = esc(m.sender) + " - " + fm'
     "t(m.timestamp);\n    if(m.channel && m.channel !== \"#general\"){senderLine += ' ['+esc(m.channel)+']'}\n    div.innerHTML =\n      '<div class=\"mt-title\">' +"
     " esc(md.title) + '</div>' +\n      '<div class=\"mt-row\"><span class=\"mt-label\">时间</span>' + esc(md.time) + '</div>' +\n      '<div class=\"mt-row\"><span cl"
     "ass=\"mt-label\">地点</span>' + esc(md.location) + '</div>' +\n      agendaHtml + attendeesHtml +\n      '<div style=\"margin-top:8px;font-size:11px;color:#999\">"
-    "发起: ' + senderLine + '</div>';\n    box.appendChild(div);\n  } else {\n    div.className=\"msg-row\" + (isSelf ? \" self\" : \"\");\n    var parsed = parseEvent"
+    '发起: \' + senderLine + \'</div>\';\n    box.appendChild(div);\n  } else {\n    div.className="msg-row" + (isSelf ? " self" : "");\n    var parsed = parseEvent'
     "Tag(m.content);\n    var content = renderMentions(parsed.text);\n    var tagHtml = parsed.tag ? '<span class=\"msg-etag '+parsed.tag+'\">'+parsed.tag+'</span>' "
     ": '';\n    var chHtml = (m.channel && m.channel !== \"#general\" && curCh === \"#all\") ? '<span class=\"ch-tag\">'+esc(m.channel)+'</span>' : '';\n    div.inne"
     "rHTML =\n      getAvatar(m.sender) +\n      '<div class=\"msg-body\">' +\n        '<div class=\"msg-meta\"><span class=\"name\">' + esc(m.sender) + '</span>'+ta"
     "gHtml+chHtml+'<span>' + fmt(m.timestamp) + '</span></div>' +\n        '<div class=\"msg-bubble\">' + nl2br(content) + '</div>' +\n      '</div>';\n    box.appen"
-    "dChild(div);\n  }\n  scrollToBottom();\n}\n\nasync function loadMsgs(){\n  try{\n    var url = API + \"/api/v7/group/messages?limit=50\";\n    if(curCh && curCh"
-    " !== \"#all\"){url += \"&channel=\" + encodeURIComponent(curCh)}\n    var r = await fetch(url);\n    var d = await r.json();\n    if(d.ok){\n      var msgs = d."
-    "messages || [];\n      var box=document.getElementById(\"msgs\");\n      if(msgs.length > 0){\n        box.innerHTML = \"\";\n        for(var i=msgs.length-1;i>"
-    "=0;i--){addMsgToView(msgs[i])}\n      } else {\n        box.innerHTML = '<div class=\"empty-state\"><div class=\"icon\">9</div><div class=\"title\">九重工作室 会议室</d"
-    "iv><div class=\"desc\">发一条消息，全员同时收到<br>支持频道切换 @提及 会议通知 ICP标签</div></div>';\n      }\n    }\n  }catch(e){console.error(\"loadMsgs error:\",e)}\n}\n\nasync functi"
-    "on loadMembers(){\n  try{\n    var r = await fetch(API + \"/api/v7/group/members\");\n    var d = await r.json();\n    if(d.ok){\n      members = d.members || ["
-    "];\n      var online = 0;\n      var html = \"\";\n      for(var i=0;i<members.length;i++){\n        var m = members[i];\n        if(m.online) online++;\n      "
+    'dChild(div);\n  }\n  scrollToBottom();\n}\n\nasync function loadMsgs(){\n  try{\n    var url = API + "/api/v7/group/messages?limit=50";\n    if(curCh && curCh'
+    ' !== "#all"){url += "&channel=" + encodeURIComponent(curCh)}\n    var r = await fetch(url);\n    var d = await r.json();\n    if(d.ok){\n      var msgs = d.'
+    'messages || [];\n      var box=document.getElementById("msgs");\n      if(msgs.length > 0){\n        box.innerHTML = "";\n        for(var i=msgs.length-1;i>'
+    '=0;i--){addMsgToView(msgs[i])}\n      } else {\n        box.innerHTML = \'<div class="empty-state"><div class="icon">9</div><div class="title">九重工作室 会议室</d'
+    'iv><div class="desc">发一条消息，全员同时收到<br>支持频道切换 @提及 会议通知 ICP标签</div></div>\';\n      }\n    }\n  }catch(e){console.error("loadMsgs error:",e)}\n}\n\nasync functi'
+    'on loadMembers(){\n  try{\n    var r = await fetch(API + "/api/v7/group/members");\n    var d = await r.json();\n    if(d.ok){\n      members = d.members || ['
+    '];\n      var online = 0;\n      var html = "";\n      for(var i=0;i<members.length;i++){\n        var m = members[i];\n        if(m.online) online++;\n      '
     "  html += '<div class=\"member-item\">' +\n          '<div class=\"member-avatar\" style=\"background:'+m.color+'\">'+esc(m.avatar)+'</div>' +\n          '<div "
-    "class=\"member-info\"><div class=\"member-name\">'+esc(m.name)+'</div><div class=\"member-role\">'+esc(m.role)+'</div></div>' +\n          '<div class=\"status-"
+    'class="member-info"><div class="member-name">\'+esc(m.name)+\'</div><div class="member-role">\'+esc(m.role)+\'</div></div>\' +\n          \'<div class="status-'
     "dot '+(m.online?'online':'offline')+'\"></div>' +\n          '</div>';\n      }\n      document.getElementById(\"memberList\").innerHTML = html;\n      document"
-    ".getElementById(\"memberSummary\").textContent = members.length + \" 位成员 - \" + online + \" 人在线\";\n    }\n  }catch(e){console.error(\"loadMembers error:\",e)}"
-    "\n}\n\nasync function sendMsg(){\n  var input = document.getElementById(\"msgInput\");\n  var text = input.value.trim();\n  if(!text) return;\n  var ch = docume"
-    "nt.getElementById(\"chSel\").value;\n  input.value = \"\";\n  input.style.height = \"42px\";\n\n  var mentions = [];\n  for(var i=0;i<MEMBER_NAMES.length;i++){"
-    "\n    if(text.indexOf(\"@\"+MEMBER_NAMES[i]) >= 0) mentions.push(MEMBER_NAMES[i]);\n  }\n\n  var parsed = parseEventTag(text);\n\n  document.getElementById(\"se"
-    "ndBtn\").disabled = true;\n  try{\n    var r = await fetch(API + \"/api/v7/group/send\", {\n      method:\"POST\",\n      headers:{\"Content-Type\":\"applicatio"
-    "n/json\"},\n      body:JSON.stringify({sender:SELF, content:text, msg_type:\"text\", mentions:mentions, channel:ch, event_tag:parsed.tag})\n    });\n    var d ="
-    " await r.json();\n    if(d.ok){addMsgToView(d.message)}\n  }catch(e){alert(\"发送失败: \"+e)}\n  document.getElementById(\"sendBtn\").disabled = false;\n  input.foc"
-    "us();\n}\n\nfunction openMeetingModal(){document.getElementById(\"meetingModal\").classList.add(\"show\")}\nfunction closeMeetingModal(){document.getElementById"
-    "(\"meetingModal\").classList.remove(\"show\")}\n\nasync function sendMeeting(){\n  var title = document.getElementById(\"mtTitle\").value.trim();\n  var time = "
-    "document.getElementById(\"mtTime\").value.trim();\n  var location = document.getElementById(\"mtLocation\").value.trim() || \"线上会议室\";\n  var channel = document"
-    ".getElementById(\"mtChannel\").value;\n  var agendaText = document.getElementById(\"mtAgenda\").value.trim();\n  if(!title || !time){alert(\"请填写会议标题和时间\");retur"
-    "n}\n  var agenda = agendaText ? agendaText.split(String.fromCharCode(10)).filter(function(s){return s.trim()}) : [];\n\n  try{\n    var r = await fetch(API + \""
-    "/api/v7/group/notify\", {\n      method:\"POST\",\n      headers:{\"Content-Type\":\"application/json\"},\n      body:JSON.stringify({sender:SELF, title:title, "
+    '.getElementById("memberSummary").textContent = members.length + " 位成员 - " + online + " 人在线";\n    }\n  }catch(e){console.error("loadMembers error:",e)}'
+    '\n}\n\nasync function sendMsg(){\n  var input = document.getElementById("msgInput");\n  var text = input.value.trim();\n  if(!text) return;\n  var ch = docume'
+    'nt.getElementById("chSel").value;\n  input.value = "";\n  input.style.height = "42px";\n\n  var mentions = [];\n  for(var i=0;i<MEMBER_NAMES.length;i++){'
+    '\n    if(text.indexOf("@"+MEMBER_NAMES[i]) >= 0) mentions.push(MEMBER_NAMES[i]);\n  }\n\n  var parsed = parseEventTag(text);\n\n  document.getElementById("se'
+    'ndBtn").disabled = true;\n  try{\n    var r = await fetch(API + "/api/v7/group/send", {\n      method:"POST",\n      headers:{"Content-Type":"applicatio'
+    'n/json"},\n      body:JSON.stringify({sender:SELF, content:text, msg_type:"text", mentions:mentions, channel:ch, event_tag:parsed.tag})\n    });\n    var d ='
+    ' await r.json();\n    if(d.ok){addMsgToView(d.message)}\n  }catch(e){alert("发送失败: "+e)}\n  document.getElementById("sendBtn").disabled = false;\n  input.foc'
+    'us();\n}\n\nfunction openMeetingModal(){document.getElementById("meetingModal").classList.add("show")}\nfunction closeMeetingModal(){document.getElementById'
+    '("meetingModal").classList.remove("show")}\n\nasync function sendMeeting(){\n  var title = document.getElementById("mtTitle").value.trim();\n  var time = '
+    'document.getElementById("mtTime").value.trim();\n  var location = document.getElementById("mtLocation").value.trim() || "线上会议室";\n  var channel = document'
+    '.getElementById("mtChannel").value;\n  var agendaText = document.getElementById("mtAgenda").value.trim();\n  if(!title || !time){alert("请填写会议标题和时间");retur'
+    'n}\n  var agenda = agendaText ? agendaText.split(String.fromCharCode(10)).filter(function(s){return s.trim()}) : [];\n\n  try{\n    var r = await fetch(API + "'
+    '/api/v7/group/notify", {\n      method:"POST",\n      headers:{"Content-Type":"application/json"},\n      body:JSON.stringify({sender:SELF, title:title, '
     "meeting_time:time, agenda:agenda, location:location, channel:channel})\n    });\n    var d = await r.json();\n    if(d.ok){\n      addMsgToView(d.message);\n   "
-    "   closeMeetingModal();\n      document.getElementById(\"mtTitle\").value = \"\";\n      document.getElementById(\"mtTime\").value = \"\";\n      document.getEl"
-    "ementById(\"mtAgenda\").value = \"\";\n    }\n  }catch(e){alert(\"发送失败: \"+e)}\n}\n\nfunction connectWS(){\n  try{\n    var wsUrl = \"ws://\" + location.host + "
-    "\"/ws/\" + SELF;\n    ws = new WebSocket(wsUrl);\n    ws.onopen = function(){\n      ws.send(JSON.stringify({type:\"subscribe\", channel:\"#general\"}));\n     "
-    " ws.send(JSON.stringify({type:\"subscribe\", channel:\"#tech\"}));\n      ws.send(JSON.stringify({type:\"subscribe\", channel:\"#creative\"}));\n      ws.send(J"
-    "SON.stringify({type:\"subscribe\", channel:\"#admin\"}));\n    };\n    ws.onmessage = function(ev){\n      try{\n        var msg = JSON.parse(ev.data);\n       "
-    " if(msg.type === \"group_message\"){\n          if(curCh === \"#all\" || msg.channel === curCh){addMsgToView(msg)}\n        }\n      }catch(e){}\n    };\n    ws"
-    ".onclose = function(){setTimeout(connectWS, 5000)};\n  }catch(e){console.log(\"WS not available, using polling\")}\n}\n\nvar msgInput = document.getElementById("
-    "\"msgInput\");\nmsgInput.addEventListener(\"keydown\", function(e){\n  if(e.key === \"Enter\" && !e.shiftKey){e.preventDefault(); sendMsg();}\n});\nmsgInput.add"
-    "EventListener(\"input\", function(){\n  this.style.height = \"42px\";\n  this.style.height = Math.min(this.scrollHeight, 120) + \"px\";\n});\n\ndocument.querySe"
-    "lectorAll(\".ch-btn\").forEach(function(btn){\n  btn.addEventListener(\"click\", function(){\n    document.querySelectorAll(\".ch-btn\").forEach(function(b){b.c"
-    "lassList.remove(\"active\")});\n    btn.classList.add(\"active\");\n    curCh = btn.dataset.ch;\n    var sel = document.getElementById(\"chSel\");\n    if(curCh"
-    " === \"#all\"){sel.value = \"#general\"}else{sel.value = curCh}\n    loadMsgs();\n  });\n});\n\ndocument.getElementById(\"meetingModal\").addEventListener(\"cli"
-    "ck\", function(e){\n  if(e.target === this) closeMeetingModal();\n});\n\nwindow.addEventListener(\"DOMContentLoaded\", function(){\n  loadMembers();\n  loadMsgs"
+    '   closeMeetingModal();\n      document.getElementById("mtTitle").value = "";\n      document.getElementById("mtTime").value = "";\n      document.getEl'
+    'ementById("mtAgenda").value = "";\n    }\n  }catch(e){alert("发送失败: "+e)}\n}\n\nfunction connectWS(){\n  try{\n    var wsUrl = "ws://" + location.host + '
+    '"/ws/" + SELF;\n    ws = new WebSocket(wsUrl);\n    ws.onopen = function(){\n      ws.send(JSON.stringify({type:"subscribe", channel:"#general"}));\n     '
+    ' ws.send(JSON.stringify({type:"subscribe", channel:"#tech"}));\n      ws.send(JSON.stringify({type:"subscribe", channel:"#creative"}));\n      ws.send(J'
+    'SON.stringify({type:"subscribe", channel:"#admin"}));\n    };\n    ws.onmessage = function(ev){\n      try{\n        var msg = JSON.parse(ev.data);\n       '
+    ' if(msg.type === "group_message"){\n          if(curCh === "#all" || msg.channel === curCh){addMsgToView(msg)}\n        }\n      }catch(e){}\n    };\n    ws'
+    '.onclose = function(){setTimeout(connectWS, 5000)};\n  }catch(e){console.log("WS not available, using polling")}\n}\n\nvar msgInput = document.getElementById('
+    '"msgInput");\nmsgInput.addEventListener("keydown", function(e){\n  if(e.key === "Enter" && !e.shiftKey){e.preventDefault(); sendMsg();}\n});\nmsgInput.add'
+    'EventListener("input", function(){\n  this.style.height = "42px";\n  this.style.height = Math.min(this.scrollHeight, 120) + "px";\n});\n\ndocument.querySe'
+    'lectorAll(".ch-btn").forEach(function(btn){\n  btn.addEventListener("click", function(){\n    document.querySelectorAll(".ch-btn").forEach(function(b){b.c'
+    'lassList.remove("active")});\n    btn.classList.add("active");\n    curCh = btn.dataset.ch;\n    var sel = document.getElementById("chSel");\n    if(curCh'
+    ' === "#all"){sel.value = "#general"}else{sel.value = curCh}\n    loadMsgs();\n  });\n});\n\ndocument.getElementById("meetingModal").addEventListener("cli'
+    'ck", function(e){\n  if(e.target === this) closeMeetingModal();\n});\n\nwindow.addEventListener("DOMContentLoaded", function(){\n  loadMembers();\n  loadMsgs'
     "();\n  connectWS();\n  setInterval(loadMembers, 10000);\n  setInterval(loadMsgs, 5000);\n  msgInput.focus();\n});\n</script>\n</body>\n</html>"
 )
 
@@ -3511,50 +3628,65 @@ UNIFIED_CHAT_PAGE = (
 # 页面路由（这些会覆盖同路径的旧路由）
 # ============================================================
 
+
 @app.get("/meeting", name="meeting_page")
 async def meeting_page(request: Request):
     from fastapi.responses import HTMLResponse
+
     return HTMLResponse(apply_theme_to_page(UNIFIED_CHAT_PAGE, request))
+
 
 @app.get("/lingxi", name="lingxi_page")
 async def lingxi_page(request: Request):
     from fastapi.responses import HTMLResponse
+
     return HTMLResponse(apply_theme_to_page(LINGXI_CHAT_PAGE, request))
+
 
 @app.get("/observatory", name="observatory_page")
 async def observatory_page(request: Request):
     """可观测性仪表盘页面 — ECharts + 纯HTML，无React构建链"""
     from fastapi.responses import HTMLResponse
+
     return HTMLResponse(apply_theme_to_page(OBSERVATORY_PAGE, request))
+
 
 # ============================================================
 # P1: BridgeV7Adapter API（V8模块整合）
 # ============================================================
 
+
 class AdapterSetupRequest(BaseModel):
     """Adapter 初始化请求"""
+
     worktree_name: str = "default"
     rolling_seed: int = 0
-    extra_cfg: Dict[str, Any] = {}
+    extra_cfg: dict[str, Any] = {}
+
 
 class AdapterRolloutRequest(BaseModel):
     """Skill Rollout请求"""
+
     skill_content: str
     worktree_name: str = "default"
-    out_dir: Optional[str] = None
+    out_dir: str | None = None
     seed: int = 0
+
 
 class AdapterReflectRequest(BaseModel):
     """Reflect分析请求"""
-    results: List[Dict[str, Any]]
+
+    results: list[dict[str, Any]]
     skill_content: str
     worktree_name: str = "default"
 
+
 class AdapterEvaluateRequest(BaseModel):
     """Gate评估请求"""
-    results: List[Dict[str, Any]]
+
+    results: list[dict[str, Any]]
     skill_content: str
-    patches: Optional[List[Dict[str, Any]]] = None
+    patches: list[dict[str, Any]] | None = None
 
 
 @app.post("/api/v7/adapter/setup")
@@ -3564,7 +3696,11 @@ async def adapter_setup(req: AdapterSetupRequest):
     cfg = {"worktree": req.worktree_name, "seed": req.rolling_seed, **req.extra_cfg}
     try:
         adapter.setup(cfg)
-        return {"status": "ok", "message": f"OpenBridge V8适配器已初始化", "worktree": req.worktree_name}
+        return {
+            "status": "ok",
+            "message": "OpenBridge V8适配器已初始化",
+            "worktree": req.worktree_name,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"适配器初始化失败: {str(e)}")
 
@@ -3584,7 +3720,10 @@ async def adapter_rollout(req: AdapterRolloutRequest):
             "status": "ok",
             "task_count": len(results),
             "out_dir": out_dir,
-            "summary": [{"task_id": r.get("task_id",""), "success": r.get("success",False)} for r in results],
+            "summary": [
+                {"task_id": r.get("task_id", ""), "success": r.get("success", False)}
+                for r in results
+            ],
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Rollout失败: {str(e)}")
@@ -3612,10 +3751,15 @@ async def adapter_evaluate(req: AdapterEvaluateRequest):
     adapter = _get_adapter()
     try:
         passed = adapter.evaluate_gate(
-            req.results, req.skill_content,
+            req.results,
+            req.skill_content,
             previous_patches=req.patches,
         )
-        return {"status": "ok", "gate_passed": passed, "gate_metric": adapter.bridge_cfg.gate_metric}
+        return {
+            "status": "ok",
+            "gate_passed": passed,
+            "gate_metric": adapter.bridge_cfg.gate_metric,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gate评估失败: {str(e)}")
 
@@ -3632,7 +3776,7 @@ async def adapter_status():
             "rollout_timeout": adapter.bridge_cfg.rollout_timeout,
             "max_retries": adapter.bridge_cfg.max_retries,
             "gate_metric": adapter.bridge_cfg.gate_metric,
-        }
+        },
     }
 
 
@@ -3663,15 +3807,20 @@ async def activate_ws_bridge():
         logger.info("messages表已就绪")
     except Exception as e:
         logger.error("messages表创建失败", error=str(e))
-    
+
     global _ws_bridge
     try:
         from ws_manager import EventStreamWSBridge
+
         stream = get_or_create_stream()
         wsm = _get_ws_manager()
         _ws_bridge = EventStreamWSBridge(stream, wsm)
-        logger.info("[P2整合] EventStreamWSBridge已激活", 
-                     subscription_count=len(stream._subscribers_by_type) if hasattr(stream, '_subscribers_by_type') else "N/A")
+        logger.info(
+            "[P2整合] EventStreamWSBridge已激活",
+            subscription_count=len(stream._subscribers_by_type)
+            if hasattr(stream, "_subscribers_by_type")
+            else "N/A",
+        )
     except Exception as e:
         logger.error("[P2整合] EventStreamWSBridge激活失败", error=str(e))
 
@@ -3680,16 +3829,20 @@ async def activate_ws_bridge():
 # P3: Ratchet Loop + Experiment Archiver（V8）
 # ============================================================
 
+
 class ExperimentStartRequest(BaseModel):
     """启动实验请求"""
+
     experiment_name: str
     program_md: str  # program.md 内容
     worktree_name: str = "experiment"
     max_cycles: int = 5
     archive_results: bool = True
 
+
 class ExperimentStatusResponse(BaseModel):
     """实验状态响应"""
+
     experiment_id: str
     phase: str
     cycle: int
@@ -3701,16 +3854,18 @@ class ExperimentStatusResponse(BaseModel):
 async def experiment_start(req: ExperimentStartRequest):
     """启动 Ratchet Loop 实验工坊"""
     try:
-        from ratchet_loop import RatchetLoop, RatchetConfig, ExperimentResult
+        from ratchet_loop import RatchetConfig, RatchetLoop
+
         config = RatchetConfig(max_cycles=req.max_cycles)
         loop = RatchetLoop(config)
         results = loop.run(req.program_md)
-        
+
         # P5: 归档对接（可选）
         archive_id = None
         if req.archive_results:
             try:
                 from experiment_archiver import ExperimentArchiver
+
                 archiver = ExperimentArchiver()
                 archive_id = archiver.archive(
                     name=req.experiment_name,
@@ -3721,7 +3876,7 @@ async def experiment_start(req: ExperimentStartRequest):
                 logger.info("[P3+P5] 实验结果已归档", archive_id=archive_id)
             except Exception as e:
                 logger.warning("[P5] 归档失败(非致命)", error=str(e))
-        
+
         return {
             "status": "ok",
             "experiment_name": req.experiment_name,
@@ -3738,6 +3893,7 @@ async def experiment_list():
     """列出已归档的实验"""
     try:
         from experiment_archiver import ExperimentArchiver
+
         archiver = ExperimentArchiver()
         experiments = archiver.list_all()
         return {"status": "ok", "count": len(experiments), "experiments": experiments}
@@ -3750,6 +3906,7 @@ async def experiment_detail(experiment_id: str):
     """查看单个实验详情"""
     try:
         from experiment_archiver import ExperimentArchiver
+
         archiver = ExperimentArchiver()
         detail = archiver.get(experiment_id)
         if detail is None:
@@ -3764,12 +3921,14 @@ async def experiment_detail(experiment_id: str):
 @app.get("/group")
 async def group_redirect():
     from fastapi.responses import RedirectResponse
+
     return RedirectResponse(url="/meeting")
 
 
 # ============================================================
 # P1生态健康API：权限边界 + 审计因果链 + 限流状态
 # ============================================================
+
 
 @app.get("/api/v7/permissions")
 async def get_permissions():
@@ -3817,7 +3976,10 @@ async def get_audit_trail(
             ],
         }
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"无效的action类型: {action}，可选: READ/WRITE/EXECUTE/ADMIN/SYSTEM")
+        raise HTTPException(
+            status_code=400,
+            detail=f"无效的action类型: {action}，可选: READ/WRITE/EXECUTE/ADMIN/SYSTEM",
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"审计追踪查询失败: {str(e)}")
 
@@ -3857,6 +4019,7 @@ async def get_rate_limits():
     """
     try:
         from rate_limiter import get_limiter_status
+
         status = get_limiter_status()
         return {"status": "ok", "rate_limiters": status}
     except Exception as e:
@@ -3877,15 +4040,19 @@ def _get_multimodal(module_name: str):
         try:
             if module_name == "stt":
                 from providers.stt_provider import create_stt_provider
+
                 _multimodal_instances[module_name] = create_stt_provider()
             elif module_name == "tts":
                 from providers.tts_provider import create_tts_provider
+
                 _multimodal_instances[module_name] = create_tts_provider()
             elif module_name == "ocr":
                 from providers.ocr_provider import create_ocr_provider
+
                 _multimodal_instances[module_name] = create_ocr_provider()
             elif module_name == "vision":
                 from providers.vision_provider import create_vision_provider
+
                 _multimodal_instances[module_name] = create_vision_provider()
         except Exception as e:
             logger.warning(f"多模态模块 {module_name} 加载失败: {e}")
@@ -3902,7 +4069,9 @@ async def multimodal_status():
             "stt": _get_multimodal("stt").is_available() if _get_multimodal("stt") else False,
             "tts": _get_multimodal("tts").is_available() if _get_multimodal("tts") else False,
             "ocr": _get_multimodal("ocr").is_available() if _get_multimodal("ocr") else False,
-            "vision": _get_multimodal("vision").is_available() if _get_multimodal("vision") else False,
+            "vision": _get_multimodal("vision").is_available()
+            if _get_multimodal("vision")
+            else False,
         },
         "version": "8.0.0",
     }
@@ -3922,6 +4091,7 @@ async def stt_transcribe(req: dict = Body(...)):
         audio_path = req.get("audio_path", "")
         if audio_b64:
             import base64
+
             result = stt.transcribe_bytes(base64.b64decode(audio_b64))
         elif audio_path:
             result = stt.transcribe(audio_path)
@@ -3954,6 +4124,7 @@ async def tts_speak(req: dict = Body(...)):
         voice = req.get("voice", "zh_female")
         result = tts.speak(text)
         import base64
+
         return {
             "status": "ok",
             "audio_base64": base64.b64encode(result.audio_bytes).decode(),
@@ -4008,6 +4179,7 @@ async def vision_describe(req: dict = Body(...)):
         img_path = req.get("image_path", "")
         if img_b64:
             import base64
+
             result = vision.describe_bytes(base64.b64decode(img_b64))
         elif img_path:
             result = vision.describe(img_path)
@@ -4041,6 +4213,7 @@ async def vision_ask(req: dict = Body(...)):
         img_path = req.get("image_path", "")
         if img_b64:
             import base64
+
             result = vision.ask_about_image_bytes(base64.b64decode(img_b64), question)
         elif img_path:
             result = vision.ask_about_image(img_path, question)
@@ -4058,6 +4231,7 @@ async def vision_ask(req: dict = Body(...)):
 
 
 # ==================== 书阁知识桥梁API (V8) ====================
+
 
 @app.get("/api/v8/bookhouse/stats")
 async def v8_bookhouse_stats():
@@ -4099,6 +4273,7 @@ async def v8_bookhouse_tags():
 async def v8_bookhouse_add(req: dict = Body(...)):
     """新增书籍（需要Token + building名称 + title）"""
     from config import AGENT_TOKENS
+
     token = req.get("token", "")
     # 验证Token
     valid_agent = None
@@ -4126,7 +4301,10 @@ async def v8_bookhouse_add(req: dict = Body(...)):
 # ============================================================
 
 if __name__ == "__main__":
-    import uvicorn, sys
+    import sys
+
+    import uvicorn
+
     if sys.platform == "win32":
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stderr.reconfigure(encoding="utf-8")
