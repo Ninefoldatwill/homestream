@@ -86,6 +86,8 @@ graph TB
 
 ## Quick Start
 
+> 🖥️ **Hardware**: See [Hardware Guide](HARDWARE_GUIDE.md) for six hardware tiers (8GB→256GB+) to find your best-fit AI setup.
+
 ### One-line Install
 
 ```bash
@@ -498,6 +500,8 @@ Quick flow:
 MIT License — see [LICENSE](LICENSE)
 
 "HomeStream" is a trademark of JiuChong Studio — see [TRADEMARK.md](TRADEMARK.md)
+
+**Disclaimer** — see [DISCLAIMER.md](DISCLAIMER.md) (AI output accuracy, third-party services, no professional advice, etc.)
 
 ---
 
