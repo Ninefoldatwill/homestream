@@ -17,7 +17,7 @@ BOLD='\033[1m'
 BR="HomeStream"
 VERSION="5.0.0"
 REPO_GITHUB="https://github.com/Ninefoldatwill/homestream"
-REPO_GITEE="https://gitee.com/ninefoldatwill/homestream"
+REPO_GITEE="https://gitee.com/jiuchong/homestream"
 REPO="$REPO_GITHUB"
 VENV_DIR="${HOME}/.homestream/venv"
 INSTALL_DIR="${HOME}/.homestream"
@@ -103,7 +103,7 @@ if [ ! -f "$ENV_FILE" ]; then
     cat > "$ENV_FILE" << 'EOF'
 # HomeStream 配置文件
 # 详细文档: https://github.com/Ninefoldatwill/homestream#配置
-# 国内镜像: https://gitee.com/ninefoldatwill/homestream
+# 国内镜像: https://gitee.com/jiuchong/homestream
 
 # 模式（solo/team/ecosystem）
 OPENBRIDGE_MODE=solo

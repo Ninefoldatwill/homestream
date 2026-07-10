@@ -25,7 +25,7 @@ English | [中文](README.md)
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.9+-green.svg" alt="Python 3.9+"></a>
-  <a href="#"><img src="https://img.shields.io/badge/tests-700%2B-brightgreen.svg" alt="700+ Tests"></a>
+  <a href="#"><img src="https://img.shields.io/badge/tests-850%2B-brightgreen.svg" alt="850+ Tests"></a>
   <a href="#"><img src="https://img.shields.io/badge/API%20routes-76-orange.svg" alt="76 API Routes"></a>
   <a href="#"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg" alt="Cross Platform"></a>
   <a href="#"><img src="https://img.shields.io/badge/PWA-ready-success.svg" alt="PWA Ready"></a>
@@ -93,13 +93,13 @@ graph TB
 curl -fsSL https://raw.githubusercontent.com/Ninefoldatwill/homestream/main/install.sh | bash
 
 # Linux/macOS (Gitee mirror, recommended for China)
-curl -fsSL https://gitee.com/ninefoldatwill/homestream/raw/main/install.sh | bash
+curl -fsSL https://gitee.com/jiuchong/homestream/raw/main/install.sh | bash
 
 # Windows PowerShell (GitHub)
 iwr -useb https://raw.githubusercontent.com/Ninefoldatwill/homestream/main/install.ps1 | iex
 
 # Windows PowerShell (Gitee mirror, recommended for China)
-iwr -useb https://gitee.com/ninefoldatwill/homestream/raw/main/install.ps1 | iex
+iwr -useb https://gitee.com/jiuchong/homestream/raw/main/install.ps1 | iex
 ```
 
 ### Manual Install
@@ -109,7 +109,7 @@ iwr -useb https://gitee.com/ninefoldatwill/homestream/raw/main/install.ps1 | iex
 # GitHub (international)
 git clone https://github.com/Ninefoldatwill/homestream.git
 # or Gitee (recommended for China, faster)
-git clone https://gitee.com/ninefoldatwill/homestream.git
+git clone https://gitee.com/jiuchong/homestream.git
 cd homestream
 
 # 2. Install dependencies
@@ -339,7 +339,7 @@ pytest --cov=. --cov-report=html
 bandit -r .
 ```
 
-Current test status: **700+ tests, 0 failures**
+Current test status: **850+ tests, 0 failures**
 
 ---
 
@@ -413,7 +413,7 @@ Full comparison and setup guide: [docs/ai-coding-resources.md](docs/ai-coding-re
 **Completed ✅**
 
 - ✅ Trinity model routing (L1 local / L2 cloud / L3 backup, **always free**)
-- ✅ EventStream causal chain + 700+ tests passing
+- ✅ EventStream causal chain + 850+ tests passing
 - ✅ Thousand Faces Design Market (9 themes, 6 user personas)
 - ✅ Dual open source (GitHub + Gitee mirror)
 - ✅ Built-in security (injection guard + log sanitization + 3-tier permissions + rate limiting)
@@ -488,7 +488,7 @@ Quick flow:
 - 📖 [Documentation](https://github.com/Ninefoldatwill/homestream/wiki)
 - 💬 [Discussions](https://github.com/Ninefoldatwill/homestream/discussions)
 - 🐛 [Issue Tracker](https://github.com/Ninefoldatwill/homestream/issues)
-- 🇨🇳 [Gitee Mirror](https://gitee.com/ninefoldatwill/homestream) (for China access)
+- 🇨🇳 [Gitee Mirror](https://gitee.com/jiuchong/homestream) (for China access)
 - 📧 contribute@jiuchong.studio
 
 ---
