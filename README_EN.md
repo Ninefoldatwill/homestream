@@ -29,7 +29,7 @@ English | [中文](README.md)
   <a href="#"><img src="https://img.shields.io/badge/API%20routes-76-orange.svg" alt="76 API Routes"></a>
   <a href="#"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg" alt="Cross Platform"></a>
   <a href="#"><img src="https://img.shields.io/badge/PWA-ready-success.svg" alt="PWA Ready"></a>
-  <a href="#"><img src="https://img.shields.io/badge/zero%20cost-free%20forever-ff69b4.svg" alt="Zero Cost"></a>
+  <a href="#"><img src="https://img.shields.io/badge/free%20tier-local%20baseline-ff69b4.svg" alt="Free Tier Local Baseline"></a>
 </p>
 
 <p align="center">
