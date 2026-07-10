@@ -33,6 +33,12 @@ English | [中文](README.md)
 </p>
 
 <p align="center">
+  <a href="https://github.com/Ninefoldatwill/homestream/actions/workflows/test-backend.yml"><img src="https://img.shields.io/github/actions/workflow/status/Ninefoldatwill/homestream/test-backend.yml?label=tests" alt="Test Backend"></a>
+  <a href="https://github.com/Ninefoldatwill/homestream/actions/workflows/security.yml"><img src="https://img.shields.io/github/actions/workflow/status/Ninefoldatwill/homestream/security.yml?label=security" alt="Security Scan"></a>
+  <a href="https://github.com/Ninefoldatwill/homestream/actions/workflows/pre-commit.yml"><img src="https://img.shields.io/github/actions/workflow/status/Ninefoldatwill/homestream/pre-commit.yml?label=lint" alt="Pre-commit Checks"></a>
+</p>
+
+<p align="center">
   <a href="#quick-start">Quick Start</a> ·
   <a href="#what-is-this">Features</a> ·
   <a href="#architecture">Architecture</a> ·

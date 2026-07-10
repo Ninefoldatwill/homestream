@@ -414,7 +414,7 @@ Provider注册表已开放扩展，增加更多国产API备选：
 - [x] **[P1] 文档补充llama.cpp安装指南**：作为Ollama的替代方案（7/9完成）
 - [x] **[P1] 增加通义千问Provider示例**：qwen_provider.py + 三档工厂函数（7/9完成，提前完成）
 - [x] **[P2] README增加"国内安装指南"**：清华镜像+ModelScope+llama.cpp一条龙（7/9完成）
-- [ ] **[P2] 确保Gitee双推送**：代码+Release同步（7/10待完成）
+- [x] **[P2] 确保Gitee双推送**：代码+Release同步（7/10完成：代码+tag+Release均已同步）
 
 ### 开源后持续完善（7月中旬）
 

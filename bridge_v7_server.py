@@ -280,13 +280,77 @@ def _register_default_subscribers(stream: EventStream):
     """
 
     def kanban_subscriber(event: Event):
-        """Kanban订阅者：TASK→创建任务 / DONE→更新状态"""
-        if event.event_type == EventType.TASK:
-            # TODO: 调用Kanban API创建任务
-            pass
-        elif event.event_type == EventType.DONE:
-            # TODO: 调用Kanban API更新状态
-            pass
+        """Kanban订阅者：TASK→创建任务 / DONE→更新状态
+
+        优雅降级：Kanban服务未启动时仅记录日志，不影响主流程。
+        """
+        try:
+            import requests as http_requests
+
+            if event.event_type == EventType.TASK:
+                # TASK事件 → 创建Kanban任务
+                payload = {
+                    "title": event.content[:200] if event.content else f"Task from {event.sender}",
+                    "body": f"EventStream TASK事件\n发送者: {event.sender}\n接收者: {event.recipient}\n内容: {event.content}",
+                    "assignee": event.recipient if event.recipient != "all" else None,
+                    "source_message_id": event.event_id,
+                }
+                resp = http_requests.post(
+                    f"{KANBAN_API_URL}/kanban/tasks",
+                    json=payload,
+                    timeout=5,
+                )
+                if resp.status_code in (200, 201):
+                    task_data = resp.json()
+                    task_id = (
+                        task_data.get("id") or task_data.get("task_id") or task_data.get("uuid", "")
+                    )
+                    if task_id:
+                        kanban_task_map[event.event_id] = str(task_id)
+                    logger.info(
+                        "kanban_task_created", event_id=event.event_id, kanban_task_id=task_id
+                    )
+                else:
+                    logger.warning(
+                        "kanban_create_failed", status=resp.status_code, event_id=event.event_id
+                    )
+
+            elif event.event_type == EventType.DONE:
+                # DONE事件 → 通过因果链找到TASK事件的event_id → 查映射得到task_id → 更新状态
+                task_event_id = event.cause
+                kanban_task_id = kanban_task_map.get(task_event_id, "") if task_event_id else ""
+
+                if not kanban_task_id:
+                    # 因果链断裂或无映射 → 尝试用content中的关键词搜索
+                    logger.debug(
+                        "kanban_done_no_mapping", event_id=event.event_id, cause=task_event_id
+                    )
+                    return
+
+                # 更新Kanban任务状态为done
+                resp = http_requests.patch(
+                    f"{KANBAN_API_URL}/kanban/tasks/{kanban_task_id}",
+                    json={"status": "done", "done_by": event.sender},
+                    timeout=5,
+                )
+                if resp.status_code in (200, 204):
+                    logger.info(
+                        "kanban_task_done", kanban_task_id=kanban_task_id, done_by=event.sender
+                    )
+                    # 清理映射
+                    kanban_task_map.pop(task_event_id, None)
+                else:
+                    logger.warning(
+                        "kanban_update_failed",
+                        status=resp.status_code,
+                        kanban_task_id=kanban_task_id,
+                    )
+
+        except http_requests.exceptions.ConnectionError:
+            # Kanban服务未启动 → 静默降级（开源版常见场景）
+            logger.debug("kanban_service_unavailable", event_type=event.event_type.value)
+        except Exception as e:
+            logger.error("kanban_subscriber_error", error=str(e), event_id=event.event_id)
 
     def learning_subscriber(event: Event):
         """学习订阅者：trigger_learning=True → 记录.learnings/"""
@@ -2352,6 +2416,12 @@ CHANNELS = {
 
 # Kanban回调存储
 kanban_callbacks: dict[str, dict[str, Any]] = {}
+
+# Kanban任务映射：event_id → kanban_task_id（TASK事件创建后记录，DONE事件查映射更新状态）
+kanban_task_map: dict[str, str] = {}
+
+# Kanban服务地址（可配置，默认本地8643端口）
+KANBAN_API_URL = os.environ.get("KANBAN_API_URL", "http://localhost:8643")
 
 
 class ChannelSendRequest(BaseModel):
