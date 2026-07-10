@@ -191,13 +191,35 @@ class PluginSigner:
 
 
 # ============================================================
+# 模块级默认签名器（单例）
+# ============================================================
+
+# 关键设计：sign 和 verify 必须共用同一个签名器实例，
+# 否则 Ed25519 每次生成不同密钥对，验证必然失败。
+# 生产环境应通过环境变量或配置文件注入持久化密钥。
+_default_signer: PluginSigner | None = None
+
+
+def get_default_signer() -> PluginSigner:
+    """获取模块级默认签名器（单例模式）。
+
+    第一次调用时创建 PluginSigner 实例并生成 Ed25519 密钥对，
+    后续调用返回同一实例，确保 sign/verify 使用同一密钥对。
+    """
+    global _default_signer
+    if _default_signer is None:
+        _default_signer = PluginSigner()
+    return _default_signer
+
+
+# ============================================================
 # PluginManifest签名验证桥接
 # ============================================================
 
 
 def sign_plugin_manifest(manifest: "PluginManifest", signer_id: str = "system") -> str:
     """对PluginManifest签名。"""
-    signer = PluginSigner()
+    signer = get_default_signer()
     # 排除signature字段本身（避免签名套签名）
     manifest_data = manifest.model_dump(exclude={"signature"})
     return signer.sign_manifest(manifest_data, signer_id)
@@ -208,7 +230,7 @@ def verify_plugin_signature(manifest: "PluginManifest") -> tuple[bool, str]:
     if not manifest.signature:
         return False, "无签名"
 
-    signer = PluginSigner()
+    signer = get_default_signer()
     manifest_data = manifest.model_dump(exclude={"signature"})
     result = signer.verify_signature(
         manifest_data,
