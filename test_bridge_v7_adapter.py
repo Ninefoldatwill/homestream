@@ -23,6 +23,12 @@ from pathlib import Path
 # 添加桥v7路径
 sys.path.insert(0, os.path.dirname(__file__))
 
+# skillopt 是 L3 自用层依赖，开源版不包含此模块。
+# 有 skillopt 时正常运行全部 6 个测试（本地 L3 开发环境）；
+# 无 skillopt 时优雅跳过（GitHub Actions CI 环境），不阻断其余 845+ 测试。
+import pytest
+pytest.importorskip("skillopt", reason="skillopt 是 L3 自用层依赖，开源版不可用")
+
 from bridge_v7_adapter import (
     BridgeV7Adapter,
     BridgeV7Config,
