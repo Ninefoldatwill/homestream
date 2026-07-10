@@ -40,6 +40,10 @@ from model_router import ModelRouter, ProviderRegistry, RouterStrategy
 class TestHardwareProfile:
     """硬件检测测试"""
 
+    @pytest.mark.skipif(
+        os.environ.get("GITHUB_ACTIONS") == "true",
+        reason="GitHub Actions runner 无法检测物理内存（total_ram_gb=0）",
+    )
     def test_detect_hardware(self):
         """测试硬件自动检测"""
         info = detect_hardware()

@@ -9,6 +9,7 @@ P0安全注入集成测试 — 验证prompt_security在bridge_v7_server中生效
 3. 群聊消息 — validate_icp_content在parse_icp_message前
 """
 
+import os
 import pytest
 from prompt_security import (
     sanitize_user_input,
@@ -94,14 +95,14 @@ class TestSecurityInjectionServerImport:
 
     def test_server_import_integration(self):
         """验证bridge_v7_server已导入prompt_security。"""
-        # 检查server源码中是否包含import
         import importlib.util
+        server_path = os.path.join(os.path.dirname(__file__), "bridge_v7_server.py")
         spec = importlib.util.spec_from_file_location(
             "bridge_v7_server",
-            "E:\\九重工作室\\01-工作区\\澜舟工作站\\03-项目空间\\P0-进行中\\桥v7-EventStream\\bridge_v7_server.py"
+            server_path,
         )
         # 只检查源码中包含import行（不实际导入server，因为它需要运行环境）
-        with open("E:\\九重工作室\\01-工作区\\澜舟工作站\\03-项目空间\\P0-进行中\\桥v7-EventStream\\bridge_v7_server.py", "r", encoding="utf-8") as f:
+        with open(server_path, "r", encoding="utf-8") as f:
             source = f.read()
         assert "from prompt_security import" in source
         assert "validate_icp_content" in source
@@ -109,7 +110,8 @@ class TestSecurityInjectionServerImport:
 
     def test_injection_points_exist(self):
         """验证3个注入点在server源码中存在。"""
-        with open("E:\\九重工作室\\01-工作区\\澜舟工作站\\03-项目空间\\P0-进行中\\桥v7-EventStream\\bridge_v7_server.py", "r", encoding="utf-8") as f:
+        server_path = os.path.join(os.path.dirname(__file__), "bridge_v7_server.py")
+        with open(server_path, "r", encoding="utf-8") as f:
             source = f.read()
         
         # 注入点1：model_chat中的build_safe_prompt
