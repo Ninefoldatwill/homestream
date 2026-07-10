@@ -9,15 +9,18 @@ Observation = 系统对Action的响应
 - 每个Action产生对应的Observation
 """
 
-from typing import Any
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from event_stream import (
+    Event,
     EventSource,
     EventType,
     Observation,
     _gen_event_id,
+    create_observation,
 )
 
 # ==================== 桥v7 Observation类型（7种核心 + 3种辅助）====================

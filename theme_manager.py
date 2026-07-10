@@ -31,7 +31,7 @@ import json
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 # ============================================================
 # 统一 Token 字典（规范定义，供主题校验与文档生成）

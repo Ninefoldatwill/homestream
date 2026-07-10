@@ -17,6 +17,7 @@ test_condition_verifier.py — ConditionVerifier 单元测试
 import time
 import unittest
 import uuid
+from typing import Optional
 
 from condition_verifier import (
     ConditionVerifier,
@@ -35,7 +36,10 @@ from event_stream import (
     EventSource,
     EventStream,
     EventType,
+    Observation,
     _gen_event_id,
+    create_action,
+    create_done_action,
 )
 
 # ==================== 辅助函数 ====================

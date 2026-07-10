@@ -45,15 +45,19 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, List, Optional
 
-from model_router import ModelRouter
+from model_router import ModelRouter, RouterStrategy
 from providers.base_provider import ChatMessage, ProviderTier
 from skill_router import (
+    Priority,
     RouteResult,
     SkillEntry,
     SkillRouter,
+)
+from skill_router import (
+    create_router as create_router_v1,
 )
 
 # ─── 分类 → 模型层级映射 ────────────────────────────────────

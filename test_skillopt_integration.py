@@ -15,6 +15,7 @@ import os
 import sys
 import tempfile
 import time
+from dataclasses import asdict
 
 # ── 1. 包导入验证 ────────────────────────────────────────────────────────
 
@@ -24,6 +25,19 @@ def verify_imports():
     results = {}
 
     try:
+        from skillopt import (
+            BatchSpec,
+            Edit,
+            EditOp,
+            FailureSummaryEntry,
+            GateAction,
+            GateResult,
+            Patch,
+            RawPatch,
+            RolloutResult,
+            SlowUpdateResult,
+        )
+
         results["types_import"] = True
         results["types_list"] = [
             "BatchSpec",
@@ -43,42 +57,61 @@ def verify_imports():
         return results
 
     try:
+        from skillopt.config import flatten_config, is_structured, load_config
+
         results["config_import"] = True
     except Exception as e:
         results["config_import"] = False
         results["config_error"] = str(e)
 
     try:
+        from skillopt.evaluation.gate import (
+            GateAction,
+            GateResult,
+            evaluate_gate,
+            select_gate_score,
+        )
+
         results["gate_import"] = True
     except Exception as e:
         results["gate_import"] = False
         results["gate_error"] = str(e)
 
     try:
+        from skillopt.envs.base import EnvAdapter
+
         results["env_adapter_import"] = True
     except Exception as e:
         results["env_adapter_import"] = False
         results["env_adapter_error"] = str(e)
 
     try:
+        from skillopt.engine.trainer import _normalise_patches
+
         results["trainer_import"] = True
     except Exception as e:
         results["trainer_import"] = False
         results["trainer_error"] = str(e)
 
     try:
+        from skillopt.optimizer.clip import rank_and_select
+
         results["optimizer_import"] = True
     except Exception as e:
         results["optimizer_import"] = False
         results["optimizer_error"] = str(e)
 
     try:
+        from skillopt.gradient.aggregate import merge_patches
+
         results["gradient_import"] = True
     except Exception as e:
         results["gradient_import"] = False
         results["gradient_error"] = str(e)
 
     try:
+        from skillopt.model import configure_qwen_chat
+
         results["model_import"] = True
     except Exception as e:
         results["model_import"] = False
@@ -96,7 +129,7 @@ def verify_gate():
     Gate 是 SkillOpt 的验证核心，对应桥v7 ConditionVerifier 的停止条件。
     三种决策: accept_new_best / accept / reject
     """
-    from skillopt.evaluation.gate import evaluate_gate, select_gate_score
+    from skillopt.evaluation.gate import GateResult, evaluate_gate, select_gate_score
 
     results = {"tests": [], "all_passed": True}
 

@@ -15,10 +15,16 @@ test_memory_evolution.py — 记忆演化引擎测试
       测试用文件路径替代（work_dir / *.db）。
 """
 
+import math
 import time
 
+import pytest
+
 from memory_evolution import (
+    BOOST_ON_ACCESS,
     COGNITIVE_DECAY_RATES,
+    DEFAULT_IMPORTANCE,
+    FORGET_THRESHOLD,
     ForgettingEngine,
     HybridRetriever,
     MemoryEvolutionOrchestra,

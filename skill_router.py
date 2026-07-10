@@ -28,9 +28,9 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any
+from typing import Any, Optional
 
 # ─── 优先级枚举 ────────────────────────────────────────────
 

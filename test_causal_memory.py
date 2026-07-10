@@ -16,10 +16,14 @@ test_causal_memory.py — 因果记忆桥接引擎测试
   涌现 → recall_with_cause 因果加成让相关记忆浮现
 """
 
+import time
+
 import pytest
 
 from causal_memory import AutoCausalBridge, CausalMemoryBridge
 from event_stream import (
+    Event,
+    EventSource,
     EventStream,
     EventType,
     create_action,
@@ -27,6 +31,7 @@ from event_stream import (
     create_task_action,
 )
 from memory_evolution import (
+    DEFAULT_IMPORTANCE,
     ForgettingEngine,
     HybridRetriever,
     MemoryEvolutionOrchestra,

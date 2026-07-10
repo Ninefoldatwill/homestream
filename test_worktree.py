@@ -12,6 +12,7 @@
 8. Day2验收
 """
 
+import json
 import os
 import shutil
 import sys
@@ -21,11 +22,12 @@ import unittest
 # 确保模块可导入
 sys.path.insert(0, os.path.dirname(__file__))
 
-from actions import create_action, create_done_action
-from event_stream import EventStream, EventType
+from actions import create_action, create_done_action, create_task_action
+from event_stream import Action, Event, EventSource, EventStream, EventType, Observation
 from worktree_manager import (
     PortManager,
     SQLiteManager,
+    WorktreeConfig,
     WorktreeManager,
     WorktreeRole,
     WorktreeStatus,

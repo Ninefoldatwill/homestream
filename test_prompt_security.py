@@ -6,6 +6,8 @@ Prompt安全模块测试。
 
 import json
 
+import pytest
+
 from prompt_security import (
     build_safe_prompt,
     sanitize_user_input,

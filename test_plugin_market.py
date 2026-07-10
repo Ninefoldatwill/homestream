@@ -12,9 +12,14 @@ L2③ 插件市场骨架测试 — plugin_registry + plugin_sandbox + plugin_sig
 - 可信发布者管理
 """
 
+import time
+
+import pytest
+
 from plugin_registry import (
     PluginManifest,
     PluginRegistry,
+    PluginStatus,
     PluginType,
     SkillToManifestMapper,
     get_registry,
@@ -300,11 +305,15 @@ class TestSkillToManifestMapper:
 # ============================================================
 
 from plugin_sandbox import (
+    DANGEROUS_BUILTINS,
+    DANGEROUS_MODULES,
     ASTScanner,
+    ExecutionResult,
     ImportBlocker,
     SandboxConfig,
     SandboxExecutor,
     SandboxLevel,
+    ScanResult,
     run_in_sandbox,
     scan_plugin_code,
 )
@@ -477,6 +486,7 @@ class TestSandboxExecutor:
 from plugin_signing import (
     TRUSTED_KEYS,
     PluginSigner,
+    SignatureResult,
     add_trusted_publisher,
     list_trusted_publishers,
     remove_trusted_publisher,

@@ -26,9 +26,11 @@ Manifest 规范（openbridge-plugin.yaml）：
 
 import json
 import time
+import uuid
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import structlog
 from pydantic import BaseModel, ConfigDict, Field

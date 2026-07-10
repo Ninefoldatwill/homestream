@@ -27,7 +27,7 @@ import tempfile
 import threading
 import time
 import tracemalloc
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 # 确保项目目录在 sys.path
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -36,23 +36,36 @@ if PROJECT_DIR not in sys.path:
 
 from condition_verifier import (
     ConditionVerifier,
+    StopCondition,
     VerificationResult,
     VerifierConfig,
 )
 from event_store import (
+    DEFAULT_DB_PATH,
     EventStore,
+    PersistentEventStreamMixin,
     make_persistent_stream,
 )
 from event_stream import (
+    Action,
+    Event,
+    EventSource,
     EventStream,
     EventType,
+    Observation,
+    _gen_event_id,
     create_action,
+    create_done_action,
     create_task_action,
+    create_warn_action,
 )
 from worktree_manager import (
     CANONICAL_PORTS,
     PortManager,
     SQLiteManager,
+    WorktreeConfig,
+    WorktreeRole,
+    WorktreeStatus,
 )
 
 # ==================== 测试框架 ====================

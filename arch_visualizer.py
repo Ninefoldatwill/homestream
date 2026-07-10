@@ -23,7 +23,7 @@ from __future__ import annotations
 import logging
 import math
 from collections import Counter, defaultdict
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from event_store import EventStore

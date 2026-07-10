@@ -21,11 +21,14 @@ Compaction 策略：
   每周清理 → knowledge_pruner.py 精简建议
 """
 
+import json
 import os
 import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import structlog
 from pydantic import BaseModel, ConfigDict, Field

@@ -14,8 +14,9 @@
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timezone
 from enum import Enum
+from typing import List, Optional, Set
 
 import structlog
 

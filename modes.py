@@ -15,7 +15,7 @@ OpenBridge 弹性模式模块 — Solo/Team/Ecosystem 三种部署模式
 import os  # 新增：用于os.getenv
 from enum import Enum
 from functools import lru_cache
-from typing import Any
+from typing import Any, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field
 

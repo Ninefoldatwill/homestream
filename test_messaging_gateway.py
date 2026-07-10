@@ -11,14 +11,18 @@ messaging_gateway.py 测试 — 多平台IM网关验证
 
 import time
 
+import pytest
+
 from messaging_gateway import (
     CLIAdapter,
     MessageAdapter,
     MessageRole,
     MessageType,
     MessagingGateway,
+    Session,
     SessionManager,
     SessionResetMode,
+    SlashCommand,
     SlashCommandRouter,
     UnifiedMessage,
     WebhookAdapter,

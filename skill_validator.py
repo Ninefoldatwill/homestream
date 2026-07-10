@@ -9,10 +9,11 @@ skill_validator.py — SKILL.md 标准校验器
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, List, Optional
 
 import yaml
 

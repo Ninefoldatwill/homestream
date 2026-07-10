@@ -17,6 +17,7 @@ import os
 import pytest
 
 from providers.base_provider import ProviderTier
+from skill_router import SkillEntry
 from skill_router_v2 import (
     CATEGORY_MODEL_MAP,
     CATEGORY_REASON,

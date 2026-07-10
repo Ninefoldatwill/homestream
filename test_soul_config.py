@@ -13,6 +13,8 @@ soul_config.py 测试 — 四层记忆系统验证
 import os
 import tempfile
 
+import pytest
+
 from soul_config import (
     BUILTIN_TEMPLATES,
     DEFAULT_TEMPLATE,

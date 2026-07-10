@@ -12,7 +12,8 @@
 import os
 import sys
 import unittest
-from unittest.mock import patch
+from enum import Enum
+from unittest.mock import MagicMock, patch
 
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -127,6 +128,8 @@ class TestGetModeConfig(unittest.TestCase):
             "solo" if key == "OPENBRIDGE_MODE" else default
         )
         # 需要清除缓存
+        from modes import get_mode_config
+
         get_mode_config.cache_clear()
         config = get_mode_config()
         self.assertEqual(config.mode, DeployMode.SOLO)
@@ -137,6 +140,8 @@ class TestGetModeConfig(unittest.TestCase):
         mock_getenv.side_effect = lambda key, default: (
             "team" if key == "OPENBRIDGE_MODE" else default
         )
+        from modes import get_mode_config
+
         get_mode_config.cache_clear()
         config = get_mode_config()
         self.assertEqual(config.mode, DeployMode.TEAM)

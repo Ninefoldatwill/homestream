@@ -32,12 +32,13 @@ skill_quality.py — SkillsBench 12维质量评分系统
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass, field
 from datetime import UTC
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 import structlog
 
@@ -269,7 +270,7 @@ class SkillsBenchScorer:
 
     def score_file(self, skill_path: Path | str) -> QualityReport:
         """对单个 SKILL.md 进行12维度评分。"""
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         path = Path(skill_path)
         self._reset()

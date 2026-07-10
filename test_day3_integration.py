@@ -13,6 +13,7 @@
 9. CLASSic五维验收
 """
 
+import json
 import os
 import shutil
 import sys
@@ -20,6 +21,7 @@ import threading
 import time
 import traceback
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 # 设置路径
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -39,14 +41,22 @@ from actions import (
     UpdateLearningAction,
     create_assign_task,
     create_handoff,
+    create_query_knowledge,
     create_review,
+    create_update_learning,
 )
 from event_stream import (
+    Action,
+    Event,
+    EventSource,
     EventStream,
     EventType,
+    Observation,
+    _gen_event_id,
     create_action,
     create_ask_action,
     create_done_action,
+    create_observation,
     create_task_action,
     create_warn_action,
     parse_handoff_text,
@@ -63,11 +73,19 @@ from observations import (
     SecurityObservation,
     TaskAssignedObservation,
     TaskDoneObservation,
+    create_error_obs,
+    create_message_received,
+    create_security_obs,
+    create_task_assigned,
+    create_task_done_obs,
 )
 from worktree_manager import (
     WORKTREE_BASE_DIR,
     PortManager,
+    SQLiteManager,
+    WorktreeConfig,
     WorktreeManager,
+    WorktreeRole,
     WorktreeStatus,
     create_coordinator_worktree,
     create_maker_worktree,
@@ -76,6 +94,10 @@ from worktree_manager import (
 )
 from worktree_subscribers import (
     ReviewerSubscriber,
+    ReviewSubmitRequest,
+    WorktreeActionRequest,
+    WorktreeCreateRequest,
+    WorktreeResponse,
     WorktreeSubscriber,
 )
 

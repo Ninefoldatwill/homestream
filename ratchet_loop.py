@@ -37,6 +37,8 @@ program.md 实验指令格式:
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import subprocess
 import threading
@@ -46,19 +48,25 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from condition_verifier import (
     ConditionVerifier,
     StopCondition,
+    VerificationResult,
     VerifierConfig,
 )
 
 # 桥v7内部依赖
 from event_stream import (
+    Action,
+    Event,
     EventSource,
     EventStream,
     EventType,
+    Observation,
+    _gen_event_id,
     create_action,
 )
 
@@ -438,7 +446,7 @@ class RatchetLoopEngine:
         worktree_created = False
         if self.worktree_manager:
             try:
-                from worktree_manager import WorktreeConfig, WorktreeRole
+                from worktree_manager import WorktreeConfig, WorktreeRole, WorktreeStatus
 
                 wt_config = WorktreeConfig(
                     name=config.worktree_name,

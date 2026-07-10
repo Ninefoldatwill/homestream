@@ -8,17 +8,22 @@
 """
 
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
 from event_stream import (
+    Action,
     Event,
+    EventSource,
     EventStream,
     EventType,
+    Observation,
     create_action,
     create_done_action,
 )
 from worktree_manager import (
+    WorktreeConfig,
     WorktreeManager,
     WorktreeRole,
     WorktreeStatus,

@@ -7,7 +7,9 @@
   4. API端点集成测试
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from observatory import (
     _calc_percentiles,

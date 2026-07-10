@@ -26,9 +26,9 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
-from ratchet_loop import ExperimentResult, ExperimentStatus
+from ratchet_loop import ExperimentResult, ExperimentStatus, RatchetPhase
 
 # ==================== 归档配置 ====================
 

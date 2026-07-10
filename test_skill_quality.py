@@ -12,6 +12,8 @@ test_skill_quality.py — SkillsBench 12维质量评分系统测试
 - 便捷函数 score_skill / score_directory
 """
 
+from pathlib import Path
+
 import pytest
 
 from skill_quality import (

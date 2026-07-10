@@ -12,10 +12,13 @@ test_bridge_v7_adapter.py — BridgeV7Adapter 完整集成测试
 日期: 2026-06-21
 """
 
+import json
 import os
 import sys
 import tempfile
 import time
+import uuid
+from pathlib import Path
 
 # 添加桥v7路径
 sys.path.insert(0, os.path.dirname(__file__))
@@ -28,6 +31,7 @@ import pytest
 pytest.importorskip("skillopt", reason="skillopt 是 L3 自用层依赖，开源版不可用")
 
 from bridge_v7_adapter import (
+    BridgeV7Adapter,
     BridgeV7Config,
     create_bridge_v7_adapter,
 )

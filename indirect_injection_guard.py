@@ -13,7 +13,7 @@ import json
 import re
 import unicodedata
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 import structlog
 

@@ -22,6 +22,7 @@ from plugin_registry import PluginRegistry, PluginType
 from theme_manager import (
     CANONICAL_TOKENS,
     THEME_CATEGORIES,
+    ThemeError,
     ThemeInfo,
     ThemeManager,
     get_theme_manager,

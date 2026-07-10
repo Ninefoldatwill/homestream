@@ -202,6 +202,7 @@ ignore = [
     "F841",  # 未使用变量 — 逐步修复
     "UP036", # Python版本块过时 — 逐步更新
     "UP042", # str+Enum继承 — StrEnum需Python 3.11+
+    "UP035", # typing.List/Dict弃用 — 逐步迁移到list/dict
     "C401",  # dict comprehension — 风格建议
     "C416",  # 不必要的comprehension — 风格建议
 ]

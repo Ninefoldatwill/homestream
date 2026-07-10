@@ -25,10 +25,11 @@ IP 边界:
 
 from __future__ import annotations
 
+import colorsys
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 # ============================================================
 # WCAG 2.1 AA 对比度阈值（W3C 公开标准）

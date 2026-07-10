@@ -16,20 +16,27 @@ V8核心能力：
 v6兼容层：保留v6全部API端点
 """
 
+import asyncio
 import json
 import os
 import re
+import shutil
 import sqlite3
+import subprocess
 import uuid
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 import structlog
 from fastapi import Body, FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from actions import (
+    create_assign_task,
     create_handoff,
+    create_query_knowledge,
+    create_review,
+    create_update_learning,
 )
 from config import AGENT_TOKENS, V6_DB_PATH, V7_DB_PATH, settings
 from event_store import EventStore, make_persistent_stream
@@ -39,39 +46,61 @@ from event_stream import (
     EventSource,
     EventStream,
     EventType,
+    Observation,
     _gen_event_id,
     create_action,
+    create_ask_action,
     create_done_action,
+    create_task_action,
+    create_warn_action,
     parse_handoff_text,
     parse_icp_message,
 )
-from group_chat import CHANNELS, GroupChatManager
+from group_chat import CHANNELS, GROUP_MEMBERS, GroupChatManager
+from logging_config import configure_logging
 from middleware import setup_observability
 from model_router import ModelRouter, RouterStrategy
 from modes import DeployMode, get_mode_config, get_mode_info, switch_mode  # 6/27弹性模式
+from observations import (
+    create_error_obs,
+    create_message_received,
+    create_security_obs,
+    create_task_assigned,
+    create_task_done_obs,
+)
 from observatory import collect_observatory_data  # 可观测性数据聚合·7/8
 from permission_guard import (  # P1权限守卫·6/30
+    REGISTERED_AGENTS,
     ActionScope,
     check_permission,
+    check_skill_permission,
     get_audit_trail,
     get_permission_boundary_report,
 )
-from prompt_security import (  # P0安全注入·6/29
+from prompt_security import (
     build_safe_prompt,
+    sanitize_user_input,
     validate_icp_content,
-)
+)  # P0安全注入·6/29
 from providers.base_provider import ChatMessage, ProviderTier
-from rate_limiter import RateLimitMiddleware  # P1限流保护·6/30
+from rate_limiter import RateLimitMiddleware, get_limiter_for_endpoint  # P1限流保护·6/30
 from worktree_manager import (
     WorktreeConfig,
     WorktreeManager,
     WorktreeRole,
+    WorktreeStatus,
+    create_coordinator_worktree,
+    create_maker_worktree,
+    create_researcher_worktree,
+    create_reviewer_worktree,
 )
 from worktree_subscribers import (
+    ReviewerSubscriber,
     ReviewSubmitRequest,
     WorktreeActionRequest,
     WorktreeCreateRequest,
     WorktreeResponse,
+    WorktreeSubscriber,
 )
 from ws_manager import ConnectionManager
 
@@ -1449,12 +1478,16 @@ async def health():
 @app.get("/api/mode")
 async def get_mode():
     """获取当前部署模式配置"""
+    from modes import get_mode_info
+
     return get_mode_info()
 
 
 @app.post("/api/mode/switch")
 async def switch_mode_api(new_mode: str):
     """切换部署模式（需要重启服务生效）"""
+    from modes import DeployMode, switch_mode
+
     try:
         mode = DeployMode(new_mode.lower())
     except ValueError:
@@ -1468,7 +1501,7 @@ async def switch_mode_api(new_mode: str):
 @app.get("/api/mode/features")
 async def list_features():
     """列出所有功能开关及其状态"""
-    from modes import MODE_FEATURE_MAP, FeatureFlag
+    from modes import MODE_FEATURE_MAP, FeatureFlag, get_mode_config
 
     config = get_mode_config()
     features = []
@@ -3854,7 +3887,7 @@ class ExperimentStatusResponse(BaseModel):
 async def experiment_start(req: ExperimentStartRequest):
     """启动 Ratchet Loop 实验工坊"""
     try:
-        from ratchet_loop import RatchetConfig, RatchetLoop
+        from ratchet_loop import ExperimentResult, RatchetConfig, RatchetLoop
 
         config = RatchetConfig(max_cycles=req.max_cycles)
         loop = RatchetLoop(config)

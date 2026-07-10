@@ -13,7 +13,7 @@ import asyncio
 import json
 import time
 import unittest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from ws_manager import ConnectionManager, EventStreamWSBridge
 

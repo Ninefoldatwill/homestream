@@ -11,15 +11,23 @@
 - .learnings/触发 → 融合self-improving-agent
 """
 
-from typing import Any
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from event_stream import (
     Action,
+    Event,
     EventSource,
     EventType,
     _gen_event_id,
+    create_action,
+    create_ask_action,
+    create_done_action,
+    create_task_action,
+    create_warn_action,
+    parse_handoff_text,
 )
 
 # ==================== 桥v7 Action类型（6种核心 + 3种辅助）====================

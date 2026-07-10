@@ -12,17 +12,19 @@ import asyncio
 import logging
 import os
 import sys
+from unittest.mock import AsyncMock, patch
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(__file__))
 
-from model_router import DualRedundancyConfig, ModelRouter, ProviderTier
+from model_router import DualRedundancyConfig, ModelRouter, ProviderTier, RouterStrategy
 from providers.base_provider import (
     BaseProvider,
     ChatMessage,
     ChatResponse,
     ProviderConfig,
     ProviderError,
+    ProviderStatus,
     ProviderTier,
     ProviderType,
 )

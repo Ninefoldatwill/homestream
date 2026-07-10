@@ -16,11 +16,14 @@ test_theme_a11y.py — theme_a11y.py 无障碍审计器测试套件
 """
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 import pytest
 
 from theme_a11y import (
+    _COLORBLIND_DIST_THRESHOLD,
     DEFAULT_CONTRAST_PAIRS,
     DEUTERANOPIA_MATRIX,
     PROTANOPIA_MATRIX,

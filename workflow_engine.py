@@ -21,12 +21,14 @@ DSL 格式：JSON Schema 定义工作流图
 执行策略：拓扑排序 → 并行分支 → 检查点保存 → 失败回滚
 """
 
+import json
 import time
 import uuid
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import structlog
 from pydantic import BaseModel, ConfigDict, Field

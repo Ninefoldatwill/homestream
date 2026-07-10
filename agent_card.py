@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -204,6 +205,8 @@ class AgentCardSigner:
         """返回 Base64Url 编码的 JWS，未安装 PyNaCl 返回 None"""
         if not self._has_nacl or self._private_key is None:
             return None
+
+        import base64
 
         header = {"alg": "EdDSA", "crv": "Ed25519", "typ": "JWT"}
         payload = json.loads(card.model_dump_json())

@@ -20,31 +20,41 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 # ── SkillOpt 依赖 ─────────────────────────────────────────────────────────
 from skillopt.envs.base import EnvAdapter
-from skillopt.evaluation.gate import GateResult, evaluate_gate
+from skillopt.evaluation.gate import GateAction, GateResult, evaluate_gate
 from skillopt.types import (
     Edit,
+    EditOp,
     Patch,
+    RawPatch,
+    RolloutResult,
 )
 
-from condition_verifier import ConditionVerifier, VerifierConfig
+from condition_verifier import ConditionVerifier, StopCondition, VerifierConfig
 
 # Config 是 dict（skillopt 使用 YAML 配置）
 # ── 桥 v7 依赖 ────────────────────────────────────────────────────────────
 from event_stream import (
+    Action,
+    Event,
     EventSource,
     EventStream,
     EventType,
+    Observation,
+    _gen_event_id,
     create_action,
     create_observation,
 )
-from skill_router import SkillRouter
+from skill_router import SkillEntry, SkillRouter
 from worktree_manager import PortManager  # 直接用PortManager
 
 # ==================== 配置结构 ====================

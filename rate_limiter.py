@@ -20,6 +20,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from typing import Dict, Optional
 
 import structlog
 

@@ -32,9 +32,11 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 import typer
 from rich import box
+from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
@@ -1310,6 +1312,8 @@ def _detect_hardware() -> dict:
         memory_gb = psutil.virtual_memory().total / (1024**3)
     except ImportError:
         # psutil未安装时降级：用os估算
+        import os
+
         memory_gb = 0.0  # 无法检测，降级为0
         try:
             # Windows: 用wmic尝试获取内存

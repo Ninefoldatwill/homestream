@@ -32,19 +32,22 @@ import logging
 import os
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
 from hardware_profile import HardwareInfo, detect_hardware, get_model_recommendation, recommend_tier
 from providers.base_provider import (
     BaseProvider,
     ChatMessage,
     ChatResponse,
+    ProviderConfig,
     ProviderError,
+    ProviderStatus,
     ProviderTier,
+    ProviderType,
 )
-from providers.deepseek_provider import create_deepseek_flash_provider
-from providers.glm_provider import create_glm_flash_provider
-from providers.llama_cpp_provider import create_default_llama_cpp_provider
+from providers.deepseek_provider import DeepSeekProvider, create_deepseek_flash_provider
+from providers.glm_provider import GLMProvider, create_glm_flash_provider
+from providers.llama_cpp_provider import LlamaCppProvider, create_default_llama_cpp_provider
 
 logger = logging.getLogger(__name__)
 

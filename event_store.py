@@ -37,9 +37,9 @@ import os
 import sqlite3
 import threading
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
-from event_stream import Action, Event, EventType, Observation
+from event_stream import Action, Event, EventSource, EventType, Observation
 
 # ==================== 配置 ====================
 
@@ -542,6 +542,8 @@ if __name__ == "__main__":
     from event_stream import (
         EventType,
         create_action,
+        create_done_action,
+        create_task_action,
     )
 
     print("=" * 60)

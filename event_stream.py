@@ -18,15 +18,16 @@ V1原则：
 - 可组合扩展（插件式Subscriber）
 """
 
+import json
 import re
 import threading
 import uuid
 from collections.abc import Callable
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ==================== 事件基础类 ====================
 

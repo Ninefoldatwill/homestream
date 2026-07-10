@@ -11,8 +11,11 @@ ModelRouter 测试套件
   7. ModelRouter统一接口
 """
 
+import asyncio
 import os
 import sys
+from typing import List
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -37,7 +40,9 @@ from providers.base_provider import (
     ProviderTier,
     ProviderType,
 )
-from providers.llama_cpp_provider import create_default_llama_cpp_provider
+from providers.deepseek_provider import DeepSeekProvider, create_deepseek_flash_provider
+from providers.glm_provider import GLMProvider, create_glm_flash_provider
+from providers.llama_cpp_provider import LlamaCppProvider, create_default_llama_cpp_provider
 
 # ==================== 1. 硬件检测测试 ====================
 

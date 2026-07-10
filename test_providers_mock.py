@@ -5,6 +5,7 @@ GLM/DeepSeek Provider Mock测试
 不需要实际API Key。
 """
 
+import asyncio
 import json
 import urllib.error
 from io import BytesIO
@@ -14,15 +15,19 @@ import pytest
 
 from providers.base_provider import (
     ChatMessage,
+    ChatResponse,
+    ProviderConfig,
     ProviderError,
     ProviderStatus,
     ProviderTier,
+    ProviderType,
 )
 from providers.deepseek_provider import (
+    DeepSeekProvider,
     create_deepseek_flash_provider,
     create_deepseek_reasoner_provider,
 )
-from providers.glm_provider import create_glm_flash_provider, create_glm_plus_provider
+from providers.glm_provider import GLMProvider, create_glm_flash_provider, create_glm_plus_provider
 
 
 def _make_mock_response(data: dict, status: int = 200) -> MagicMock:

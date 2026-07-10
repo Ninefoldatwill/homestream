@@ -18,6 +18,7 @@ import logging
 import time
 import urllib.error
 import urllib.request
+from typing import List, Optional
 
 from .base_provider import (
     BaseProvider,

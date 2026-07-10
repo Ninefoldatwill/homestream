@@ -20,10 +20,13 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 
 from event_stream import (
+    Action,
     Event,
     EventSource,
     EventStream,
     EventType,
+    Observation,
+    _gen_event_id,
     create_action,
     create_ask_action,
     create_done_action,

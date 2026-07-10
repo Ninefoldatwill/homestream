@@ -26,7 +26,7 @@ import logging
 import sqlite3
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("group_chat")
 

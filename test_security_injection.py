@@ -11,6 +11,8 @@ P0安全注入集成测试 — 验证prompt_security在bridge_v7_server中生效
 
 import os
 
+import pytest
+
 from prompt_security import (
     build_safe_prompt,
     sanitize_user_input,
@@ -84,7 +86,7 @@ class TestSecurityInjectionServerImport:
 
     def test_module_importable(self):
         """验证prompt_security模块可以正常导入。"""
-        from prompt_security import build_safe_prompt, validate_icp_content
+        from prompt_security import build_safe_prompt, sanitize_user_input, validate_icp_content
 
         assert callable(sanitize_user_input)
         assert callable(validate_icp_content)

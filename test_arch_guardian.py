@@ -32,7 +32,7 @@ from data_guardian import (
     validate_event_types,
     validate_timestamps,
 )
-from event_stream import Action, EventSource, EventType
+from event_stream import Action, Event, EventSource, EventType
 
 # ==================== 测试 fixtures ====================
 

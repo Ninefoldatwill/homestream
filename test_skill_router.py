@@ -17,6 +17,7 @@ Skill Router 测试套件
   11. 真实场景路由（6个实战case）
 """
 
+import json
 import os
 import sys
 import unittest
@@ -25,6 +26,8 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from skill_router import (
+    Priority,
+    RouteResult,
     SkillEntry,
     SkillRouter,
     create_router,

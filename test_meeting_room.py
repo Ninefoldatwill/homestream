@@ -14,14 +14,16 @@
 作者: 澜舟
 """
 
+import json
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi.testclient import TestClient
 
-from bridge_v7_server import _detect_task_intent, app
+from bridge_v7_server import CHANNELS, _detect_task_intent, app
 from config import AGENT_NAMES, AGENT_TOKENS
 
 client = TestClient(app)

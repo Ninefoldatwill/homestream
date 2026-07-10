@@ -10,6 +10,7 @@ V8多模态生态·语音入口
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -17,6 +18,8 @@ import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

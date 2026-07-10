@@ -19,7 +19,7 @@ import hashlib
 import json
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 import structlog
 
@@ -90,6 +90,8 @@ class PluginSigner:
         message = canonical.encode("utf-8")
 
         if self._use_ed25519 and self._signing_key:
+            from nacl.signing import SignedMessage
+
             signed = self._signing_key.sign(message)
             signature = base64.b64encode(signed.signature).decode("ascii")
             logger.info(
