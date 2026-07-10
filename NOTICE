@@ -40,7 +40,7 @@ API客户端适配器，其特征为：
 
 - HomeStream 核心代码：MIT License（见 LICENSE 文件）
 - ECharts（assets/echarts.min.js）：Apache License 2.0
-- 通义千问模型权重：如需使用模型权重（非本项目分发），受 Qwen LICENSE 
+- 通义千问模型权重：如需使用模型权重（非本项目分发），受 Qwen LICENSE
   AGREEMENT 约束（见 https://huggingface.co/Qwen/Qwen2.5-72B/blob/main/LICENSE）
 
 参考文档

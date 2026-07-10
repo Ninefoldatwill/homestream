@@ -43,7 +43,7 @@
 
 /* 宣纸纹理 */
 body {
-  background-image: 
+  background-image:
     radial-gradient(ellipse at 20% 50%, rgba(139, 69, 19, 0.02) 0%, transparent 50%),
     radial-gradient(ellipse at 80% 80%, rgba(60, 50, 40, 0.02) 0%, transparent 50%);
 }
