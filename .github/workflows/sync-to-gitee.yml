@@ -1,0 +1,38 @@
+# .github/workflows/sync-to-gitee.yml
+# GitHub push -> Gitee 自动镜像同步
+name: Sync to Gitee
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+concurrency:
+  group: sync-to-gitee
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Mirror to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          if [ -z "$GITEE_TOKEN" ]; then
+            echo "::error::GITEE_TOKEN secret is not configured"
+            exit 1
+          fi
+          git remote add gitee "https://the-warrior-king:${GITEE_TOKEN}@gitee.com/the-warrior-king/homestream.git"
+          git push gitee main --force
+          git push gitee --tags --force
+          echo "::notice::Successfully synced to Gitee"
