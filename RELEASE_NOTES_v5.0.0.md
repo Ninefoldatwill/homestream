@@ -155,15 +155,20 @@ HomeStream 开源版 V5.0.0
 - ✅ PWA 移动端 + 响应式
 - ✅ A2A 协作协议 + ICP v1.1
 
-### V5.1.0（计划中）
+### V5.1.0 ✅ 已发布（2026-07-11）
+- 三维立体化对接（OllamaProvider + Tool Bridge + OpenAI 兼容 API）
+- 学习优化（递归 CTE 因果链 + SurprisalGate + RouterScore）
+- 详见 [RELEASE_NOTES_v5.1.0.md](RELEASE_NOTES_v5.1.0.md)
+
+### V5.2.0（计划中）
 - HS-UI 协议（Agent 驱动的声明式 UI 描述）
 - 自适应接口模式（设备/角色/场景检测）
 - Tauri 2.0 桌面/移动 App 封装
 
-### V5.2.0（计划中）
+### V5.3.0（计划中）
 - 可视化工作流编排器（拖拽式 Agent 工作流）
-- 可观测性主题面板
 - 浏览器自动化插件市场
+- 书阁知识库完善
 
 ---
 

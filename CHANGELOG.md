@@ -100,6 +100,55 @@ HomeStream V5.1.0 — 从"单维度对话"升级为"三维立体化生态"，让
 - **预测编码 + 信息熵** — SurprisalGate 融合两个学术理论实现信息密度过滤
 - **6维度 MCDA** — RouterScore 基于多准则决策分析实现智能路由
 
+### 🚀 快速开始
+
+```bash
+# 升级（V5.0.0 用户）
+git pull origin main  # 无新增依赖
+
+# 新用户一键安装
+curl -fsSL https://raw.githubusercontent.com/Ninefoldatwill/homestream/main/install.sh | bash
+```
+
+```python
+# X轴：Ollama 本地模型
+from providers.ollama_provider import create_qwen_ollama
+provider = create_qwen_ollama("http://localhost:11434", "qwen2.5:3b")
+
+# Y轴：Tool Bridge
+from openclaw_bridge import ToolBridge
+bridge = ToolBridge()  # 6个内置工具开箱即用
+
+# Z轴：OpenAI 兼容 API
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:3458/v1", api_key="any")
+client.chat.completions.create(model="auto", messages=[...])
+
+# SMART 路由
+from model_router import ModelRouter, RouterStrategy
+router = ModelRouter(strategy=RouterStrategy.SMART)
+```
+
+### 🔧 环境变量
+
+| 变量 | 用途 | 默认值 |
+|:-----|:-----|:-------|
+| `OLLAMA_API_BASE` | Ollama API 地址 | `http://localhost:11434` |
+| `OLLAMA_MODEL_NAME` | 默认模型名 | 自动发现 |
+| `OPENAI_COMPAT_API_KEY` | API 认证（可选） | 无（不认证） |
+
+### 🔄 迁移指南
+
+V5.1.0 **完全向后兼容** V5.0.0，所有现有代码无需修改。新增功能均为可选启用。
+
+| 路由策略 | V5.0.0 | V5.1.0 |
+|:---------|:-------|:-------|
+| ROUND_ROBIN | ✅ | ✅ |
+| FAILOVER | ✅ | ✅ |
+| SMART | — | ✅ 新增 |
+
+完整发布说明见 [RELEASE_NOTES_v5.1.0.md](RELEASE_NOTES_v5.1.0.md)
+
 ---
 
 ## [5.0.0] — 2026-07-10
