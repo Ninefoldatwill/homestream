@@ -48,6 +48,7 @@ from providers.base_provider import (
 from providers.deepseek_provider import DeepSeekProvider, create_deepseek_flash_provider
 from providers.glm_provider import GLMProvider, create_glm_flash_provider
 from providers.llama_cpp_provider import LlamaCppProvider, create_default_llama_cpp_provider
+from providers.ollama_provider import OllamaProvider, create_ollama_provider
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ class RouterStrategy(Enum):
     QUALITY_FIRST = "quality_first"  # 质量优先：付费Pro > 免费Flash > 本地
     SPEED_FIRST = "speed_first"  # 速度优先：按历史延迟排序
     TIER_SPECIFIED = "tier_specified"  # 指定层级
+    SMART = "smart"  # v5.1.0: 6维度智能评分（延迟/成本/健康度/新鲜度/成功率/负载）
 
 
 @dataclass
@@ -139,9 +141,21 @@ class ModelRouter:
         self._initialized = False
         self._specified_tier: ProviderTier | None = None
         self.dual_redundancy = DualRedundancyConfig()  # 双保障配置（6/27新增）
+        self.scorer = None  # v5.1.0: 多维度评分器（延迟初始化）
 
         # 从环境变量加载双保障配置
         self._load_dual_redundancy_config()
+        self._ensure_scorer()  # v5.1.0: 初始化评分器
+
+    def _ensure_scorer(self):
+        """确保评分器已初始化（v5.1.0）"""
+        if self.scorer is None:
+            try:
+                from router_score import RouterScore
+                self.scorer = RouterScore()
+            except ImportError:
+                logger.debug("router_score 模块不可用，跳过评分器初始化")
+                self.scorer = None
 
     # ==================== 初始化 ====================
 
@@ -217,6 +231,37 @@ class ModelRouter:
             model_name=llama_model,
         )
         self.registry.register(llama_provider)
+
+        # 2b. L1: Ollama 本地模型（如果Ollama在运行）
+        # 与 llama.cpp 互补：Ollama 更易安装，支持模型自动发现
+        ollama_base = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
+        ollama_model = os.getenv("OLLAMA_MODEL_NAME", "")
+
+        if ollama_model:
+            # 用户指定了模型名 → 直接注册
+            ollama_provider = create_ollama_provider(
+                model_name=ollama_model,
+                api_base=ollama_base,
+            )
+            self.registry.register(ollama_provider)
+            logger.info(f"Ollama Provider已注册: {ollama_model}")
+        else:
+            # 用户没指定模型 → 自动检测Ollama是否在运行
+            try:
+                if OllamaProvider.is_running(ollama_base):
+                    models = OllamaProvider.list_models(api_base=ollama_base)
+                    if models:
+                        auto_model = models[0].name
+                        ollama_provider = create_ollama_provider(
+                            model_name=auto_model,
+                            api_base=ollama_base,
+                        )
+                        self.registry.register(ollama_provider)
+                        logger.info(
+                            f"Ollama自动发现模型: {auto_model} (共{len(models)}个已安装)"
+                        )
+            except Exception as e:
+                logger.debug(f"Ollama检测跳过: {e}")
 
         # 3. L2: GLM免费API（有Key才注册）
         glm_key = os.getenv("GLM_API_KEY", "")
@@ -307,6 +352,13 @@ class ModelRouter:
             else:
                 available.sort(key=lambda p: p.config.priority)
 
+        elif self.strategy == RouterStrategy.SMART:
+            # v5.1.0: 6维度智能评分排序
+            if self.scorer is None:
+                from router_score import RouterScore
+                self.scorer = RouterScore()
+            available = self.scorer.rank_providers(available)
+
         return available
 
     # ==================== 核心方法 ====================
@@ -361,9 +413,13 @@ class ModelRouter:
                 logger.debug(
                     f"尝试Provider: {provider.name} ({provider.config.tier.value}), timeout={timeout}s"
                 )
+                if self.scorer:
+                    self.scorer.on_request_start(provider.name)
                 response = await asyncio.wait_for(
                     provider.chat(messages, max_tokens, temperature), timeout=timeout
                 )
+                if self.scorer:
+                    self.scorer.on_request_success(provider.name)
                 logger.info(
                     f"路由成功: {provider.name} "
                     f"({response.latency_ms:.0f}ms, "
@@ -371,14 +427,20 @@ class ModelRouter:
                 )
                 return response
             except TimeoutError:
+                if self.scorer:
+                    self.scorer.on_request_failure(provider.name)
                 errors.append(f"{provider.name}: 超时({timeout}s)")
                 logger.warning(f"Provider {provider.name} 超时({timeout}s)，尝试降级...")
                 continue
             except ProviderError as e:
+                if self.scorer:
+                    self.scorer.on_request_failure(provider.name)
                 errors.append(f"{provider.name}: {e}")
                 logger.warning(f"Provider {provider.name} 失败: {e}，尝试降级...")
                 continue
             except Exception as e:
+                if self.scorer:
+                    self.scorer.on_request_failure(provider.name)
                 errors.append(f"{provider.name}: {e}")
                 logger.warning(f"Provider {provider.name} 异常: {e}，尝试降级...")
                 continue
@@ -413,20 +475,30 @@ class ModelRouter:
                 logger.debug(
                     f"[主线路] 尝试Provider: {provider.name} ({provider.config.tier.value}), timeout={timeout}s"
                 )
+                if self.scorer:
+                    self.scorer.on_request_start(provider.name)
                 response = await asyncio.wait_for(
                     provider.chat(messages, max_tokens, temperature), timeout=timeout
                 )
+                if self.scorer:
+                    self.scorer.on_request_success(provider.name)
                 logger.info(f"[主线路] 路由成功: {provider.name} ({response.latency_ms:.0f}ms)")
                 return response
             except TimeoutError:
+                if self.scorer:
+                    self.scorer.on_request_failure(provider.name)
                 errors.append(f"{provider.name}: 超时({timeout}s)")
                 logger.warning(f"[主线路] Provider {provider.name} 超时({timeout}s)，降级...")
                 continue
             except ProviderError as e:
+                if self.scorer:
+                    self.scorer.on_request_failure(provider.name)
                 errors.append(f"{provider.name}: {e}")
                 logger.warning(f"[主线路] Provider {provider.name} 失败: {e}，降级...")
                 continue
             except Exception as e:
+                if self.scorer:
+                    self.scorer.on_request_failure(provider.name)
                 errors.append(f"{provider.name}: {e}")
                 logger.warning(f"[主线路] Provider {provider.name} 异常: {e}，降级...")
                 continue
@@ -442,20 +514,30 @@ class ModelRouter:
                 logger.info(
                     f"[复线] 尝试Provider: {provider.name} ({provider.config.tier.value}), timeout={timeout}s"
                 )
+                if self.scorer:
+                    self.scorer.on_request_start(provider.name)
                 response = await asyncio.wait_for(
                     provider.chat(messages, max_tokens, temperature), timeout=timeout
                 )
+                if self.scorer:
+                    self.scorer.on_request_success(provider.name)
                 logger.info(f"[复线] 路由成功: {provider.name} ({response.latency_ms:.0f}ms)")
                 return response
             except TimeoutError:
+                if self.scorer:
+                    self.scorer.on_request_failure(provider.name)
                 errors.append(f"{provider.name}(复线): 超时({timeout}s)")
                 logger.warning(f"[复线] Provider {provider.name} 超时({timeout}s)")
                 continue
             except ProviderError as e:
+                if self.scorer:
+                    self.scorer.on_request_failure(provider.name)
                 errors.append(f"{provider.name}(复线): {e}")
                 logger.warning(f"[复线] Provider {provider.name} 失败: {e}")
                 continue
             except Exception as e:
+                if self.scorer:
+                    self.scorer.on_request_failure(provider.name)
                 errors.append(f"{provider.name}(复线): {e}")
                 logger.warning(f"[复线] Provider {provider.name} 异常: {e}")
                 continue

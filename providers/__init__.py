@@ -3,6 +3,7 @@ providers - 模型Provider适配器包
 
 支持的Provider：
   - LlamaCppProvider: 本地llama.cpp (L1, 零配置, 离线可用)
+  - OllamaProvider: 本地Ollama (L1, 零配置, 模型自动发现)
   - GLMProvider: 智谱GLM API (L2, 免费API)
   - DeepSeekProvider: DeepSeek API (L3, 付费API)
   - QwenProvider: 通义千问 API (L2/L3, 国产备选, 抗卡脖)
@@ -34,6 +35,14 @@ from .deepseek_provider import (
 )
 from .glm_provider import GLMProvider, create_glm_flash_provider, create_glm_plus_provider
 from .llama_cpp_provider import LlamaCppProvider, create_default_llama_cpp_provider
+from .ollama_provider import (
+    OllamaModelInfo,
+    OllamaProvider,
+    create_ollama_llama_provider,
+    create_ollama_mistral_provider,
+    create_ollama_provider,
+    create_ollama_qwen_provider,
+)
 from .qwen_provider import (
     QwenProvider,
     create_qwen_max_provider,
@@ -54,6 +63,13 @@ __all__ = [
     # LlamaCpp (L1 本地)
     "LlamaCppProvider",
     "create_default_llama_cpp_provider",
+    # Ollama (L1 本地, 模型自动发现)
+    "OllamaProvider",
+    "OllamaModelInfo",
+    "create_ollama_provider",
+    "create_ollama_qwen_provider",
+    "create_ollama_llama_provider",
+    "create_ollama_mistral_provider",
     # GLM (L2 免费API)
     "GLMProvider",
     "create_glm_flash_provider",

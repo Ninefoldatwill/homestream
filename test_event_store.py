@@ -301,6 +301,258 @@ class TestCauseChain:
         assert len(chain) == 1
 
 
+# ==================== 4b. 因果链 CTE 优化（v5.1.0） ====================
+
+
+class TestCauseChainCTE:
+    """v5.1.0: WITH RECURSIVE CTE 因果链优化测试"""
+
+    def _build_chain(self, store, n=10, session="default"):
+        """构建 n 节点线性因果链，返回 [event_id_0, ..., event_id_n-1]"""
+        ids = []
+        prev_id = None
+        for i in range(n):
+            e = _make_action(content=f"node-{i}")
+            if prev_id:
+                e.cause = prev_id
+            store.write(e, session_id=session)
+            ids.append(e.event_id)
+            prev_id = e.event_id
+        return ids
+
+    def test_cte_chain_single(self, store):
+        """单节点因果链"""
+        e = _make_action()
+        store.write(e)
+        chain = store.query_cause_chain(e.event_id)
+        assert len(chain) == 1
+        assert chain[0].event_id == e.event_id
+
+    def test_cte_chain_linear_3(self, store):
+        """A → B → C 三节点链，验证顺序（root → leaf）"""
+        a = _make_action(content="A")
+        store.write(a)
+        b = _make_action(content="B")
+        b.cause = a.event_id
+        store.write(b)
+        c = _make_action(content="C")
+        c.cause = b.event_id
+        store.write(c)
+
+        chain = store.query_cause_chain(c.event_id)
+        assert len(chain) == 3
+        assert chain[0].content == "A"  # root first
+        assert chain[1].content == "B"
+        assert chain[2].content == "C"  # leaf last
+
+    def test_cte_chain_deep_50(self, store):
+        """50 节点深链 — CTE 性能验证"""
+        ids = self._build_chain(store, n=50)
+        chain = store.query_cause_chain(ids[-1])
+        assert len(chain) == 50
+        assert chain[0].content == "node-0"  # root
+        assert chain[49].content == "node-49"  # leaf
+
+    def test_cte_chain_cycle_self_ref(self, store):
+        """自引用循环检测"""
+        e = _make_action()
+        e.cause = e.event_id
+        store.write(e)
+        chain = store.query_cause_chain(e.event_id)
+        assert len(chain) == 1
+
+    def test_cte_chain_cycle_mutual(self, store):
+        """互引用循环检测：A → B → A"""
+        a = _make_action(content="A")
+        store.write(a)
+        b = _make_action(content="B")
+        b.cause = a.event_id
+        store.write(b)
+        # 手动更新 A 的 cause 指向 B（制造循环）
+        conn = store._get_conn()
+        conn.execute("UPDATE events SET cause = ? WHERE id = ?", (b.event_id, a.event_id))
+        conn.commit()
+        conn.close()
+
+        chain = store.query_cause_chain(a.event_id)
+        # 循环检测应截断，返回最多 2 个节点
+        assert len(chain) <= 2
+
+    def test_cte_chain_broken_parent(self, store):
+        """父节点不存在时截断"""
+        e = _make_action()
+        e.cause = "nonexistent-parent"
+        store.write(e)
+        chain = store.query_cause_chain(e.event_id)
+        assert len(chain) == 1
+
+    def test_cte_chain_not_found(self, store):
+        """查询不存在的事件"""
+        chain = store.query_cause_chain("does-not-exist")
+        assert len(chain) == 0
+
+    def test_cte_max_depth(self, store):
+        """max_depth 安全阀限制递归深度"""
+        ids = self._build_chain(store, n=10)
+        # max_depth=3 → 只返回最近 3 个节点
+        chain = store.query_cause_chain(ids[-1], max_depth=3)
+        assert len(chain) == 3
+
+    def test_cte_max_depth_1(self, store):
+        """max_depth=1 → 只返回目标事件自身"""
+        ids = self._build_chain(store, n=5)
+        chain = store.query_cause_chain(ids[-1], max_depth=1)
+        assert len(chain) == 1
+
+    def test_cte_chain_content_intact(self, store):
+        """CTE 返回的事件内容完整"""
+        ids = self._build_chain(store, n=5)
+        chain = store.query_cause_chain(ids[-1])
+        for i, event in enumerate(chain):
+            assert event.content == f"node-{i}"
+            assert event.event_id == ids[i]
+
+
+class TestDescendants:
+    """v5.1.0: query_descendants 正向遍历测试"""
+
+    def test_descendants_linear(self, store):
+        """A → B → C 线性链，从 A 查后代"""
+        a = _make_action(content="A")
+        store.write(a)
+        b = _make_action(content="B")
+        b.cause = a.event_id
+        store.write(b)
+        c = _make_action(content="C")
+        c.cause = b.event_id
+        store.write(c)
+
+        desc = store.query_descendants(a.event_id)
+        assert len(desc) == 3  # A, B, C
+        assert desc[0].content == "A"  # root first
+        assert desc[1].content == "B"
+        assert desc[2].content == "C"
+
+    def test_descendants_branching(self, store):
+        """分支结构：A → B, A → C（同一根的两个子事件）"""
+        a = _make_action(content="A")
+        store.write(a)
+        b = _make_action(content="B")
+        b.cause = a.event_id
+        store.write(b)
+        c = _make_action(content="C")
+        c.cause = a.event_id
+        store.write(c)
+
+        desc = store.query_descendants(a.event_id)
+        assert len(desc) == 3  # A, B, C
+        contents = {e.content for e in desc}
+        assert contents == {"A", "B", "C"}
+
+    def test_descendants_leaf_only(self, store):
+        """叶子节点无后代"""
+        a = _make_action(content="A")
+        store.write(a)
+        desc = store.query_descendants(a.event_id)
+        assert len(desc) == 1  # only itself
+
+    def test_descendants_not_found(self, store):
+        """根节点不存在"""
+        desc = store.query_descendants("nonexistent")
+        assert len(desc) == 0
+
+    def test_descendants_deep(self, store):
+        """10 节点深链正向遍历"""
+        ids = []
+        prev_id = None
+        for i in range(10):
+            e = _make_action(content=f"desc-{i}")
+            if prev_id:
+                e.cause = prev_id
+            store.write(e)
+            ids.append(e.event_id)
+            prev_id = e.event_id
+
+        desc = store.query_descendants(ids[0])
+        assert len(desc) == 10
+        assert desc[0].content == "desc-0"
+        assert desc[9].content == "desc-9"
+
+    def test_descendants_cycle_guard(self, store):
+        """循环引用安全处理"""
+        a = _make_action(content="A")
+        store.write(a)
+        b = _make_action(content="B")
+        b.cause = a.event_id
+        store.write(b)
+        # 制造循环
+        conn = store._get_conn()
+        conn.execute("UPDATE events SET cause = ? WHERE id = ?", (b.event_id, a.event_id))
+        conn.commit()
+        conn.close()
+
+        desc = store.query_descendants(a.event_id)
+        assert len(desc) <= 2  # 循环截断
+
+
+class TestCauseDepth:
+    """v5.1.0: get_cause_depth 快速深度查询测试"""
+
+    def test_depth_single(self, store):
+        """单节点深度=1"""
+        e = _make_action()
+        store.write(e)
+        assert store.get_cause_depth(e.event_id) == 1
+
+    def test_depth_linear_3(self, store):
+        """A → B → C 深度=3"""
+        a = _make_action(content="A")
+        store.write(a)
+        b = _make_action(content="B")
+        b.cause = a.event_id
+        store.write(b)
+        c = _make_action(content="C")
+        c.cause = b.event_id
+        store.write(c)
+
+        assert store.get_cause_depth(c.event_id) == 3
+        assert store.get_cause_depth(b.event_id) == 2
+        assert store.get_cause_depth(a.event_id) == 1
+
+    def test_depth_not_found(self, store):
+        """不存在的事件深度=0"""
+        assert store.get_cause_depth("nonexistent") == 0
+
+    def test_depth_broken_chain(self, store):
+        """断裂的因果链深度=1"""
+        e = _make_action()
+        e.cause = "ghost"
+        store.write(e)
+        assert store.get_cause_depth(e.event_id) == 1
+
+    def test_depth_max_depth_limit(self, store):
+        """max_depth 限制返回深度"""
+        ids = []
+        prev_id = None
+        for i in range(10):
+            e = _make_action(content=f"d-{i}")
+            if prev_id:
+                e.cause = prev_id
+            store.write(e)
+            ids.append(e.event_id)
+            prev_id = e.event_id
+
+        # max_depth=5 → 深度被截断为 5
+        assert store.get_cause_depth(ids[-1], max_depth=5) == 5
+
+    def test_depth_cycle_guard(self, store):
+        """循环引用不崩溃"""
+        e = _make_action()
+        e.cause = e.event_id
+        store.write(e)
+        assert store.get_cause_depth(e.event_id) == 1
+
+
 # ==================== 5. 回放 ====================
 
 
