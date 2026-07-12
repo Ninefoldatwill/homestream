@@ -693,7 +693,7 @@ class TestGatewayBridge:
         """测试Gateway聊天成功"""
         gw = GatewayBridge(
             gateway_url="http://localhost:28790",
-            gateway_token="test_token",
+            gateway_token="test_token",  # nosec B106 — 测试用 token, 非真实密码
         )
         mock_data = {"ok": True, "reply": "Hello from gateway!"}
 

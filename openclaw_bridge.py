@@ -682,7 +682,7 @@ class ToolBridge:
         try:
             result = subprocess.run(
                 command,
-                shell=True,
+                shell=True,  # nosec B602 — _tool_shell_exec 是有意设计的命令执行方法
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -792,7 +792,7 @@ class GatewayBridge:
     def __init__(
         self,
         gateway_url: str = "",
-        gateway_token: str = "",
+        gateway_token: str = "",  # nosec B107 — 空字符串默认值, 非硬编码密码
         tool_bridge: ToolBridge | None = None,
     ):
         """初始化 Gateway 桥接器
