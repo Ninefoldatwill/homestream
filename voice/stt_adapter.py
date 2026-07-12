@@ -212,7 +212,7 @@ class FunASR2PassClient:
             # Pass 1: 实时流式结果 (不加标签)
             return FunASRResult(
                 text=text.strip(),
-                pass_type="online",
+                pass_type="online",  # nosec B106 — FunASR protocol mode identifier, not a password
                 is_final=data.get("is_final", False),
                 timestamp=data.get("timestamp"),
             )
@@ -223,7 +223,7 @@ class FunASR2PassClient:
 
             return FunASRResult(
                 text=clean_text,
-                pass_type="offline",
+                pass_type="offline",  # nosec B106 — FunASR protocol mode identifier
                 is_final=True,
                 language=language,
                 emotion=emotion,

@@ -282,7 +282,7 @@ class TestSTTFactory:
 
         # FunASRAdapter 检查 _LIVEKIT_AVAILABLE
         # 测试环境没有 livekit-agents, 预期返回 None
-        result = create_funasr_stt(uri="ws://localhost:10096")
+        result = create_funasr_stt(uri="ws://localhost:10096")  # nosec B106 — WebSocket URI, not a password
         assert result is None
 
     def test_is_available(self):
