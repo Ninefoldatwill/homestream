@@ -1,0 +1,52 @@
+# HomeStream VoiceBridge v5.2.0 - 全自托管基础设施
+# 零注册、零账号、连 localhost 跑通全链路
+#
+# 服务:
+#   1. LiveKit Server (WebRTC SFU) — 实时音视频传输层
+#   2. FunASR 2-pass (SenseVoice + Paraformer) — 语音识别 + 情感
+#
+# 模型预下载: python predownload_funasr_models.py
+#
+# 用法:
+#   docker compose up -d
+#   验证:
+#     curl http://localhost:7880/rtc/health  →  "OK"
+#     docker compose logs funasr-2pass | tail  (查看 FunASR 启动状态)
+
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: homestream-livekit-dev
+    restart: unless-stopped
+    ports:
+      - "7880:7880"            # HTTP / WebSocket signaling
+      - "7881:7881"            # WebRTC TCP fallback
+      - "50000-50100:50000-50100/udp"  # WebRTC media (UDP range, dev用小范围)
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    command: ["--config", "/etc/livekit.yaml", "--bind", "0.0.0.0"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7880/rtc/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
+
+  funasr-2pass:
+    image: registry.cn-hangzhou.aliyuncs.com/funasr_repo/funasr:funasr-runtime-sdk-online-cpu-0.1.13
+    container_name: homestream-funasr-2pass
+    restart: unless-stopped
+    ports:
+      - "10096:10095"          # WebSocket: host:10096 → container:10095
+    volumes:
+      - ./funasr-models/models:/workspace/models
+      - ./funasr-hotwords.txt:/workspace/models/hotwords.txt:ro
+      - ./link-and-start.sh:/workspace/link-and-start.sh:ro
+    working_dir: /workspace
+    entrypoint: ["/bin/bash", "/workspace/link-and-start.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:10095/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

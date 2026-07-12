@@ -1,0 +1,32 @@
+# HomeStream VoiceBridge - LiveKit Server Dev Config
+# 自托管开发配置: localhost, 零公网, 零注册
+# 生成生产密钥: docker run --rm livekit/livekit-server generate-keys
+
+port: 7880
+bind_addresses:
+  - "0.0.0.0"
+
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50100
+  # 开发模式: 不需要外部 IP, 允许 loopback 候选
+  use_external_ip: false
+  enable_loopback_candidate: true
+
+keys:
+  # 开发用密钥, 生产环境务必用 generate-keys 重新生成
+  devkey: devsecret
+
+logging:
+  level: debug
+
+room:
+  auto_create: true
+  empty_timeout: 300          # 空房间 5 分钟后自动销毁
+  max_participants: 0         # 0 = 不限
+
+# 开发模式不需要 Redis (单节点)
+# 生产环境多节点需添加:
+# redis:
+#   address: localhost:6379
