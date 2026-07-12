@@ -42,30 +42,20 @@ class VoiceBridgeConfig:
     )
 
     # --- TTS 配置 (CosyVoice2 本地 GPU) ---
-    tts_mode: str = field(
-        default_factory=lambda: os.getenv("VOICE_TTS_MODE", "local")
-    )
+    tts_mode: str = field(default_factory=lambda: os.getenv("VOICE_TTS_MODE", "local"))
     tts_model_path: str = field(
         default_factory=lambda: os.getenv(
             "VOICE_TTS_MODEL_PATH", "pretrained_models/CosyVoice2-0.5B"
         )
     )
-    tts_voice: str = field(
-        default_factory=lambda: os.getenv("VOICE_TTS_VOICE", "longxiaochun")
-    )
+    tts_voice: str = field(default_factory=lambda: os.getenv("VOICE_TTS_VOICE", "longxiaochun"))
     tts_sample_rate: int = field(
         default_factory=lambda: int(os.getenv("VOICE_TTS_SAMPLE_RATE", "24000"))
     )
-    tts_speed: float = field(
-        default_factory=lambda: float(os.getenv("VOICE_TTS_SPEED", "1.0"))
-    )
+    tts_speed: float = field(default_factory=lambda: float(os.getenv("VOICE_TTS_SPEED", "1.0")))
     # 降级: 外部 API (仅当本地模型不可用时)
-    tts_api_base: str = field(
-        default_factory=lambda: os.getenv("VOICE_TTS_API_BASE", "")
-    )
-    tts_api_key: str = field(
-        default_factory=lambda: os.getenv("VOICE_TTS_API_KEY", "")
-    )
+    tts_api_base: str = field(default_factory=lambda: os.getenv("VOICE_TTS_API_BASE", ""))
+    tts_api_key: str = field(default_factory=lambda: os.getenv("VOICE_TTS_API_KEY", ""))
 
     # --- VAD (Silero, 本地) ---
     vad_threshold: float = field(
@@ -83,12 +73,11 @@ class VoiceBridgeConfig:
         default_factory=lambda: os.getenv("VOICE_AGENT_NAME", "homestream-voice")
     )
     allow_interruptions: bool = field(
-        default_factory=lambda: os.getenv("VOICE_ALLOW_INTERRUPTIONS", "true").lower()
-        == "true"
+        default_factory=lambda: os.getenv("VOICE_ALLOW_INTERRUPTIONS", "true").lower() == "true"
     )
 
     @classmethod
-    def from_env(cls) -> "VoiceBridgeConfig":
+    def from_env(cls) -> VoiceBridgeConfig:
         """从环境变量加载配置"""
         return cls()
 

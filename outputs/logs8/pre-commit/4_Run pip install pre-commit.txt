@@ -1,0 +1,45 @@
+﻿2026-07-12T07:35:07.9387627Z ##[group]Run pip install pre-commit
+2026-07-12T07:35:07.9388088Z [36;1mpip install pre-commit[0m
+2026-07-12T07:35:07.9547188Z shell: /usr/bin/bash -e {0}
+2026-07-12T07:35:07.9547508Z env:
+2026-07-12T07:35:07.9547799Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+2026-07-12T07:35:07.9548233Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+2026-07-12T07:35:07.9548689Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+2026-07-12T07:35:07.9549063Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+2026-07-12T07:35:07.9549428Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+2026-07-12T07:35:07.9550041Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+2026-07-12T07:35:07.9550457Z ##[endgroup]
+2026-07-12T07:35:09.3960205Z Collecting pre-commit
+2026-07-12T07:35:09.4609447Z   Downloading pre_commit-4.6.0-py2.py3-none-any.whl.metadata (1.2 kB)
+2026-07-12T07:35:09.4723327Z Collecting cfgv>=2.0.0 (from pre-commit)
+2026-07-12T07:35:09.4754647Z   Downloading cfgv-3.5.0-py2.py3-none-any.whl.metadata (8.9 kB)
+2026-07-12T07:35:09.5060243Z Collecting identify>=1.0.0 (from pre-commit)
+2026-07-12T07:35:09.5093486Z   Downloading identify-2.6.19-py2.py3-none-any.whl.metadata (4.4 kB)
+2026-07-12T07:35:09.5213524Z Collecting nodeenv>=0.11.1 (from pre-commit)
+2026-07-12T07:35:09.5244493Z   Downloading nodeenv-1.10.0-py2.py3-none-any.whl.metadata (24 kB)
+2026-07-12T07:35:09.5596220Z Collecting pyyaml>=5.1 (from pre-commit)
+2026-07-12T07:35:09.5608822Z   Using cached pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.4 kB)
+2026-07-12T07:35:09.5888708Z Collecting virtualenv>=20.10.0 (from pre-commit)
+2026-07-12T07:35:09.5922851Z   Downloading virtualenv-21.6.1-py3-none-any.whl.metadata (3.4 kB)
+2026-07-12T07:35:09.6051791Z Collecting distlib<1,>=0.3.7 (from virtualenv>=20.10.0->pre-commit)
+2026-07-12T07:35:09.6083015Z   Downloading distlib-0.4.3-py2.py3-none-any.whl.metadata (5.3 kB)
+2026-07-12T07:35:09.6368305Z Collecting filelock<4,>=3.24.2 (from virtualenv>=20.10.0->pre-commit)
+2026-07-12T07:35:09.6380870Z   Using cached filelock-3.29.7-py3-none-any.whl.metadata (2.0 kB)
+2026-07-12T07:35:09.6502039Z Collecting platformdirs<5,>=3.9.1 (from virtualenv>=20.10.0->pre-commit)
+2026-07-12T07:35:09.6513893Z   Using cached platformdirs-4.10.0-py3-none-any.whl.metadata (5.5 kB)
+2026-07-12T07:35:09.6592780Z Collecting python-discovery>=1.4.2 (from virtualenv>=20.10.0->pre-commit)
+2026-07-12T07:35:09.6622815Z   Downloading python_discovery-1.4.4-py3-none-any.whl.metadata (5.6 kB)
+2026-07-12T07:35:09.6737390Z Downloading pre_commit-4.6.0-py2.py3-none-any.whl (226 kB)
+2026-07-12T07:35:09.6855324Z Downloading cfgv-3.5.0-py2.py3-none-any.whl (7.4 kB)
+2026-07-12T07:35:09.6903174Z Downloading identify-2.6.19-py2.py3-none-any.whl (99 kB)
+2026-07-12T07:35:09.6954130Z Downloading nodeenv-1.10.0-py2.py3-none-any.whl (23 kB)
+2026-07-12T07:35:09.6983209Z Using cached pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (807 kB)
+2026-07-12T07:35:09.7018217Z Downloading virtualenv-21.6.1-py3-none-any.whl (5.5 MB)
+2026-07-12T07:35:09.7421500Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.5/5.5 MB 148.1 MB/s  0:00:00
+2026-07-12T07:35:09.7464659Z Downloading distlib-0.4.3-py2.py3-none-any.whl (470 kB)
+2026-07-12T07:35:09.7505212Z Using cached filelock-3.29.7-py3-none-any.whl (46 kB)
+2026-07-12T07:35:09.7515255Z Using cached platformdirs-4.10.0-py3-none-any.whl (22 kB)
+2026-07-12T07:35:09.7544767Z Downloading python_discovery-1.4.4-py3-none-any.whl (34 kB)
+2026-07-12T07:35:09.8395874Z Installing collected packages: distlib, pyyaml, platformdirs, nodeenv, identify, filelock, cfgv, python-discovery, virtualenv, pre-commit
+2026-07-12T07:35:10.2266533Z 
+2026-07-12T07:35:10.2285369Z Successfully installed cfgv-3.5.0 distlib-0.4.3 filelock-3.29.7 identify-2.6.19 nodeenv-1.10.0 platformdirs-4.10.0 pre-commit-4.6.0 python-discovery-1.4.4 pyyaml-6.0.3 virtualenv-21.6.1

@@ -35,15 +35,14 @@ from surprisal_gate import (
     DEFAULT_THRESHOLD,
     DEFAULT_WARMUP,
     MAX_VOCAB_SIZE,
+    GateStats,
     SurprisalGate,
     SurprisalResult,
-    GateStats,
     create_gate,
     create_relaxed_gate,
     create_strict_gate,
     tokenize,
 )
-
 
 # ==================== 辅助函数 ====================
 
@@ -338,9 +337,7 @@ class TestAdaptiveThreshold:
 
     def test_adaptive_bounded(self):
         """自适应阈值有上下界"""
-        gate = SurprisalGate(
-            adaptive=True, threshold=1.0, adaptive_window=20, warmup=0
-        )
+        gate = SurprisalGate(adaptive=True, threshold=1.0, adaptive_window=20, warmup=0)
 
         for i in range(30):
             gate.process(_make_event(f"event-{i}"))
@@ -612,8 +609,7 @@ class TestIntegration:
 
         # warmup：多样化的初始事件
         warmup_events = [
-            _make_event(f"初始化模块{i}", sender="系统", recipient="澜舟")
-            for i in range(10)
+            _make_event(f"初始化模块{i}", sender="系统", recipient="澜舟") for i in range(10)
         ]
         for e in warmup_events:
             gate.process(e)

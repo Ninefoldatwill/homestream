@@ -43,12 +43,11 @@ from typing import Any, Optional
 
 from event_stream import Event, EventType
 
-
 # ==================== 常量 ====================
 
 # 默认权重
 DEFAULT_ALPHA = 0.6  # 内容信息量权重
-DEFAULT_BETA = 0.3   # 上下文信息量权重
+DEFAULT_BETA = 0.3  # 上下文信息量权重
 DEFAULT_GAMMA = 0.1  # 新词奖励权重
 
 # 默认阈值
@@ -126,7 +125,9 @@ class GateStats:
             "passed_events": self.passed_events,
             "filtered_events": self.filtered_events,
             "avg_surprisal": round(self.avg_surprisal, 4),
-            "min_surprisal": round(self.min_surprisal, 4) if self.min_surprisal != float("inf") else 0.0,
+            "min_surprisal": round(self.min_surprisal, 4)
+            if self.min_surprisal != float("inf")
+            else 0.0,
             "max_surprisal": round(self.max_surprisal, 4),
             "filter_rate": round(self.filter_rate, 4),
             "vocab_size": self.vocab_size,
@@ -297,11 +298,7 @@ class SurprisalGate:
             novelty_bonus = novelty_ratio * 2.0  # 新词比例 × 2.0 bits
 
             # 4. 加权合成
-            total = (
-                self.alpha * content_s
-                + self.beta * context_s
-                + self.gamma * novelty_bonus
-            )
+            total = self.alpha * content_s + self.beta * context_s + self.gamma * novelty_bonus
 
             # 5. 判定
             in_warmup = self._stats.total_events < self.warmup
@@ -547,7 +544,9 @@ if __name__ == "__main__":
         e = create_action("澜舟", "澜澜", EventType.INFO, f"观察期消息 #{i}")
         result = gate.process(e)
         gate.update(e)
-        print(f"   [{i}] surprisal={result.total:.3f} passed={result.passed} reason={result.reason}")
+        print(
+            f"   [{i}] surprisal={result.total:.3f} passed={result.passed} reason={result.reason}"
+        )
         assert result.passed  # warmup 期间全部通过
 
     # 3. 重复低信息事件
@@ -557,7 +556,9 @@ if __name__ == "__main__":
         result = gate.process(e)
         gate.update(e)
         if i >= 3:
-            print(f"   [{i}] surprisal={result.total:.3f} passed={result.passed} reason={result.reason}")
+            print(
+                f"   [{i}] surprisal={result.total:.3f} passed={result.passed} reason={result.reason}"
+            )
 
     # 4. 高信息新事件
     print("\n④ 高信息新事件（应通过）")

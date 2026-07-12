@@ -1,0 +1,73 @@
+﻿2026-07-12T06:58:13.5293747Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-07-12T06:58:13.5303088Z ##[group]Run actions/checkout@v4
+2026-07-12T06:58:13.5304185Z with:
+2026-07-12T06:58:13.5304966Z   repository: Ninefoldatwill/homestream
+2026-07-12T06:58:13.5312084Z   token: ***
+2026-07-12T06:58:13.5312893Z   ssh-strict: true
+2026-07-12T06:58:13.5313883Z   ssh-user: git
+2026-07-12T06:58:13.5314718Z   persist-credentials: true
+2026-07-12T06:58:13.5315558Z   clean: true
+2026-07-12T06:58:13.5316329Z   sparse-checkout-cone-mode: true
+2026-07-12T06:58:13.5317461Z   fetch-depth: 1
+2026-07-12T06:58:13.5318208Z   fetch-tags: false
+2026-07-12T06:58:13.5319010Z   show-progress: true
+2026-07-12T06:58:13.5319789Z   lfs: false
+2026-07-12T06:58:13.5320522Z   submodules: false
+2026-07-12T06:58:13.5321472Z   set-safe-directory: true
+2026-07-12T06:58:13.5322499Z ##[endgroup]
+2026-07-12T06:58:13.6222192Z Syncing repository: Ninefoldatwill/homestream
+2026-07-12T06:58:13.6225722Z ##[group]Getting Git version info
+2026-07-12T06:58:13.6227731Z Working directory is '/home/runner/work/homestream/homestream'
+2026-07-12T06:58:13.6230607Z [command]/usr/bin/git version
+2026-07-12T06:58:13.7630396Z git version 2.54.0
+2026-07-12T06:58:13.7648082Z ##[endgroup]
+2026-07-12T06:58:13.7664558Z Temporarily overriding HOME='/home/runner/work/_temp/8eaf0471-b0f1-48e8-abf7-435a02a01185' before making global git config changes
+2026-07-12T06:58:13.7667894Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-12T06:58:13.7670291Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/homestream/homestream
+2026-07-12T06:58:13.7699145Z Deleting the contents of '/home/runner/work/homestream/homestream'
+2026-07-12T06:58:13.7702432Z ##[group]Initializing the repository
+2026-07-12T06:58:13.7706973Z [command]/usr/bin/git init /home/runner/work/homestream/homestream
+2026-07-12T06:58:13.7787527Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-07-12T06:58:13.7789585Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-07-12T06:58:13.7791426Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-07-12T06:58:13.7792633Z hint: call:
+2026-07-12T06:58:13.7793087Z hint:
+2026-07-12T06:58:13.7793740Z hint: 	git config --global init.defaultBranch <name>
+2026-07-12T06:58:13.7794880Z hint:
+2026-07-12T06:58:13.7795774Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-07-12T06:58:13.7797321Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-07-12T06:58:13.7798362Z hint:
+2026-07-12T06:58:13.7798974Z hint: 	git branch -m <name>
+2026-07-12T06:58:13.7799820Z hint:
+2026-07-12T06:58:13.7800903Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-07-12T06:58:13.7802558Z Initialized empty Git repository in /home/runner/work/homestream/homestream/.git/
+2026-07-12T06:58:13.7805250Z [command]/usr/bin/git remote add origin https://github.com/Ninefoldatwill/homestream
+2026-07-12T06:58:13.7822165Z ##[endgroup]
+2026-07-12T06:58:13.7823409Z ##[group]Disabling automatic garbage collection
+2026-07-12T06:58:13.7825080Z [command]/usr/bin/git config --local gc.auto 0
+2026-07-12T06:58:13.7849444Z ##[endgroup]
+2026-07-12T06:58:13.7850641Z ##[group]Setting up auth
+2026-07-12T06:58:13.7854418Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-07-12T06:58:13.7882495Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-07-12T06:58:13.8115252Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-12T06:58:13.8142797Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-12T06:58:13.8313922Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-12T06:58:13.8340681Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-12T06:58:13.8512541Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-07-12T06:58:13.8545094Z ##[endgroup]
+2026-07-12T06:58:13.8546207Z ##[group]Fetching the repository
+2026-07-12T06:58:13.8553935Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +9d2719f953587e34732df7ee6e67bd72ab9ab93c:refs/remotes/origin/main
+2026-07-12T06:58:14.7628320Z From https://github.com/Ninefoldatwill/homestream
+2026-07-12T06:58:14.7629926Z  * [new ref]         9d2719f953587e34732df7ee6e67bd72ab9ab93c -> origin/main
+2026-07-12T06:58:14.7656089Z ##[endgroup]
+2026-07-12T06:58:14.7662831Z ##[group]Determining the checkout info
+2026-07-12T06:58:14.7663470Z ##[endgroup]
+2026-07-12T06:58:14.7663877Z [command]/usr/bin/git sparse-checkout disable
+2026-07-12T06:58:14.7688645Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-07-12T06:58:14.7710126Z ##[group]Checking out the ref
+2026-07-12T06:58:14.7715106Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-07-12T06:58:14.7917609Z Switched to a new branch 'main'
+2026-07-12T06:58:14.7918724Z branch 'main' set up to track 'origin/main'.
+2026-07-12T06:58:14.7927580Z ##[endgroup]
+2026-07-12T06:58:14.7954395Z [command]/usr/bin/git log -1 --format=%H
+2026-07-12T06:58:14.7973654Z 9d2719f953587e34732df7ee6e67bd72ab9ab93c

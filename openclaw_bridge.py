@@ -622,9 +622,7 @@ class ToolBridge:
         except Exception as e:
             return ToolResult(success=False, error=f"读取文件失败: {e}")
 
-    def _tool_file_write(
-        self, path: str, content: str, encoding: str = "utf-8"
-    ) -> ToolResult:
+    def _tool_file_write(self, path: str, content: str, encoding: str = "utf-8") -> ToolResult:
         """写入文件"""
         try:
             # 确保目录存在
@@ -675,9 +673,7 @@ class ToolBridge:
 
     # --- 命令执行 handler ---
 
-    def _tool_shell_exec(
-        self, command: str, timeout: float = 30, cwd: str = ""
-    ) -> ToolResult:
+    def _tool_shell_exec(self, command: str, timeout: float = 30, cwd: str = "") -> ToolResult:
         """执行系统命令"""
         try:
             result = subprocess.run(  # noqa: S602  # nosec B602 — _tool_shell_exec 是有意设计的命令执行方法
@@ -846,9 +842,7 @@ class GatewayBridge:
             raise RuntimeError("Gateway URL 未配置")
 
         url = f"{self.gateway_url}/api/agent/chat"
-        payload = json.dumps(
-            {"agent": agent, "message": message, "local": local}
-        ).encode("utf-8")
+        payload = json.dumps({"agent": agent, "message": message, "local": local}).encode("utf-8")
 
         req = urllib.request.Request(url, data=payload, method="POST")
         for key, value in self._get_headers().items():
@@ -922,9 +916,7 @@ class GatewayBridge:
                 dangerous=False,
             )
 
-    async def _call_gateway_tool(
-        self, tool_name: str, arguments: dict[str, Any]
-    ) -> ToolResult:
+    async def _call_gateway_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolResult:
         """调用 Gateway 上的远程工具"""
         if not self.gateway_url:
             return ToolResult(success=False, error="Gateway URL 未配置")

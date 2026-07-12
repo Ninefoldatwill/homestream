@@ -533,8 +533,11 @@ class TestScoreProvider:
             for latency in [0, 100, 1000, 5000]:
                 for status in ProviderStatus:
                     p = _make_provider(
-                        cost=cost, latency=latency,
-                        requests=10, errors=3, status=status,
+                        cost=cost,
+                        latency=latency,
+                        requests=10,
+                        errors=3,
+                        status=status,
                     )
                     score = scorer.score_provider(p)
                     assert 0.0 <= score.total_score <= 1.0
@@ -546,7 +549,9 @@ class TestScoreAll:
     def test_sorts_by_score_descending(self):
         scorer = RouterScore()
         p_free = _make_provider(name="free", cost=0.0, latency=50)
-        p_expensive = _make_provider(name="expensive", cost=0.01, latency=4000, status=ProviderStatus.DEGRADED)
+        p_expensive = _make_provider(
+            name="expensive", cost=0.01, latency=4000, status=ProviderStatus.DEGRADED
+        )
         scores = scorer.score_all([p_expensive, p_free])
         assert scores[0].provider_name == "free"
         assert scores[1].provider_name == "expensive"
@@ -734,11 +739,13 @@ class TestSmartStrategyIntegration:
     @pytest.fixture
     def router(self):
         from model_router import ModelRouter, RouterStrategy
+
         r = ModelRouter(strategy=RouterStrategy.SMART)
         return r
 
     def test_smart_strategy_enum(self):
         from model_router import RouterStrategy
+
         assert RouterStrategy.SMART.value == "smart"
 
     def test_scorer_initialized(self, router):

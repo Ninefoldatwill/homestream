@@ -152,6 +152,7 @@ class ModelRouter:
         if self.scorer is None:
             try:
                 from router_score import RouterScore
+
                 self.scorer = RouterScore()
             except ImportError:
                 logger.debug("router_score 模块不可用，跳过评分器初始化")
@@ -257,9 +258,7 @@ class ModelRouter:
                             api_base=ollama_base,
                         )
                         self.registry.register(ollama_provider)
-                        logger.info(
-                            f"Ollama自动发现模型: {auto_model} (共{len(models)}个已安装)"
-                        )
+                        logger.info(f"Ollama自动发现模型: {auto_model} (共{len(models)}个已安装)")
             except Exception as e:
                 logger.debug(f"Ollama检测跳过: {e}")
 
@@ -356,6 +355,7 @@ class ModelRouter:
             # v5.1.0: 6维度智能评分排序
             if self.scorer is None:
                 from router_score import RouterScore
+
                 self.scorer = RouterScore()
             available = self.scorer.rank_providers(available)
 

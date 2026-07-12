@@ -148,9 +148,7 @@ class HomeStreamLLM:
         router = self._ensure_router()
 
         # 转换为 HomeStream ChatMessage
-        hs_messages = [
-            ChatMessage(role=m["role"], content=m["content"]) for m in messages
-        ]
+        hs_messages = [ChatMessage(role=m["role"], content=m["content"]) for m in messages]
 
         # 指定层级
         tier = None
@@ -207,6 +205,7 @@ class HomeStreamLLM:
             try:
                 # 尝试用完整参数 (新版 LiveKit SDK 需要 id)
                 import uuid
+
                 yield lk_llm.ChatChunk(id=str(uuid.uuid4()), content=content)
             except (TypeError, ValueError):
                 # 降级: 老版本只需 content

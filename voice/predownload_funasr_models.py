@@ -6,6 +6,7 @@ FunASR 2-pass 模型预下载脚本
 
 使用: python predownload_funasr_models.py
 """
+
 from __future__ import annotations
 
 import os

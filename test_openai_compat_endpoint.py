@@ -25,7 +25,6 @@ from providers.base_provider import (
     ProviderType,
 )
 
-
 # ==================== autouse fixture：每个测试前清除认证环境变量 ====================
 
 

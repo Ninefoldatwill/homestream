@@ -1,0 +1,32 @@
+﻿2026-07-12T07:00:43.5035239Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-07-12T07:00:43.5036331Z ##[group]Run actions/upload-artifact@v4
+2026-07-12T07:00:43.5036672Z with:
+2026-07-12T07:00:43.5037237Z   name: coverage-html
+2026-07-12T07:00:43.5037548Z   path: htmlcov/
+2026-07-12T07:00:43.5037896Z   retention-days: 7
+2026-07-12T07:00:43.5038221Z   if-no-files-found: warn
+2026-07-12T07:00:43.5038532Z   compression-level: 6
+2026-07-12T07:00:43.5038860Z   overwrite: false
+2026-07-12T07:00:43.5039151Z   include-hidden-files: false
+2026-07-12T07:00:43.5039459Z env:
+2026-07-12T07:00:43.5039865Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+2026-07-12T07:00:43.5040329Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+2026-07-12T07:00:43.5040933Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+2026-07-12T07:00:43.5041357Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+2026-07-12T07:00:43.5041815Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+2026-07-12T07:00:43.5042273Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+2026-07-12T07:00:43.5042662Z ##[endgroup]
+2026-07-12T07:00:43.6495564Z (node:2809) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-07-12T07:00:43.6497151Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-07-12T07:00:43.6637862Z With the provided path, there will be 68 files uploaded
+2026-07-12T07:00:43.6639067Z Artifact name is valid!
+2026-07-12T07:00:43.6639707Z Root directory input is valid!
+2026-07-12T07:00:43.8716393Z Beginning upload of artifact content to blob storage
+2026-07-12T07:00:44.0426092Z (node:2809) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-07-12T07:00:44.3590137Z Uploaded bytes 1025602
+2026-07-12T07:00:44.3994768Z Finished uploading artifact content to blob storage!
+2026-07-12T07:00:44.3996659Z SHA256 digest of uploaded artifact zip is 6def8c778d67809b3d9823ffbb7b84a059bd941c948bc63e2c5cdf4624cc0c56
+2026-07-12T07:00:44.3998459Z Finalizing artifact upload
+2026-07-12T07:00:44.5794649Z Artifact coverage-html.zip successfully finalized. Artifact ID 8257221592
+2026-07-12T07:00:44.5795961Z Artifact coverage-html has been successfully uploaded! Final size is 1025602 bytes. Artifact ID is 8257221592
+2026-07-12T07:00:44.5801414Z Artifact download URL: https://github.com/Ninefoldatwill/homestream/actions/runs/29183453637/artifacts/8257221592

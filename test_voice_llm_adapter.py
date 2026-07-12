@@ -16,8 +16,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from voice.llm_adapter import HomeStreamLLM
 from voice.config import VoiceBridgeConfig
+from voice.llm_adapter import HomeStreamLLM
 
 
 class TestHomeStreamLLMInit:
@@ -123,9 +123,7 @@ class TestRoute:
         router._initialized = True
         router.chat_simple = AsyncMock(return_value="你好！我是 HomeStream 语音助手。")
         router.chat = AsyncMock()
-        router.health_check_all = AsyncMock(
-            return_value={"L1": True, "L2": True, "L3": False}
-        )
+        router.health_check_all = AsyncMock(return_value={"L1": True, "L2": True, "L3": False})
         router.get_status.return_value = {"strategy": "SPEED_FIRST", "tiers": ["L1", "L2"]}
         router.get_available_tiers.return_value = ["L1", "L2"]
         return router

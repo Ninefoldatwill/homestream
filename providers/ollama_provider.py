@@ -197,8 +197,7 @@ class OllamaProvider(BaseProvider):
             self._mark_status(ProviderStatus.OFFLINE)
             raise ProviderError(
                 self.name,
-                f"无法连接Ollama服务 ({self.config.api_base})。"
-                f"请确认Ollama已启动: {e.reason}",
+                f"无法连接Ollama服务 ({self.config.api_base})。请确认Ollama已启动: {e.reason}",
             ) from e
 
         except Exception as e:
@@ -252,8 +251,7 @@ class OllamaProvider(BaseProvider):
         # 模型不存在
         self._mark_status(ProviderStatus.OFFLINE)
         logger.warning(
-            f"[{self.name}] 模型 '{self.config.model_name}' 未安装。"
-            f"已安装: {model_names[:5]}..."
+            f"[{self.name}] 模型 '{self.config.model_name}' 未安装。已安装: {model_names[:5]}..."
         )
         return False
 
@@ -341,9 +339,7 @@ def create_ollama_provider(
         OllamaProvider 实例
     """
     # 生成安全的 provider name（去掉特殊字符）
-    safe_name = (
-        model_name.replace(":", "_").replace(".", "_").replace("-", "_").replace("/", "_")
-    )
+    safe_name = model_name.replace(":", "_").replace(".", "_").replace("-", "_").replace("/", "_")
     config = ProviderConfig(
         name=f"ollama_{safe_name}",
         display_name=display_name or f"Ollama {model_name} (本地)",

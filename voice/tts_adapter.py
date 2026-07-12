@@ -104,9 +104,11 @@ COSYVOICE_VOICES = [
 
 # ========== CosyVoice2 推理引擎 ==========
 
+
 @dataclass
 class CosyVoiceChunk:
     """CosyVoice2 合成块"""
+
     audio: np.ndarray  # float32, -1.0~1.0
     sample_rate: int = 24000
     is_final: bool = False
@@ -221,21 +223,25 @@ class CosyVoiceEngine:
                     audio = audio.astype(np.float32)
                     # 通过 queue 传递 (线程安全)
                     asyncio.run_coroutine_threadsafe(
-                        queue.put(CosyVoiceChunk(
-                            audio=audio,
-                            sample_rate=self._sample_rate,
-                            is_final=False,
-                        )),
+                        queue.put(
+                            CosyVoiceChunk(
+                                audio=audio,
+                                sample_rate=self._sample_rate,
+                                is_final=False,
+                            )
+                        ),
                         asyncio.get_event_loop(),
                     )
 
             # 最终标记
             asyncio.run_coroutine_threadsafe(
-                queue.put(CosyVoiceChunk(
-                    audio=np.array([], dtype=np.float32),
-                    sample_rate=self._sample_rate,
-                    is_final=True,
-                )),
+                queue.put(
+                    CosyVoiceChunk(
+                        audio=np.array([], dtype=np.float32),
+                        sample_rate=self._sample_rate,
+                        is_final=True,
+                    )
+                ),
                 asyncio.get_event_loop(),
             )
 
@@ -313,9 +319,7 @@ if _LIVEKIT_AVAILABLE and AudioFrame is not None:
 
             try:
                 frame_idx = 0
-                async for chunk in self._engine.synthesize_stream(
-                    text, self._voice, self._speed
-                ):
+                async for chunk in self._engine.synthesize_stream(text, self._voice, self._speed):
                     if chunk.is_final or len(chunk.audio) == 0:
                         continue
 
@@ -368,8 +372,7 @@ if _LIVEKIT_AVAILABLE and AudioFrame is not None:
             capabilities: TTSCapabilities | None = None,
         ):
             super().__init__(
-                capabilities=capabilities
-                or TTSCapabilities(streaming=True),
+                capabilities=capabilities or TTSCapabilities(streaming=True),
             )
             self._engine = CosyVoiceEngine(
                 model_path=model_path,
@@ -398,13 +401,11 @@ else:
         """Stub (LiveKit SDK 未安装). 安装: pip install livekit-agents"""
 
         def __init__(self, *args, **kwargs):
-            raise RuntimeError(
-                "LiveKit Agents SDK 未安装。"
-                "安装: pip install 'livekit-agents~=1.4'"
-            )
+            raise RuntimeError("LiveKit Agents SDK 未安装。安装: pip install 'livekit-agents~=1.4'")
 
 
 # ========== 工厂函数 ==========
+
 
 def create_cosyvoice_tts(
     model_path: str = "pretrained_models/CosyVoice2-0.5B",
@@ -434,6 +435,7 @@ def create_cosyvoice_tts(
 
 
 # ========== 模块状态 ==========
+
 
 def is_available() -> dict[str, bool]:
     """检查依赖可用性"""

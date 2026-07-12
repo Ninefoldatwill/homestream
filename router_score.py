@@ -43,7 +43,6 @@ from providers.base_provider import (
     ProviderTier,
 )
 
-
 # ==================== 常量 ====================
 
 # 默认权重
@@ -57,10 +56,10 @@ DEFAULT_WEIGHTS: dict[str, float] = {
 }
 
 # 归一化参考值
-MAX_LATENCY_MS = 5000.0       # 5秒 = 0分
-MAX_COST_PER_1K = 0.01        # $0.01/1k tokens = 0分
+MAX_LATENCY_MS = 5000.0  # 5秒 = 0分
+MAX_COST_PER_1K = 0.01  # $0.01/1k tokens = 0分
 FRESHNESS_HALF_LIFE_HOURS = 6.0  # 6小时半衰期
-MAX_CONCURRENT_LOAD = 5       # 5个并发 = 0分
+MAX_CONCURRENT_LOAD = 5  # 5个并发 = 0分
 
 # 未知状态的中性分数（给新 Provider 一个机会）
 NEUTRAL_SCORE = 0.5
@@ -225,6 +224,7 @@ class RouterScore:
 
         # 指数衰减：0h=1.0, 6h(半衰期)=0.5, 24h≈0.06
         import math
+
         score = max(0.0, 0.5 ** (hours / FRESHNESS_HALF_LIFE_HOURS))
         return hours, score
 
@@ -277,32 +277,44 @@ class RouterScore:
 
         dimensions = {
             "latency": DimensionScore(
-                name="latency", raw_value=latency_raw, score=latency_s,
+                name="latency",
+                raw_value=latency_raw,
+                score=latency_s,
                 weight=self.weights["latency"],
                 weighted_score=latency_s * self.weights["latency"],
             ),
             "cost": DimensionScore(
-                name="cost", raw_value=cost_raw, score=cost_s,
+                name="cost",
+                raw_value=cost_raw,
+                score=cost_s,
                 weight=self.weights["cost"],
                 weighted_score=cost_s * self.weights["cost"],
             ),
             "health": DimensionScore(
-                name="health", raw_value=health_raw, score=health_s,
+                name="health",
+                raw_value=health_raw,
+                score=health_s,
                 weight=self.weights["health"],
                 weighted_score=health_s * self.weights["health"],
             ),
             "freshness": DimensionScore(
-                name="freshness", raw_value=freshness_raw, score=freshness_s,
+                name="freshness",
+                raw_value=freshness_raw,
+                score=freshness_s,
                 weight=self.weights["freshness"],
                 weighted_score=freshness_s * self.weights["freshness"],
             ),
             "success_rate": DimensionScore(
-                name="success_rate", raw_value=success_raw, score=success_s,
+                name="success_rate",
+                raw_value=success_raw,
+                score=success_s,
                 weight=self.weights["success_rate"],
                 weighted_score=success_s * self.weights["success_rate"],
             ),
             "load": DimensionScore(
-                name="load", raw_value=load_raw, score=load_s,
+                name="load",
+                raw_value=load_raw,
+                score=load_s,
                 weight=self.weights["load"],
                 weighted_score=load_s * self.weights["load"],
             ),
@@ -518,7 +530,7 @@ if __name__ == "__main__":
     print("\n② 排序结果:")
     ranked = scorer.rank_providers([p1, p2, p3])
     for i, p in enumerate(ranked):
-        print(f"   [{i+1}] {p.name}")
+        print(f"   [{i + 1}] {p.name}")
 
     print("\n" + "=" * 60)
     print("✅ RouterScore 自检通过！")

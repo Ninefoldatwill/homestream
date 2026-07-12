@@ -28,6 +28,7 @@ import pytest
 @dataclass
 class MockFrame:
     """模拟 LiveKit AudioFrame"""
+
     data: bytes | np.ndarray
     sample_rate: int = 48000
     num_channels: int = 1
@@ -59,12 +60,14 @@ class TestFunASR2PassClient:
 
     def test_parse_online_message(self):
         """测试 Pass1 (online) 消息解析"""
-        msg_str = json.dumps({
-            "mode": "2pass-online",
-            "text": "今天天气真不错",
-            "is_final": False,
-            "timestamp": [[100, 600]],
-        })
+        msg_str = json.dumps(
+            {
+                "mode": "2pass-online",
+                "text": "今天天气真不错",
+                "is_final": False,
+                "timestamp": [[100, 600]],
+            }
+        )
         result = self.client._parse_message(msg_str)
         assert result is not None
         assert result.text == "今天天气真不错"
@@ -75,22 +78,26 @@ class TestFunASR2PassClient:
 
     def test_parse_online_is_final(self):
         """测试 Pass1 的 is_final=True"""
-        msg_str = json.dumps({
-            "mode": "2pass-online",
-            "text": "今天天气真不错",
-            "is_final": True,
-        })
+        msg_str = json.dumps(
+            {
+                "mode": "2pass-online",
+                "text": "今天天气真不错",
+                "is_final": True,
+            }
+        )
         result = self.client._parse_message(msg_str)
         assert result is not None
         assert result.is_final
 
     def test_parse_offline_message(self):
         """测试 Pass2 (offline) 消息解析 — 带 SenseVoice 标签"""
-        msg_str = json.dumps({
-            "mode": "2pass-offline",
-            "text": "<|zh|><|HAPPY|><|Speech|>今天天气真不错",
-            "is_final": True,
-        })
+        msg_str = json.dumps(
+            {
+                "mode": "2pass-offline",
+                "text": "<|zh|><|HAPPY|><|Speech|>今天天气真不错",
+                "is_final": True,
+            }
+        )
         result = self.client._parse_message(msg_str)
         assert result is not None
         assert result.text == "今天天气真不错"
@@ -102,10 +109,12 @@ class TestFunASR2PassClient:
 
     def test_parse_offline_neutral(self):
         """测试 Pass2 中性情感"""
-        msg_str = json.dumps({
-            "mode": "2pass-offline",
-            "text": "<|zh|><|NEUTRAL|><|Speech|>嗯好的我知道了",
-        })
+        msg_str = json.dumps(
+            {
+                "mode": "2pass-offline",
+                "text": "<|zh|><|NEUTRAL|><|Speech|>嗯好的我知道了",
+            }
+        )
         result = self.client._parse_message(msg_str)
         assert result is not None
         assert result.text == "嗯好的我知道了"
@@ -113,10 +122,12 @@ class TestFunASR2PassClient:
 
     def test_parse_offline_sad_english(self):
         """测试英文 + 悲伤情感"""
-        msg_str = json.dumps({
-            "mode": "2pass-offline",
-            "text": "<|en|><|SAD|><|Speech|>I am not feeling well today",
-        })
+        msg_str = json.dumps(
+            {
+                "mode": "2pass-offline",
+                "text": "<|en|><|SAD|><|Speech|>I am not feeling well today",
+            }
+        )
         result = self.client._parse_message(msg_str)
         assert result is not None
         assert result.text == "I am not feeling well today"
@@ -125,10 +136,12 @@ class TestFunASR2PassClient:
 
     def test_parse_offline_applause(self):
         """测试掌声事件"""
-        msg_str = json.dumps({
-            "mode": "2pass-offline",
-            "text": "<|zh|><|NEUTRAL|><|Applause|>",
-        })
+        msg_str = json.dumps(
+            {
+                "mode": "2pass-offline",
+                "text": "<|zh|><|NEUTRAL|><|Applause|>",
+            }
+        )
         result = self.client._parse_message(msg_str)
         assert result is not None
         assert result.text == ""
@@ -158,10 +171,12 @@ class TestFunASR2PassClient:
 
     def test_parse_unknown_mode(self):
         """测试未知 mode"""
-        msg_str = json.dumps({
-            "mode": "unknown-mode",
-            "text": "something",
-        })
+        msg_str = json.dumps(
+            {
+                "mode": "unknown-mode",
+                "text": "something",
+            }
+        )
         result = self.client._parse_message(msg_str)
         assert result is None
 
@@ -177,10 +192,14 @@ class TestFunASR2PassClient:
             ("SURPRISED", "surprised"),
         ]
         for tag, expected in emotions:
-            result = self.client._parse_message(json.dumps({
-                "mode": "2pass-offline",
-                "text": f"<|zh|><|{tag}|><|Speech|>测试",
-            }))
+            result = self.client._parse_message(
+                json.dumps(
+                    {
+                        "mode": "2pass-offline",
+                        "text": f"<|zh|><|{tag}|><|Speech|>测试",
+                    }
+                )
+            )
             assert result is not None
             assert result.emotion == expected, f"Emotion {tag} → {expected} 失败"
 
@@ -330,6 +349,7 @@ class TestCosyVoiceEngine:
             assert count == 0  # 不产生任何 chunk
 
         import asyncio
+
         asyncio.run(_test())
 
     def test_voice_list_complete(self):

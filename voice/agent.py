@@ -61,12 +61,12 @@ try:
 except ImportError:
     _LIVEKIT_AVAILABLE = False
     logger.warning(
-        "livekit-agents 未安装。安装: pip install "
-        "'livekit-agents[silero,turn-detector]~=1.4'"
+        "livekit-agents 未安装。安装: pip install 'livekit-agents[silero,turn-detector]~=1.4'"
     )
 
 
 # ========== Agent 定义 ==========
+
 
 class VoiceBridgeAgent(Agent if _LIVEKIT_AVAILABLE else object):
     """
@@ -115,7 +115,8 @@ class VoiceBridgeAgent(Agent if _LIVEKIT_AVAILABLE else object):
 
 # ========== VAD 预热 ==========
 
-def _prewarm(proc: "JobProcess"):
+
+def _prewarm(proc: JobProcess):
     """Worker 启动时预加载 Silero VAD 模型, 减少首次连接延迟"""
     if _LIVEKIT_AVAILABLE:
         proc.userdata["vad"] = silero.VAD.load()
@@ -123,6 +124,7 @@ def _prewarm(proc: "JobProcess"):
 
 
 # ========== STT / TTS 构建 (可插拔) ==========
+
 
 def _build_stt(config: VoiceBridgeConfig) -> Any | None:
     """
@@ -225,7 +227,8 @@ def _build_tts(config: VoiceBridgeConfig) -> Any | None:
 
 # ========== Agent 入口 ==========
 
-async def entrypoint(ctx: "JobContext"):
+
+async def entrypoint(ctx: JobContext):
     """LiveKit Agent 入口 - 每次用户连接时调用"""
     config = VoiceBridgeConfig.from_env()
 
@@ -279,6 +282,7 @@ async def entrypoint(ctx: "JobContext"):
 
 
 # ========== CLI 入口 ==========
+
 
 def main():
     """启动 VoiceBridge Agent Worker"""

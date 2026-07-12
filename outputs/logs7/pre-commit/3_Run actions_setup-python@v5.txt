@@ -1,0 +1,26 @@
+﻿2026-07-12T07:28:41.9066734Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-07-12T07:28:41.9069805Z ##[group]Run actions/setup-python@v5
+2026-07-12T07:28:41.9070696Z with:
+2026-07-12T07:28:41.9071173Z   python-version: 3.12
+2026-07-12T07:28:41.9071688Z   cache: pip
+2026-07-12T07:28:41.9072174Z   check-latest: false
+2026-07-12T07:28:41.9076196Z   token: ***
+2026-07-12T07:28:41.9076692Z   update-environment: true
+2026-07-12T07:28:41.9077277Z   allow-prereleases: false
+2026-07-12T07:28:41.9077830Z   freethreaded: false
+2026-07-12T07:28:41.9078326Z ##[endgroup]
+2026-07-12T07:28:42.0450916Z ##[group]Installed versions
+2026-07-12T07:28:42.0558674Z (node:2221) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-07-12T07:28:42.0561239Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-07-12T07:28:42.0562447Z Successfully set up CPython (3.12.13)
+2026-07-12T07:28:42.0563798Z ##[endgroup]
+2026-07-12T07:28:42.1252245Z [command]/opt/hostedtoolcache/Python/3.12.13/x64/bin/pip cache dir
+2026-07-12T07:28:42.5254982Z /home/runner/.cache/pip
+2026-07-12T07:28:42.6189192Z Cache hit for: setup-python-Linux-x64-24.04-Ubuntu-python-3.12.13-pip-a61a50c33e4db0dd305f07cb5127a5d0bb53b44dc77c505ebaecd8646f606eeb
+2026-07-12T07:28:42.6296658Z (node:2221) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-07-12T07:28:43.6712513Z Received 234881024 of 348209601 (67.5%), 224.0 MBs/sec
+2026-07-12T07:28:44.1891506Z Received 348209601 of 348209601 (100.0%), 218.8 MBs/sec
+2026-07-12T07:28:44.1892851Z Cache Size: ~332 MB (348209601 B)
+2026-07-12T07:28:44.2016967Z [command]/usr/bin/tar -xf /home/runner/work/_temp/24b47550-8e36-40a0-9f2e-40fe87c14b7f/cache.tzst -P -C /home/runner/work/homestream/homestream --use-compress-program unzstd
+2026-07-12T07:28:44.7183698Z Cache restored successfully
+2026-07-12T07:28:44.7359354Z Cache restored from key: setup-python-Linux-x64-24.04-Ubuntu-python-3.12.13-pip-a61a50c33e4db0dd305f07cb5127a5d0bb53b44dc77c505ebaecd8646f606eeb

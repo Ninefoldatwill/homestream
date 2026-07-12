@@ -21,7 +21,6 @@ from openclaw_bridge import (
     ToolResult,
 )
 
-
 # ==================== Mock 辅助函数 ====================
 
 
@@ -531,9 +530,7 @@ class TestBuiltinFileTools:
         bridge.enable_dangerous_tools(True)
         test_file = tmp_path / "subdir" / "nested" / "file.txt"
 
-        result = await bridge.call_tool(
-            "file_write", {"path": str(test_file), "content": "nested"}
-        )
+        result = await bridge.call_tool("file_write", {"path": str(test_file), "content": "nested"})
         assert result.success is True
         assert test_file.read_text() == "nested"
 
@@ -561,9 +558,7 @@ class TestBuiltinFileTools:
         (tmp_path / "c.txt").write_text("c")
 
         bridge = ToolBridge()
-        result = await bridge.call_tool(
-            "file_list", {"path": str(tmp_path), "pattern": "*.txt"}
-        )
+        result = await bridge.call_tool("file_list", {"path": str(tmp_path), "pattern": "*.txt"})
         assert result.success is True
         entries = json.loads(result.output)
         names = [e["name"] for e in entries]
@@ -604,9 +599,7 @@ class TestBuiltinShellTool:
         bridge = ToolBridge()
         bridge.enable_dangerous_tools(True)
         # 使用一个一定失败的命令
-        result = await bridge.call_tool(
-            "shell_exec", {"command": "exit 1", "timeout": 5}
-        )
+        result = await bridge.call_tool("shell_exec", {"command": "exit 1", "timeout": 5})
         assert result.success is False
         assert "退出码 1" in result.error
 

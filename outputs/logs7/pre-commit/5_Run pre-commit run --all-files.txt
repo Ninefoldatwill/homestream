@@ -1,0 +1,450 @@
+﻿2026-07-12T07:28:46.5207925Z ##[group]Run pre-commit run --all-files
+2026-07-12T07:28:46.5208312Z [36;1mpre-commit run --all-files[0m
+2026-07-12T07:28:46.5242410Z shell: /usr/bin/bash -e {0}
+2026-07-12T07:28:46.5242683Z env:
+2026-07-12T07:28:46.5242956Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.13/x64
+2026-07-12T07:28:46.5243448Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib/pkgconfig
+2026-07-12T07:28:46.5243933Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+2026-07-12T07:28:46.5244369Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+2026-07-12T07:28:46.5244815Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.13/x64
+2026-07-12T07:28:46.5245269Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.13/x64/lib
+2026-07-12T07:28:46.5245655Z ##[endgroup]
+2026-07-12T07:28:46.7055315Z [INFO] Initializing environment for https://github.com/astral-sh/ruff-pre-commit.
+2026-07-12T07:28:46.8539335Z [INFO] Initializing environment for https://github.com/pre-commit/pre-commit-hooks.
+2026-07-12T07:28:47.0200689Z [WARNING] repo `https://github.com/pre-commit/pre-commit-hooks` uses deprecated stage names (commit, push) which will be removed in a future version.  Hint: often `pre-commit autoupdate --repo https://github.com/pre-commit/pre-commit-hooks` will fix this.  if it does not -- consider reporting an issue to that repo.
+2026-07-12T07:28:47.0241794Z [INFO] Initializing environment for https://github.com/PyCQA/bandit.
+2026-07-12T07:28:47.7417813Z [INFO] Initializing environment for https://github.com/PyCQA/bandit:bandit[toml].
+2026-07-12T07:28:48.4727372Z [INFO] Initializing environment for https://github.com/gitleaks/gitleaks.
+2026-07-12T07:28:48.7023061Z [INFO] Installing environment for https://github.com/astral-sh/ruff-pre-commit.
+2026-07-12T07:28:48.7024104Z [INFO] Once installed this environment will be reused.
+2026-07-12T07:28:48.7024585Z [INFO] This may take a few minutes...
+2026-07-12T07:28:52.5946844Z [INFO] Installing environment for https://github.com/pre-commit/pre-commit-hooks.
+2026-07-12T07:28:52.5947987Z [INFO] Once installed this environment will be reused.
+2026-07-12T07:28:52.5948403Z [INFO] This may take a few minutes...
+2026-07-12T07:28:55.5579269Z [INFO] Installing environment for https://github.com/PyCQA/bandit.
+2026-07-12T07:28:55.5579851Z [INFO] Once installed this environment will be reused.
+2026-07-12T07:28:55.5580740Z [INFO] This may take a few minutes...
+2026-07-12T07:29:00.5545221Z [INFO] Installing environment for https://github.com/gitleaks/gitleaks.
+2026-07-12T07:29:00.5546818Z [INFO] Once installed this environment will be reused.
+2026-07-12T07:29:00.5547743Z [INFO] This may take a few minutes...
+2026-07-12T07:29:19.0286687Z ruff.....................................................................Failed
+2026-07-12T07:29:19.0287699Z - hook id: ruff
+2026-07-12T07:29:19.0288188Z - exit code: 1
+2026-07-12T07:29:19.0288488Z 
+2026-07-12T07:29:19.0288865Z openclaw_bridge.py:615:29: UP015 [*] Unnecessary mode argument
+2026-07-12T07:29:19.0289569Z     |
+2026-07-12T07:29:19.0290207Z 613 |             if not os.path.exists(path):
+2026-07-12T07:29:19.0291431Z 614 |                 return ToolResult(success=False, error=f"文件不存在: {path}")
+2026-07-12T07:29:19.0292290Z 615 |             with open(path, "r", encoding=encoding) as f:
+2026-07-12T07:29:19.0292973Z     |                             ^^^ UP015
+2026-07-12T07:29:19.0293495Z 616 |                 content = f.read()
+2026-07-12T07:29:19.0294037Z 617 |             return ToolResult(
+2026-07-12T07:29:19.0294637Z     |
+2026-07-12T07:29:19.0295052Z     = help: Remove mode argument
+2026-07-12T07:29:19.0295397Z 
+2026-07-12T07:29:19.0295917Z openclaw_bridge.py:683:22: S602 `subprocess` call with `shell=True` identified, security issue
+2026-07-12T07:29:19.0296786Z     |
+2026-07-12T07:29:19.0297232Z 681 |         """执行系统命令"""
+2026-07-12T07:29:19.0297506Z 682 |         try:
+2026-07-12T07:29:19.0297769Z 683 |             result = subprocess.run(
+2026-07-12T07:29:19.0298119Z     |                      ^^^^^^^^^^^^^^ S602
+2026-07-12T07:29:19.0298812Z 684 |                 command,
+2026-07-12T07:29:19.0299582Z 685 |                 shell=True,  # nosec B602 — _tool_shell_exec 是有意设计的命令执行方法
+2026-07-12T07:29:19.0300233Z     |
+2026-07-12T07:29:19.0300352Z 
+2026-07-12T07:29:19.0300564Z router_score.py:32:1: I001 [*] Import block is un-sorted or un-formatted
+2026-07-12T07:29:19.0300929Z    |
+2026-07-12T07:29:19.0301111Z 30 |   """
+2026-07-12T07:29:19.0301320Z 31 |
+2026-07-12T07:29:19.0301520Z 32 | / from __future__ import annotations
+2026-07-12T07:29:19.0301782Z 33 | |
+2026-07-12T07:29:19.0301969Z 34 | | import threading
+2026-07-12T07:29:19.0302193Z 35 | | import time
+2026-07-12T07:29:19.0302435Z 36 | | from dataclasses import dataclass, field
+2026-07-12T07:29:19.0302758Z 37 | | from typing import Any, Optional
+2026-07-12T07:29:19.0303016Z 38 | |
+2026-07-12T07:29:19.0303244Z 39 | | from providers.base_provider import (
+2026-07-12T07:29:19.0303635Z 40 | |     BaseProvider,
+2026-07-12T07:29:19.0303878Z 41 | |     ProviderConfig,
+2026-07-12T07:29:19.0304110Z 42 | |     ProviderStatus,
+2026-07-12T07:29:19.0304345Z 43 | |     ProviderTier,
+2026-07-12T07:29:19.0304556Z 44 | | )
+2026-07-12T07:29:19.0304737Z    | |_^ I001
+2026-07-12T07:29:19.0304921Z    |
+2026-07-12T07:29:19.0305112Z    = help: Organize imports
+2026-07-12T07:29:19.0305273Z 
+2026-07-12T07:29:19.0305475Z surprisal_gate.py:35:1: I001 [*] Import block is un-sorted or un-formatted
+2026-07-12T07:29:19.0305844Z    |
+2026-07-12T07:29:19.0306018Z 33 |   """
+2026-07-12T07:29:19.0306194Z 34 |
+2026-07-12T07:29:19.0306390Z 35 | / from __future__ import annotations
+2026-07-12T07:29:19.0306657Z 36 | |
+2026-07-12T07:29:19.0306852Z 37 | | import math
+2026-07-12T07:29:19.0307062Z 38 | | import re
+2026-07-12T07:29:19.0307504Z 39 | | import threading
+2026-07-12T07:29:19.0307740Z 40 | | from collections import Counter
+2026-07-12T07:29:19.0308057Z 41 | | from dataclasses import dataclass, field
+2026-07-12T07:29:19.0308370Z 42 | | from typing import Any, Optional
+2026-07-12T07:29:19.0308627Z 43 | |
+2026-07-12T07:29:19.0308846Z 44 | | from event_stream import Event, EventType
+2026-07-12T07:29:19.0309172Z    | |_________________________________________^ I001
+2026-07-12T07:29:19.0309447Z    |
+2026-07-12T07:29:19.0309630Z    = help: Organize imports
+2026-07-12T07:29:19.0309779Z 
+2026-07-12T07:29:19.0310263Z test_ollama_provider.py:8:1: I001 [*] Import block is un-sorted or un-formatted
+2026-07-12T07:29:19.0310671Z    |
+2026-07-12T07:29:19.0310845Z  6 |   """
+2026-07-12T07:29:19.0311023Z  7 |
+2026-07-12T07:29:19.0311206Z  8 | / import asyncio
+2026-07-12T07:29:19.0311411Z  9 | | import json
+2026-07-12T07:29:19.0311620Z 10 | | import urllib.error
+2026-07-12T07:29:19.0311859Z 11 | | from io import BytesIO
+2026-07-12T07:29:19.0312135Z 12 | | from unittest.mock import MagicMock, patch
+2026-07-12T07:29:19.0312433Z 13 | |
+2026-07-12T07:29:19.0312617Z 14 | | import pytest
+2026-07-12T07:29:19.0312827Z 15 | |
+2026-07-12T07:29:19.0313041Z 16 | | from providers.base_provider import (
+2026-07-12T07:29:19.0313326Z 17 | |     ChatMessage,
+2026-07-12T07:29:19.0313555Z 18 | |     ProviderConfig,
+2026-07-12T07:29:19.0313786Z 19 | |     ProviderError,
+2026-07-12T07:29:19.0314015Z 20 | |     ProviderStatus,
+2026-07-12T07:29:19.0314242Z 21 | |     ProviderTier,
+2026-07-12T07:29:19.0314466Z 22 | |     ProviderType,
+2026-07-12T07:29:19.0314680Z 23 | | )
+2026-07-12T07:29:19.0314902Z 24 | | from providers.ollama_provider import (
+2026-07-12T07:29:19.0315206Z 25 | |     OllamaModelInfo,
+2026-07-12T07:29:19.0315440Z 26 | |     OllamaProvider,
+2026-07-12T07:29:19.0315689Z 27 | |     create_ollama_llama_provider,
+2026-07-12T07:29:19.0315990Z 28 | |     create_ollama_mistral_provider,
+2026-07-12T07:29:19.0316281Z 29 | |     create_ollama_provider,
+2026-07-12T07:29:19.0316567Z 30 | |     create_ollama_qwen_provider,
+2026-07-12T07:29:19.0316824Z 31 | | )
+2026-07-12T07:29:19.0317002Z    | |_^ I001
+2026-07-12T07:29:19.0317187Z    |
+2026-07-12T07:29:19.0317375Z    = help: Organize imports
+2026-07-12T07:29:19.0317527Z 
+2026-07-12T07:29:19.0317763Z test_openai_compat_endpoint.py:8:1: I001 [*] Import block is un-sorted or un-formatted
+2026-07-12T07:29:19.0318383Z    |
+2026-07-12T07:29:19.0318559Z  6 |   """
+2026-07-12T07:29:19.0318737Z  7 |
+2026-07-12T07:29:19.0318914Z  8 | / import json
+2026-07-12T07:29:19.0319120Z  9 | | import os
+2026-07-12T07:29:19.0319342Z 10 | | from unittest.mock import patch
+2026-07-12T07:29:19.0319621Z 11 | |
+2026-07-12T07:29:19.0319808Z 12 | | import pytest
+2026-07-12T07:29:19.0320277Z 13 | | from fastapi import FastAPI
+2026-07-12T07:29:19.0320569Z 14 | | from fastapi.testclient import TestClient
+2026-07-12T07:29:19.0320859Z 15 | |
+2026-07-12T07:29:19.0321064Z 16 | | from model_router import ModelRouter
+2026-07-12T07:29:19.0321483Z 17 | | from openai_compat_endpoint import create_openai_router, create_standalone_app
+2026-07-12T07:29:19.0321936Z 18 | | from providers.base_provider import (
+2026-07-12T07:29:19.0322222Z 19 | |     BaseProvider,
+2026-07-12T07:29:19.0322445Z 20 | |     ChatMessage,
+2026-07-12T07:29:19.0322664Z 21 | |     ChatResponse,
+2026-07-12T07:29:19.0322896Z 22 | |     ProviderConfig,
+2026-07-12T07:29:19.0323125Z 23 | |     ProviderStatus,
+2026-07-12T07:29:19.0323350Z 24 | |     ProviderTier,
+2026-07-12T07:29:19.0323577Z 25 | |     ProviderType,
+2026-07-12T07:29:19.0323787Z 26 | | )
+2026-07-12T07:29:19.0323964Z    | |_^ I001
+2026-07-12T07:29:19.0324147Z    |
+2026-07-12T07:29:19.0324334Z    = help: Organize imports
+2026-07-12T07:29:19.0324485Z 
+2026-07-12T07:29:19.0324695Z test_openclaw_bridge.py:8:1: I001 [*] Import block is un-sorted or un-formatted
+2026-07-12T07:29:19.0325076Z    |
+2026-07-12T07:29:19.0325254Z  6 |   """
+2026-07-12T07:29:19.0325429Z  7 |
+2026-07-12T07:29:19.0325606Z  8 | / import asyncio
+2026-07-12T07:29:19.0325815Z  9 | | import json
+2026-07-12T07:29:19.0326183Z 10 | | import os
+2026-07-12T07:29:19.0326387Z 11 | | import urllib.error
+2026-07-12T07:29:19.0326617Z 12 | | from io import BytesIO
+2026-07-12T07:29:19.0326898Z 13 | | from unittest.mock import MagicMock, patch
+2026-07-12T07:29:19.0327185Z 14 | |
+2026-07-12T07:29:19.0327375Z 15 | | import pytest
+2026-07-12T07:29:19.0327596Z 16 | |
+2026-07-12T07:29:19.0327791Z 17 | | from openclaw_bridge import (
+2026-07-12T07:29:19.0328066Z 18 | |     GatewayBridge,
+2026-07-12T07:29:19.0328291Z 19 | |     ToolBridge,
+2026-07-12T07:29:19.0328506Z 20 | |     ToolDefinition,
+2026-07-12T07:29:19.0328735Z 21 | |     ToolResult,
+2026-07-12T07:29:19.0328939Z 22 | | )
+2026-07-12T07:29:19.0329117Z    | |_^ I001
+2026-07-12T07:29:19.0329299Z    |
+2026-07-12T07:29:19.0329485Z    = help: Organize imports
+2026-07-12T07:29:19.0329638Z 
+2026-07-12T07:29:19.0329833Z test_router_score.py:7:1: I001 [*] Import block is un-sorted or un-formatted
+2026-07-12T07:29:19.0330405Z    |
+2026-07-12T07:29:19.0330589Z  5 |   """
+2026-07-12T07:29:19.0330766Z  6 |
+2026-07-12T07:29:19.0330965Z  7 | / from __future__ import annotations
+2026-07-12T07:29:19.0331224Z  8 | |
+2026-07-12T07:29:19.0331405Z  9 | | import asyncio
+2026-07-12T07:29:19.0331612Z 10 | | import time
+2026-07-12T07:29:19.0331850Z 11 | | from unittest.mock import AsyncMock, patch
+2026-07-12T07:29:19.0332145Z 12 | |
+2026-07-12T07:29:19.0332324Z 13 | | import pytest
+2026-07-12T07:29:19.0332524Z 14 | |
+2026-07-12T07:29:19.0332732Z 15 | | from providers.base_provider import (
+2026-07-12T07:29:19.0333011Z 16 | |     BaseProvider,
+2026-07-12T07:29:19.0333228Z 17 | |     ChatMessage,
+2026-07-12T07:29:19.0333447Z 18 | |     ChatResponse,
+2026-07-12T07:29:19.0333672Z 19 | |     ProviderConfig,
+2026-07-12T07:29:19.0333897Z 20 | |     ProviderStatus,
+2026-07-12T07:29:19.0334119Z 21 | |     ProviderTier,
+2026-07-12T07:29:19.0334337Z 22 | |     ProviderType,
+2026-07-12T07:29:19.0334548Z 23 | | )
+2026-07-12T07:29:19.0334744Z 24 | | from router_score import (
+2026-07-12T07:29:19.0335005Z 25 | |     DEFAULT_WEIGHTS,
+2026-07-12T07:29:19.0335239Z 26 | |     MAX_CONCURRENT_LOAD,
+2026-07-12T07:29:19.0335486Z 27 | |     MAX_COST_PER_1K,
+2026-07-12T07:29:19.0335714Z 28 | |     MAX_LATENCY_MS,
+2026-07-12T07:29:19.0335938Z 29 | |     NEUTRAL_SCORE,
+2026-07-12T07:29:19.0336159Z 30 | |     DimensionScore,
+2026-07-12T07:29:19.0336526Z 31 | |     ProviderMeta,
+2026-07-12T07:29:19.0336749Z 32 | |     ProviderScore,
+2026-07-12T07:29:19.0336971Z 33 | |     RouterScore,
+2026-07-12T07:29:19.0337204Z 34 | |     create_balanced_weights,
+2026-07-12T07:29:19.0337480Z 35 | |     create_cost_optimized_weights,
+2026-07-12T07:29:19.0337785Z 36 | |     create_reliability_optimized_weights,
+2026-07-12T07:29:19.0338091Z 37 | |     create_speed_optimized_weights,
+2026-07-12T07:29:19.0338354Z 38 | | )
+2026-07-12T07:29:19.0338533Z    | |_^ I001
+2026-07-12T07:29:19.0338716Z    |
+2026-07-12T07:29:19.0338908Z    = help: Organize imports
+2026-07-12T07:29:19.0339053Z 
+2026-07-12T07:29:19.0339258Z test_router_score.py:809:14: B017 Do not assert blind exception: `Exception`
+2026-07-12T07:29:19.0339631Z     |
+2026-07-12T07:29:19.0340076Z 807 |         messages = [ChatMessage(role="user", content="hello")]
+2026-07-12T07:29:19.0340564Z 808 |         # chat 会失败，但不应崩溃
+2026-07-12T07:29:19.0340822Z 809 |         with pytest.raises(Exception):
+2026-07-12T07:29:19.0341117Z     |              ^^^^^^^^^^^^^^^^^^^^^^^^ B017
+2026-07-12T07:29:19.0341402Z 810 |             await router.chat(messages)
+2026-07-12T07:29:19.0341664Z     |
+2026-07-12T07:29:19.0341760Z 
+2026-07-12T07:29:19.0341968Z test_surprisal_gate.py:17:1: I001 [*] Import block is un-sorted or un-formatted
+2026-07-12T07:29:19.0342339Z    |
+2026-07-12T07:29:19.0342505Z 15 |   """
+2026-07-12T07:29:19.0342675Z 16 |
+2026-07-12T07:29:19.0342854Z 17 | / import math
+2026-07-12T07:29:19.0343057Z 18 | | import threading
+2026-07-12T07:29:19.0343287Z 19 | | from collections import Counter
+2026-07-12T07:29:19.0343639Z 20 | |
+2026-07-12T07:29:19.0343960Z 21 | | import pytest
+2026-07-12T07:29:19.0344584Z 22 | |
+2026-07-12T07:29:19.0344804Z 23 | | from event_stream import (
+2026-07-12T07:29:19.0345052Z 24 | |     Action,
+2026-07-12T07:29:19.0345268Z 25 | |     EventSource,
+2026-07-12T07:29:19.0345483Z 26 | |     EventType,
+2026-07-12T07:29:19.0345692Z 27 | |     Observation,
+2026-07-12T07:29:19.0346048Z 28 | |     create_action,
+2026-07-12T07:29:19.0346421Z 29 | |     create_observation,
+2026-07-12T07:29:19.0346681Z 30 | | )
+2026-07-12T07:29:19.0346880Z 31 | | from surprisal_gate import (
+2026-07-12T07:29:19.0347145Z 32 | |     DEFAULT_ALPHA,
+2026-07-12T07:29:19.0347487Z 33 | |     DEFAULT_BETA,
+2026-07-12T07:29:19.0347904Z 34 | |     DEFAULT_GAMMA,
+2026-07-12T07:29:19.0348329Z 35 | |     DEFAULT_THRESHOLD,
+2026-07-12T07:29:19.0348771Z 36 | |     DEFAULT_WARMUP,
+2026-07-12T07:29:19.0349187Z 37 | |     MAX_VOCAB_SIZE,
+2026-07-12T07:29:19.0349600Z 38 | |     SurprisalGate,
+2026-07-12T07:29:19.0350270Z 39 | |     SurprisalResult,
+2026-07-12T07:29:19.0350707Z 40 | |     GateStats,
+2026-07-12T07:29:19.0351120Z 41 | |     create_gate,
+2026-07-12T07:29:19.0351518Z 42 | |     create_relaxed_gate,
+2026-07-12T07:29:19.0351967Z 43 | |     create_strict_gate,
+2026-07-12T07:29:19.0352261Z 44 | |     tokenize,
+2026-07-12T07:29:19.0352537Z 45 | | )
+2026-07-12T07:29:19.0352865Z    | |_^ I001
+2026-07-12T07:29:19.0353217Z    |
+2026-07-12T07:29:19.0353560Z    = help: Organize imports
+2026-07-12T07:29:19.0353826Z 
+2026-07-12T07:29:19.0354212Z test_voice_llm_adapter.py:14:1: I001 [*] Import block is un-sorted or un-formatted
+2026-07-12T07:29:19.0354891Z    |
+2026-07-12T07:29:19.0355203Z 12 |   """
+2026-07-12T07:29:19.0355520Z 13 |
+2026-07-12T07:29:19.0355864Z 14 | / import asyncio
+2026-07-12T07:29:19.0356218Z 15 | | from unittest.mock import AsyncMock, MagicMock, patch
+2026-07-12T07:29:19.0356538Z 16 | |
+2026-07-12T07:29:19.0356723Z 17 | | import pytest
+2026-07-12T07:29:19.0356924Z 18 | |
+2026-07-12T07:29:19.0357141Z 19 | | from voice.llm_adapter import HomeStreamLLM
+2026-07-12T07:29:19.0357467Z 20 | | from voice.config import VoiceBridgeConfig
+2026-07-12T07:29:19.0357789Z    | |__________________________________________^ I001
+2026-07-12T07:29:19.0358065Z    |
+2026-07-12T07:29:19.0358249Z    = help: Organize imports
+2026-07-12T07:29:19.0358397Z 
+2026-07-12T07:29:19.0358572Z voice/agent.py:118:20: UP037 [*] Remove quotes from type annotation
+2026-07-12T07:29:19.0359107Z     |
+2026-07-12T07:29:19.0359392Z 116 | # ========== VAD 预热 ==========
+2026-07-12T07:29:19.0359633Z 117 |
+2026-07-12T07:29:19.0359828Z 118 | def _prewarm(proc: "JobProcess"):
+2026-07-12T07:29:19.0360357Z     |                    ^^^^^^^^^^^^ UP037
+2026-07-12T07:29:19.0360750Z 119 |     """Worker 启动时预加载 Silero VAD 模型, 减少首次连接延迟"""
+2026-07-12T07:29:19.0361055Z 120 |     if _LIVEKIT_AVAILABLE:
+2026-07-12T07:29:19.0361286Z     |
+2026-07-12T07:29:19.0361472Z     = help: Remove quotes
+2026-07-12T07:29:19.0361610Z 
+2026-07-12T07:29:19.0361879Z voice/agent.py:228:27: UP037 [*] Remove quotes from type annotation
+2026-07-12T07:29:19.0362514Z     |
+2026-07-12T07:29:19.0362818Z 226 | # ========== Agent 入口 ==========
+2026-07-12T07:29:19.0363077Z 227 |
+2026-07-12T07:29:19.0363301Z 228 | async def entrypoint(ctx: "JobContext"):
+2026-07-12T07:29:19.0363682Z     |                           ^^^^^^^^^^^^ UP037
+2026-07-12T07:29:19.0364430Z 229 |     """LiveKit Agent 入口 - 每次用户连接时调用"""
+2026-07-12T07:29:19.0364995Z 230 |     config = VoiceBridgeConfig.from_env()
+2026-07-12T07:29:19.0365502Z     |
+2026-07-12T07:29:19.0365848Z     = help: Remove quotes
+2026-07-12T07:29:19.0366116Z 
+2026-07-12T07:29:19.0366445Z voice/config.py:91:26: UP037 [*] Remove quotes from type annotation
+2026-07-12T07:29:19.0367081Z    |
+2026-07-12T07:29:19.0367400Z 90 |     @classmethod
+2026-07-12T07:29:19.0367866Z 91 |     def from_env(cls) -> "VoiceBridgeConfig":
+2026-07-12T07:29:19.0368437Z    |                          ^^^^^^^^^^^^^^^^^^^ UP037
+2026-07-12T07:29:19.0369098Z 92 |         """从环境变量加载配置"""
+2026-07-12T07:29:19.0369501Z 93 |         return cls()
+2026-07-12T07:29:19.0370079Z    |
+2026-07-12T07:29:19.0370701Z    = help: Remove quotes
+2026-07-12T07:29:19.0370972Z 
+2026-07-12T07:29:19.0371325Z voice/stt_adapter.py:127:24: UP037 [*] Remove quotes from type annotation
+2026-07-12T07:29:19.0371977Z     |
+2026-07-12T07:29:19.0372284Z 125 |         self,
+2026-07-12T07:29:19.0372691Z 126 |         audio_iter: AsyncIterator[bytes],
+2026-07-12T07:29:19.0373281Z 127 |     ) -> AsyncIterator["FunASRResult"]:
+2026-07-12T07:29:19.0373813Z     |                        ^^^^^^^^^^^^^^ UP037
+2026-07-12T07:29:19.0374276Z 128 |         """
+2026-07-12T07:29:19.0374754Z 129 |         流式识别 (async generator)
+2026-07-12T07:29:19.0375186Z     |
+2026-07-12T07:29:19.0375516Z     = help: Remove quotes
+2026-07-12T07:29:19.0375775Z 
+2026-07-12T07:29:19.0376116Z voice/stt_adapter.py:194:43: UP037 [*] Remove quotes from type annotation
+2026-07-12T07:29:19.0376758Z     |
+2026-07-12T07:29:19.0377074Z 192 |         )
+2026-07-12T07:29:19.0377405Z 193 |
+2026-07-12T07:29:19.0377891Z 194 |     def _parse_message(self, msg: Any) -> "FunASRResult | None":
+2026-07-12T07:29:19.0378608Z     |                                           ^^^^^^^^^^^^^^^^^^^^^ UP037
+2026-07-12T07:29:19.0379337Z 195 |         """解析 FunASR WebSocket 返回消息"""
+2026-07-12T07:29:19.0379868Z 196 |         if isinstance(msg, bytes):
+2026-07-12T07:29:19.0380778Z     |
+2026-07-12T07:29:19.0381147Z     = help: Remove quotes
+2026-07-12T07:29:19.0381409Z 
+2026-07-12T07:29:19.0381913Z voice/stt_adapter.py:215:17: S106 Possible hardcoded password assigned to argument: "pass_type"
+2026-07-12T07:29:19.0382718Z     |
+2026-07-12T07:29:19.0383056Z 213 |             return FunASRResult(
+2026-07-12T07:29:19.0383543Z 214 |                 text=text.strip(),
+2026-07-12T07:29:19.0384500Z 215 |                 pass_type="online",  # nosec B106 — FunASR protocol mode identifier, not a password
+2026-07-12T07:29:19.0385291Z     |                 ^^^^^^^^^^^^^^^^^^ S106
+2026-07-12T07:29:19.0385832Z 216 |                 is_final=data.get("is_final", False),
+2026-07-12T07:29:19.0386406Z 217 |                 timestamp=data.get("timestamp"),
+2026-07-12T07:29:19.0386934Z     |
+2026-07-12T07:29:19.0387118Z 
+2026-07-12T07:29:19.0387606Z voice/stt_adapter.py:226:17: S106 Possible hardcoded password assigned to argument: "pass_type"
+2026-07-12T07:29:19.0388413Z     |
+2026-07-12T07:29:19.0388769Z 224 |             return FunASRResult(
+2026-07-12T07:29:19.0389496Z 225 |                 text=clean_text,
+2026-07-12T07:29:19.0390593Z 226 |                 pass_type="offline",  # nosec B106 — FunASR protocol mode identifier
+2026-07-12T07:29:19.0391329Z     |                 ^^^^^^^^^^^^^^^^^^^ S106
+2026-07-12T07:29:19.0391815Z 227 |                 is_final=True,
+2026-07-12T07:29:19.0392277Z 228 |                 language=language,
+2026-07-12T07:29:19.0392730Z     |
+2026-07-12T07:29:19.0392921Z 
+2026-07-12T07:29:19.0393356Z voice/stt_adapter.py:271:22: S105 Possible hardcoded password assigned to: "pass_type"
+2026-07-12T07:29:19.0394101Z     |
+2026-07-12T07:29:19.0394566Z 269 |     """FunASR 2-pass 识别结果"""
+2026-07-12T07:29:19.0395049Z 270 |     text: str = ""
+2026-07-12T07:29:19.0395552Z 271 |     pass_type: str = "online"  # "online" | "offline"
+2026-07-12T07:29:19.0396125Z     |                      ^^^^^^^^ S105
+2026-07-12T07:29:19.0396608Z 272 |     is_final: bool = False
+2026-07-12T07:29:19.0397056Z 273 |     language: str = ""
+2026-07-12T07:29:19.0397481Z     |
+2026-07-12T07:29:19.0397663Z 
+2026-07-12T07:29:19.0398102Z voice/stt_adapter.py:367:44: S105 Possible hardcoded password assigned to: "pass_type"
+2026-07-12T07:29:19.0398831Z     |
+2026-07-12T07:29:19.0399152Z 365 |                     )
+2026-07-12T07:29:19.0399519Z 366 |
+2026-07-12T07:29:19.0400158Z 367 |                     if result.pass_type == "online":
+2026-07-12T07:29:19.0400759Z     |                                            ^^^^^^^^ S105
+2026-07-12T07:29:19.0401536Z 368 |                         # Pass 1: 实时结果 (INTERIM)
+2026-07-12T07:29:19.0402093Z 369 |                         event = SpeechEvent(
+2026-07-12T07:29:19.0402579Z     |
+2026-07-12T07:29:19.0403137Z 
+2026-07-12T07:29:19.0403565Z voice/stt_adapter.py:377:46: S105 Possible hardcoded password assigned to: "pass_type"
+2026-07-12T07:29:19.0404313Z     |
+2026-07-12T07:29:19.0404722Z 375 |                         self._event_ch.send_nowait(event)
+2026-07-12T07:29:19.0405732Z 376 |
+2026-07-12T07:29:19.0406189Z 377 |                     elif result.pass_type == "offline":
+2026-07-12T07:29:19.0406802Z     |                                              ^^^^^^^^^ S105
+2026-07-12T07:29:19.0407554Z 378 |                         # Pass 2: 最终结果 (FINAL) + 情感/事件
+2026-07-12T07:29:19.0408119Z 379 |                         event = SpeechEvent(
+2026-07-12T07:29:19.0408594Z     |
+2026-07-12T07:29:19.0408763Z 
+2026-07-12T07:29:19.0409505Z voice/stt_adapter.py:386:25: B010 [*] Do not call `setattr` with a constant attribute value. It is not any safer than normal property access.
+2026-07-12T07:29:19.0410807Z     |
+2026-07-12T07:29:19.0411132Z 384 |                         )
+2026-07-12T07:29:19.0411754Z 385 |                         # 附加情感/事件到 event (供下游)
+2026-07-12T07:29:19.0412386Z 386 |                         setattr(event, "emotion", result.emotion)
+2026-07-12T07:29:19.0413048Z     |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B010
+2026-07-12T07:29:19.0413708Z 387 |                         setattr(event, "audio_event", result.event)
+2026-07-12T07:29:19.0414401Z 388 |                         self._event_ch.send_nowait(event)
+2026-07-12T07:29:19.0414944Z     |
+2026-07-12T07:29:19.0415337Z     = help: Replace `setattr` with assignment
+2026-07-12T07:29:19.0415705Z 
+2026-07-12T07:29:19.0416447Z voice/stt_adapter.py:387:25: B010 [*] Do not call `setattr` with a constant attribute value. It is not any safer than normal property access.
+2026-07-12T07:29:19.0417504Z     |
+2026-07-12T07:29:19.0418030Z 385 |                         # 附加情感/事件到 event (供下游)
+2026-07-12T07:29:19.0418653Z 386 |                         setattr(event, "emotion", result.emotion)
+2026-07-12T07:29:19.0419328Z 387 |                         setattr(event, "audio_event", result.event)
+2026-07-12T07:29:19.0420210Z     |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B010
+2026-07-12T07:29:19.0420826Z 388 |                         self._event_ch.send_nowait(event)
+2026-07-12T07:29:19.0421335Z     |
+2026-07-12T07:29:19.0421919Z     = help: Replace `setattr` with assignment
+2026-07-12T07:29:19.0422281Z 
+2026-07-12T07:29:19.0422709Z voice/stt_adapter.py:447:40: S105 Possible hardcoded password assigned to: "pass_type"
+2026-07-12T07:29:19.0423456Z     |
+2026-07-12T07:29:19.0423786Z 445 |                 _single_chunk()
+2026-07-12T07:29:19.0424225Z 446 |             ):
+2026-07-12T07:29:19.0424726Z 447 |                 if result.pass_type == "offline" and result.text:
+2026-07-12T07:29:19.0425359Z     |                                        ^^^^^^^^^ S105
+2026-07-12T07:29:19.0425903Z 448 |                     alt = SpeechAlternative(
+2026-07-12T07:29:19.0426444Z 449 |                         text=result.text,
+2026-07-12T07:29:19.0426923Z     |
+2026-07-12T07:29:19.0427107Z 
+2026-07-12T07:29:19.0427835Z voice/stt_adapter.py:459:21: B010 [*] Do not call `setattr` with a constant attribute value. It is not any safer than normal property access.
+2026-07-12T07:29:19.0428895Z     |
+2026-07-12T07:29:19.0429301Z 457 |                         timestamp=time.monotonic(),
+2026-07-12T07:29:19.0429856Z 458 |                     )
+2026-07-12T07:29:19.0430685Z 459 |                     setattr(event, "emotion", result.emotion)
+2026-07-12T07:29:19.0431289Z     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B010
+2026-07-12T07:29:19.0431903Z 460 |                     setattr(event, "audio_event", result.event)
+2026-07-12T07:29:19.0432500Z 461 |                     return event
+2026-07-12T07:29:19.0432940Z     |
+2026-07-12T07:29:19.0433304Z     = help: Replace `setattr` with assignment
+2026-07-12T07:29:19.0433659Z 
+2026-07-12T07:29:19.0434396Z voice/stt_adapter.py:460:21: B010 [*] Do not call `setattr` with a constant attribute value. It is not any safer than normal property access.
+2026-07-12T07:29:19.0435703Z     |
+2026-07-12T07:29:19.0436025Z 458 |                     )
+2026-07-12T07:29:19.0436522Z 459 |                     setattr(event, "emotion", result.emotion)
+2026-07-12T07:29:19.0437196Z 460 |                     setattr(event, "audio_event", result.event)
+2026-07-12T07:29:19.0437828Z     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B010
+2026-07-12T07:29:19.0438374Z 461 |                     return event
+2026-07-12T07:29:19.0438804Z     |
+2026-07-12T07:29:19.0439170Z     = help: Replace `setattr` with assignment
+2026-07-12T07:29:19.0439535Z 
+2026-07-12T07:29:19.0439675Z Found 26 errors.
+2026-07-12T07:29:19.0440300Z [*] 18 fixable with the `--fix` option.
+2026-07-12T07:29:19.0440627Z 
+2026-07-12T07:29:19.1020514Z ruff-format..............................................................Failed
+2026-07-12T07:29:19.1021669Z - hook id: ruff-format
+2026-07-12T07:29:19.1022277Z - files were modified by this hook
+2026-07-12T07:29:19.1022693Z 
+2026-07-12T07:29:19.1022940Z 16 files reformatted, 91 files left unchanged
+2026-07-12T07:29:19.1023510Z 
+2026-07-12T07:29:19.1902354Z check yaml...............................................................Passed
+2026-07-12T07:29:19.2583367Z check json...............................................................Passed
+2026-07-12T07:29:19.3124092Z check toml...............................................................Passed
+2026-07-12T07:29:19.3788430Z fix end of files.........................................................Passed
+2026-07-12T07:29:19.4601433Z trim trailing whitespace.................................................Passed
+2026-07-12T07:29:19.8032481Z debug statements (python)................................................Passed
+2026-07-12T07:29:24.2788093Z bandit...................................................................Passed
+2026-07-12T07:29:24.3179335Z Detect hardcoded secrets.................................................Passed
+2026-07-12T07:29:24.3365371Z ##[error]Process completed with exit code 1.

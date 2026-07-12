@@ -86,6 +86,7 @@ except ImportError:
 
 # ========== FunASR 2-pass WebSocket 客户端 ==========
 
+
 class FunASR2PassClient:
     """
     FunASR 2-pass WebSocket 客户端
@@ -135,9 +136,7 @@ class FunASR2PassClient:
             FunASRResult (pass_type="online" 为实时, "offline" 为最终)
         """
         if not _WS_AVAILABLE:
-            raise RuntimeError(
-                "websockets 未安装。安装: pip install websockets"
-            )
+            raise RuntimeError("websockets 未安装。安装: pip install websockets")
 
         last_error = None
         for attempt in range(self._reconnect_attempts):
@@ -187,9 +186,7 @@ class FunASR2PassClient:
                 if attempt < self._reconnect_attempts - 1:
                     await asyncio.sleep(self._reconnect_delay)
 
-        raise ConnectionError(
-            f"FunASR 连接失败 ({self._reconnect_attempts} 次尝试): {last_error}"
-        )
+        raise ConnectionError(f"FunASR 连接失败 ({self._reconnect_attempts} 次尝试): {last_error}")
 
     def _parse_message(self, msg: Any) -> FunASRResult | None:
         """解析 FunASR WebSocket 返回消息"""
@@ -254,8 +251,13 @@ class FunASR2PassClient:
             if tag_upper in ("ZH", "EN", "JA", "KO", "YUE", "AUTO"):
                 language = tag_upper.lower()
             elif tag_upper in (
-                "HAPPY", "SAD", "ANGRY", "NEUTRAL",
-                "FEARFUL", "DISGUSTED", "SURPRISED",
+                "HAPPY",
+                "SAD",
+                "ANGRY",
+                "NEUTRAL",
+                "FEARFUL",
+                "DISGUSTED",
+                "SURPRISED",
             ):
                 emotion = tag_upper.lower()
             elif tag_upper in ("SPEECH", "MUSIC", "SILENCE", "APPLAUSE"):
@@ -267,6 +269,7 @@ class FunASR2PassClient:
 @dataclass
 class FunASRResult:
     """FunASR 2-pass 识别结果"""
+
     text: str = ""
     pass_type: str = "online"  # noqa: S105  # nosec B106 — FunASR protocol mode identifier
     is_final: bool = False
@@ -278,6 +281,7 @@ class FunASRResult:
 
 
 # ========== 音频工具 (帧转 PCM bytes) ==========
+
 
 def _frame_to_pcm_bytes(frame: Any, target_rate: int = 16000) -> bytes:
     """
@@ -344,6 +348,7 @@ if _LIVEKIT_AVAILABLE:
 
         async def _main_task(self) -> None:
             """主循环: 音频帧 → PCM → FunASR WS → 事件"""
+
             # 构建音频块 async iter
             async def _audio_chunks():
                 while True:
@@ -352,9 +357,7 @@ if _LIVEKIT_AVAILABLE:
                     yield pcm_bytes
 
             try:
-                async for result in self._client.transcribe_stream(
-                    _audio_chunks()
-                ):
+                async for result in self._client.transcribe_stream(_audio_chunks()):
                     if not result.text:
                         continue
 
@@ -441,9 +444,7 @@ if _LIVEKIT_AVAILABLE:
             async def _single_chunk():
                 yield pcm_bytes
 
-            async for result in self._client.transcribe_stream(
-                _single_chunk()
-            ):
+            async for result in self._client.transcribe_stream(_single_chunk()):
                 if result.pass_type == "offline" and result.text:  # noqa: S105  # nosec
                     alt = SpeechAlternative(
                         text=result.text,
@@ -469,16 +470,16 @@ if _LIVEKIT_AVAILABLE:
             )
 
 else:
+
     class FunASR2PassSTT:  # type: ignore[no-redef]
         """Stub (LiveKit SDK 未安装)"""
 
         def __init__(self, *args, **kwargs):
-            raise RuntimeError(
-                "LiveKit Agents SDK 未安装。安装: pip install 'livekit-agents~=1.4'"
-            )
+            raise RuntimeError("LiveKit Agents SDK 未安装。安装: pip install 'livekit-agents~=1.4'")
 
 
 # ========== 工厂函数 ==========
+
 
 def create_funasr_stt(
     uri: str = "ws://localhost:10096",
@@ -504,6 +505,7 @@ def create_funasr_stt(
 
 
 # ========== 模块状态 ==========
+
 
 def is_available() -> dict[str, bool]:
     """检查依赖可用性"""
