@@ -261,7 +261,7 @@ class TestFunASRResult:
 
         r = FunASRResult(
             text="你好世界",
-            pass_type="offline",
+            pass_type="offline",  # nosec B106 — FunASR protocol mode identifier, not a password
             is_final=True,
             language="zh",
             emotion="happy",
