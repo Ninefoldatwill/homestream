@@ -212,7 +212,7 @@ class FunASR2PassClient:
             # Pass 1: 实时流式结果 (不加标签)
             return FunASRResult(
                 text=text.strip(),
-                pass_type="online",  # noqa: S106 — FunASR protocol mode identifier
+                pass_type="online",  # noqa: S106  # nosec B106 — FunASR protocol mode identifier
                 is_final=data.get("is_final", False),
                 timestamp=data.get("timestamp"),
             )
@@ -223,7 +223,7 @@ class FunASR2PassClient:
 
             return FunASRResult(
                 text=clean_text,
-                pass_type="offline",  # noqa: S106 — FunASR protocol mode identifier
+                pass_type="offline",  # noqa: S106  # nosec B106 — FunASR protocol mode identifier
                 is_final=True,
                 language=language,
                 emotion=emotion,
@@ -268,7 +268,7 @@ class FunASR2PassClient:
 class FunASRResult:
     """FunASR 2-pass 识别结果"""
     text: str = ""
-    pass_type: str = "online"  # noqa: S105 — FunASR protocol mode identifier
+    pass_type: str = "online"  # noqa: S105  # nosec B106 — FunASR protocol mode identifier
     is_final: bool = False
     language: str = ""
     emotion: str = ""
@@ -364,7 +364,7 @@ if _LIVEKIT_AVAILABLE:
                         language=result.language or "zh",
                     )
 
-                    if result.pass_type == "online":  # noqa: S105
+                    if result.pass_type == "online":  # noqa: S105  # nosec
                         # Pass 1: 实时结果 (INTERIM)
                         event = SpeechEvent(
                             type=SpeechEventType.INTERIM_TRANSCRIPT,
@@ -374,7 +374,7 @@ if _LIVEKIT_AVAILABLE:
                         )
                         self._event_ch.send_nowait(event)
 
-                    elif result.pass_type == "offline":  # noqa: S105
+                    elif result.pass_type == "offline":  # noqa: S105  # nosec
                         # Pass 2: 最终结果 (FINAL) + 情感/事件
                         event = SpeechEvent(
                             type=SpeechEventType.FINAL_TRANSCRIPT,
@@ -444,7 +444,7 @@ if _LIVEKIT_AVAILABLE:
             async for result in self._client.transcribe_stream(
                 _single_chunk()
             ):
-                if result.pass_type == "offline" and result.text:  # noqa: S105
+                if result.pass_type == "offline" and result.text:  # noqa: S105  # nosec
                     alt = SpeechAlternative(
                         text=result.text,
                         confidence=result.confidence,

@@ -680,7 +680,7 @@ class ToolBridge:
     ) -> ToolResult:
         """执行系统命令"""
         try:
-            result = subprocess.run(  # noqa: S602 — _tool_shell_exec 是有意设计的命令执行方法
+            result = subprocess.run(  # noqa: S602  # nosec B602 — _tool_shell_exec 是有意设计的命令执行方法
                 command,
                 shell=True,
                 capture_output=True,
