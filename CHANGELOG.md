@@ -7,6 +7,128 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.2.0] — 2026-07-12
+
+### 🎙️ 语音触达 — 让 AI 不只能看,还能听能说
+
+HomeStream V5.2.0 — 从"文字/视觉交互"升级为"全模态实时语音交互"。用户对着浏览器说话,AI 实时听懂、思考、语音回复,延迟 < 600ms。
+
+> **铸钥匠原则坚守**: 全自托管、零注册、零账号、零云端依赖。LiveKit SFU + FunASR 2-pass + CosyVoice2 全部本地运行,只吃你自己的 CPU/GPU。
+
+---
+
+### ✨ 新增 (Added)
+
+#### VoiceBridge 语音栈（`voice/` 模块，14 文件, ~1500 行）
+- **自托管 LiveKit Server**（`voice/docker-compose.yml` + `voice/livekit.yaml`）
+  - Apache 2.0 协议，Docker 一键启动，**零注册**（本地 generate-keys 自建凭证）
+  - WebRTC SFU（端口 7880/7881 + UDP 50000-50100），支持 barge-in 实时打断
+  - 与铸钥匠"自托底"基因对齐：完全替代 LiveKit Cloud
+- **FunASR 2-pass STT**（`voice/stt_adapter.py`）
+  - Pass 1: `paraformer-zh-streaming`（流式 Paraformer，~80ms 延迟，边说边出字）
+  - Pass 2: `SenseVoiceSmall`（句末整段重写，高准确率 + 情感 + 事件标签）
+  - WebSocket 客户端（`ws://localhost:10096`）+ 自动重连 + 标签解析
+  - **情感白送**：`<|HAPPY|><|SAD|><|ANGRY|><|NEUTRAL|>` 7 种 + `<|Speech|><|Music|><|Applause|>` 4 事件
+- **CosyVoice2 TTS**（`voice/tts_adapter.py`）
+  - 启用 `use_flow_cache=True` 官方流式优化（150ms 首包延迟）
+  - 10 个内置声音（longxiaochun/longwan/longcheng...）
+  - 18+ 中文方言，零样本声音克隆（3秒参考音频）
+- **HomeStreamLLM 接入**（`voice/llm_adapter.py`）
+  - 覆写 LiveKit `llm_node`，将对话路由到三层 ModelRouter
+  - 策略：`SPEED_FIRST`（语音场景默认，本地 Ollama 优先）
+- **Silero VAD 预加载**（`voice/agent.py`）
+  - Worker 启动时预热模型，减少首次连接延迟
+- **完整 Docker 部署栈**（`voice/docker-compose.yml`）
+  - 2 个服务：LiveKit + FunASR 2-pass
+  - 模型预下载脚本（`voice/predownload_funasr_models.py`，从 ModelScope 拉 1.6GB）
+  - 容器内链接脚本（`voice/link-and-start.sh`）解决 snapshot_download 目录结构问题
+  - 热词文件占位（`voice/funasr-hotwords.txt`）
+- **配置系统**（`voice/config.py`）
+  - 全环境变量可配，缺省即自托管 localhost 模式
+  - 支持 FunASR URI / TTS 模型路径 / 声音 / 语速 / VAD 阈值等 16 个配置项
+
+### 🔧 变更 (Changed)
+- `.env.example`：新增 12 个 VoiceBridge 环境变量（funasr_ws_uri / tts_model_path / tts_voice / vad_threshold 等）
+- `requirements.txt`：新增 `livekit-agents`、`funasr`、`websockets`、`numpy` 依赖
+- `.gitignore`：排除 `voice/funasr-models/`（1.6GB 本地模型）和 `voice/__pycache__/`
+
+### 🧪 测试 (Tests)
+- **新增测试套件**：
+  - `test_voice_stt_tts.py`（31 tests）：FunASR 2-pass 消息解析、SenseVoice 标签解析、帧→PCM 转换、TTS 引擎
+  - `test_voice_llm_adapter.py`（16 tests）：HomeStreamLLM 初始化、ChatContext 转换、路由调用、LLM 节点流
+- **总测试数**：47 个 v5.2.0 新增测试，全部通过 ✅
+- **执行时间**：0.62s（无 IO，纯单测）
+
+### 📦 新增依赖
+- `livekit-agents~=1.4`（LiveKit Agent SDK）
+- `livekit-plugins-silero`（VAD）
+- `livekit-plugins-turn-detector`（多语种端点检测）
+- `websockets`（FunASR WebSocket 客户端）
+- `funasr`（本地 STT 测试用）
+- `modelscope`（模型预下载用）
+- `numpy`（音频处理）
+
+### 🏗️ 架构
+
+```
+用户浏览器 ──WebRTC──→ LiveKit SFU (localhost:7880, 自托管Docker)
+                              │
+                    ┌─────────┼─────────┐
+                    ▼         ▼         ▼
+               Silero VAD   STT     TTS
+              (本地,免费)   (FunASR  (CosyVoice2
+                           2-pass)   本地GPU,
+                    │         │      use_flow_cache)
+                    │         ▼         ▲
+                    │   HomeStreamLLM (llm_node 覆写)
+                    │   ┌──────────────────────┐
+                    │   │  ModelRouter          │
+                    │   │  L1 本地Ollama        │ ← 离线可用
+                    │   │  L2 免费GLM API       │ ← 主线路
+                    │   │  L3 付费DeepSeek      │ ← 复线
+                    │   │  双保障自动切换        │
+                    │   └──────────────────────┘
+                    │         │
+                    └─────────┴─────────┘
+                     barge-in (DataChannel, 零延迟)
+```
+
+### 🚀 6 步起手
+
+```bash
+# 1. 预下载模型 (Windows 本机, 1.6GB, 5 分钟)
+cd voice && python predownload_funasr_models.py
+
+# 2. 启动双 Docker (零注册)
+docker compose up -d
+# → LiveKit:7880  FunASR:10096
+
+# 3. 验证服务
+curl http://localhost:7880/rtc/health  →  OK
+
+# 4. 装 SDK
+pip install "livekit-agents[turn-detector,silero]~=1.4" websockets
+
+# 5. 启动 Agent Worker
+cd .. && python -m voice.agent dev
+
+# 6. 浏览器连 LiveKit Playground (http://localhost:7880) 说话测试
+```
+
+### ⚠️ 已知限制
+- FunASR Docker 镜像首次拉取约 1.27GB（阿里云杭州镜像，国内速度尚可）
+- CosyVoice2 本地推理需要 GPU（RTX 4050 6GB 已验证，CPU 也可但慢 5-10 倍）
+- FunASR 的 `/health` 端点路径 404（容器 healthcheck 显示 unhealthy，但服务实际正常）
+- 浏览器端需要支持 WebRTC（Chrome / Edge / Firefox 均可）
+
+### 🎯 v5.2.0 核心价值
+- **零门槛托底**：用户零注册、零账号、零云端依赖即可使用语音 Agent
+- **情感白送**：SenseVoice 一次推理返回情感+事件，下游 Agent 可基于情感调整响应
+- **多模型协同**：FunASR 2-pass（生产级实时 ASR）+ CosyVoice2（中文自然度第一）
+- **维度延续**：把"自托底"基因从 LLM 路由延伸到语音栈
+
+---
+
 ## [5.1.0] — 2026-07-11
 
 ### 🚀 三维立体化对接 + 学习优化

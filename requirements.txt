@@ -24,3 +24,15 @@ pytest>=7.4.0
 pytest-cov>=4.1.0
 pytest-asyncio>=0.21.0
 httpx>=0.24.0
+
+## v5.2.0 语音触达 (VoiceBridge)
+## 核心依赖 (必须)
+numpy>=1.24.0
+python-dotenv>=1.0.0
+## LiveKit Agents SDK (自托管, 零注册)
+livekit-agents[silero,turn-detector]~=1.4
+## STT: SenseVoice (Apache 2.0, 中文+情感+事件一次推理)
+funasr>=1.1.0
+## TTS: CosyVoice2 (Apache 2.0, 中文第一, 18+方言, 流式合成)
+## 安装方式: git clone https://github.com/FunAudioLLM/CosyVoice.git && pip install -e CosyVoice
+## (不在 PyPI, 需单独安装, 因此不加入 requirements.txt)

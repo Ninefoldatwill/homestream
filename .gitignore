@@ -13,6 +13,11 @@ _*.py
 _*.html
 nul
 
+# === Voice 模块本地大文件 (模型 1.6GB) ===
+voice/funasr-models/
+voice/funasr-models/**/*
+voice/__pycache__/
+
 # === Python ===
 __pycache__/
 *.py[cod]
