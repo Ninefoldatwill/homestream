@@ -612,7 +612,7 @@ class ToolBridge:
         try:
             if not os.path.exists(path):
                 return ToolResult(success=False, error=f"文件不存在: {path}")
-            with open(path, "r", encoding=encoding) as f:
+            with open(path, encoding=encoding) as f:
                 content = f.read()
             return ToolResult(
                 success=True,
@@ -680,9 +680,9 @@ class ToolBridge:
     ) -> ToolResult:
         """执行系统命令"""
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # noqa: S602 — _tool_shell_exec 是有意设计的命令执行方法
                 command,
-                shell=True,  # nosec B602 — _tool_shell_exec 是有意设计的命令执行方法
+                shell=True,
                 capture_output=True,
                 text=True,
                 timeout=timeout,

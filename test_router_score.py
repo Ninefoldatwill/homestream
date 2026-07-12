@@ -37,7 +37,6 @@ from router_score import (
     create_speed_optimized_weights,
 )
 
-
 # ==================== 测试用 Mock Provider ====================
 
 
@@ -806,7 +805,7 @@ class TestSmartStrategyIntegration:
 
         messages = [ChatMessage(role="user", content="hello")]
         # chat 会失败，但不应崩溃
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017 — 有意捕获任意异常, 验证不崩溃
             await router.chat(messages)
 
         meta = router.scorer.get_meta("fail_p")
