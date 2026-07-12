@@ -204,7 +204,13 @@ class HomeStreamLLM:
 
         # 以 ChatChunk 形式 yield (兼容 LiveKit 管线)
         if _LIVEKIT_AVAILABLE:
-            yield lk_llm.ChatChunk(content=content)
+            try:
+                # 尝试用完整参数 (新版 LiveKit SDK 需要 id)
+                import uuid
+                yield lk_llm.ChatChunk(id=str(uuid.uuid4()), content=content)
+            except (TypeError, ValueError):
+                # 降级: 老版本只需 content
+                yield lk_llm.ChatChunk(content=content)
         else:
             # 无 LiveKit SDK 时, 直接 yield 文本 (用于独立测试)
             yield content
