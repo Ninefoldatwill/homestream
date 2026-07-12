@@ -18,6 +18,9 @@ voice/funasr-models/
 voice/funasr-models/**/*
 voice/__pycache__/
 
+# === 调试输出 (CI logs) ===
+outputs/
+
 # === Python ===
 __pycache__/
 *.py[cod]
