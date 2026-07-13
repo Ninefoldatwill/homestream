@@ -58,14 +58,19 @@ class VoiceBridgeConfig:
     tts_api_key: str = field(default_factory=lambda: os.getenv("VOICE_TTS_API_KEY", ""))
 
     # --- VAD (Silero, 本地) ---
+    # 语音助手场景推荐：threshold 0.6-0.7、min_speech 0.3-0.5s、min_silence 0.8-1.2s
+    # 避免环境噪音导致“用户说话中”/“等待说话”来回横跳
     vad_threshold: float = field(
-        default_factory=lambda: float(os.getenv("VOICE_VAD_THRESHOLD", "0.5"))
+        default_factory=lambda: float(os.getenv("VOICE_VAD_THRESHOLD", "0.65"))
     )
     vad_min_speech_duration: float = field(
-        default_factory=lambda: float(os.getenv("VOICE_VAD_MIN_SPEECH", "0.2"))
+        default_factory=lambda: float(os.getenv("VOICE_VAD_MIN_SPEECH", "0.5"))
     )
     vad_min_silence_duration: float = field(
-        default_factory=lambda: float(os.getenv("VOICE_VAD_MIN_SILENCE", "0.55"))
+        default_factory=lambda: float(os.getenv("VOICE_VAD_MIN_SILENCE", "1.0"))
+    )
+    vad_prefix_padding_duration: float = field(
+        default_factory=lambda: float(os.getenv("VOICE_VAD_PREFIX_PADDING", "0.5"))
     )
 
     # --- Agent 行为 ---
@@ -74,6 +79,12 @@ class VoiceBridgeConfig:
     )
     allow_interruptions: bool = field(
         default_factory=lambda: os.getenv("VOICE_ALLOW_INTERRUPTIONS", "true").lower() == "true"
+    )
+    min_interruption_duration: float = field(
+        default_factory=lambda: float(os.getenv("VOICE_MIN_INTERRUPTION_DURATION", "0.5"))
+    )
+    false_interruption_timeout: float = field(
+        default_factory=lambda: float(os.getenv("VOICE_FALSE_INTERRUPTION_TIMEOUT", "0.3"))
     )
 
     @classmethod

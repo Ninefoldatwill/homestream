@@ -25,6 +25,46 @@
   .voice-state.listening { color: #4caf50; }
   .voice-state.thinking { color: #ff9800; }
   .voice-state.speaking { color: #03a9f4; }
+  .audio-meter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0;
+    padding: 10px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .meter-bar {
+    flex: 1;
+    height: 12px;
+    background: #111;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .meter-fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #4caf50, #ff9800, #f44336);
+    transition: width 0.05s linear;
+  }
+  .meter-threshold { color: #888; font-size: 12px; }
+  .stats-panel {
+    margin-top: 12px;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 12px;
+  }
+  .stats-panel summary { cursor: pointer; color: #88c0d0; }
+  .stats-panel pre {
+    margin: 8px 0 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #888;
+  }
   #waveform {
     width: 100%;
     height: 80px;
@@ -53,11 +93,22 @@
   <div class="voice-state" id="voiceState">🤖 等待连接</div>
   <canvas id="waveform" width="600" height="80"></canvas>
 
+  <div class="audio-meter">
+    <span>🎙️ 麦克风音量</span>
+    <div class="meter-bar"><div class="meter-fill" id="micFill"></div></div>
+    <span class="meter-threshold" id="micThreshold">阈值: 65%</span>
+  </div>
+
   <div>
     <button id="connectBtn" onclick="connect()">🔌 Connect</button>
     <button id="micBtn" onclick="toggleMic()" disabled>🎤 启用麦克风</button>
     <button id="disconnectBtn" onclick="disconnect()" disabled>❌ Disconnect</button>
   </div>
+
+  <details class="stats-panel">
+    <summary>📊 WebRTC / 音频统计（调试用）</summary>
+    <pre id="stats">未连接</pre>
+  </details>
 
   <h2>📋 事件日志</h2>
   <div id="log"></div>
@@ -76,6 +127,9 @@
   let micStream = null;
   let animationId = null;
   let currentState = '等待连接';
+  let userSpeakingTimer = null;
+  let statsTimer = null;
+  const USER_SPEAKING_DEBOUNCE_MS = 500; // 用户说话状态至少持续 0.5s 才显示
 
   function setVoiceState(text, stateClass = '') {
     const el = document.getElementById('voiceState');
@@ -90,6 +144,7 @@
     const ctx = canvas.getContext('2d');
     const width = canvas.width;
     const height = canvas.height;
+    const micFill = document.getElementById('micFill');
 
     function render() {
       animationId = requestAnimationFrame(render);
@@ -101,6 +156,11 @@
         analyser.getByteFrequencyData(data);
         const sum = data.reduce((a, b) => a + b, 0);
         amplitude = sum / data.length / 255.0; // 0~1
+      }
+
+      // 更新麦克风音量条
+      if (micFill) {
+        micFill.style.width = Math.min(100, amplitude * 100 * 2).toFixed(1) + '%';
       }
 
       // 根据状态选择颜色
@@ -202,7 +262,26 @@
             if (data.state.includes('聆听') || data.state.includes('用户说话')) cls = 'listening';
             else if (data.state.includes('思考')) cls = 'thinking';
             else if (data.state.includes('说话') && !data.state.includes('用户')) cls = 'speaking';
-            setVoiceState('🤖 ' + data.state, cls);
+
+            // 用户说话状态去抖：短促触发不显示，避免界面来回横跳
+            if (data.state === '用户说话中') {
+              if (userSpeakingTimer) clearTimeout(userSpeakingTimer);
+              if (currentState !== '用户说话中') {
+                setVoiceState('🎤 ' + data.state, cls);
+              }
+            } else if (data.state === '等待说话') {
+              if (currentState === '用户说话中') {
+                if (userSpeakingTimer) clearTimeout(userSpeakingTimer);
+                userSpeakingTimer = setTimeout(() => {
+                  setVoiceState('🤖 ' + data.state, cls);
+                }, USER_SPEAKING_DEBOUNCE_MS);
+              } else {
+                setVoiceState('🤖 ' + data.state, cls);
+              }
+            } else {
+              if (userSpeakingTimer) clearTimeout(userSpeakingTimer);
+              setVoiceState('🤖 ' + data.state, cls);
+            }
             return;
           }
         } catch (e) {}
@@ -244,15 +323,23 @@
         micEnabled = true;
         document.getElementById('micBtn').textContent = '🎤 关闭麦克风';
         setVoiceState('麦克风已开启，请说话', 'listening');
-        // 启动本地音量可视化
+        // 启动本地音量可视化，带 3A 预处理
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+              sampleRate: 16000,
+            }
+          });
           micStream = stream;
           audioContext = new (window.AudioContext || window.webkitAudioContext)();
           const source = audioContext.createMediaStreamSource(stream);
           analyser = audioContext.createAnalyser();
           analyser.fftSize = 256;
           source.connect(analyser);
+          startStatsLoop();
         } catch (e) {
           log('麦克风音量可视化初始化失败: ' + e.message, 'error');
         }
@@ -281,10 +368,48 @@
     if (animationId) cancelAnimationFrame(animationId);
     if (micStream) micStream.getTracks().forEach(t => t.stop());
     if (audioContext) audioContext.close();
+    if (statsTimer) clearInterval(statsTimer);
+    if (userSpeakingTimer) clearTimeout(userSpeakingTimer);
     if (room) {
       await room.disconnect();
       room = null;
     }
+  }
+
+  async function collectStats() {
+    if (!room || !room.engine || !room.engine.pcManager) return null;
+    try {
+      const pc = room.engine.pcManager.publisher || room.engine.pcManager.subscriber;
+      if (!pc) return null;
+      const stats = await pc.getStats();
+      const result = { audio: { in: {}, out: {} } };
+      stats.forEach(report => {
+        if (report.type === 'inbound-rtp' && report.mediaType === 'audio') {
+          result.audio.in.packetsLost = report.packetsLost;
+          result.audio.in.packetsReceived = report.packetsReceived;
+          result.audio.in.jitter = report.jitter ? (report.jitter * 1000).toFixed(2) + 'ms' : '-';
+        }
+        if (report.type === 'outbound-rtp' && report.mediaType === 'audio') {
+          result.audio.out.packetsSent = report.packetsSent;
+          result.audio.out.bytesSent = report.bytesSent;
+        }
+      });
+      return result;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function startStatsLoop() {
+    const el = document.getElementById('stats');
+    statsTimer = setInterval(async () => {
+      const stats = await collectStats();
+      if (stats) {
+        el.textContent = JSON.stringify(stats, null, 2);
+      } else {
+        el.textContent = '未连接或浏览器不暴露 WebRTC stats';
+      }
+    }, 2000);
   }
 
   if (LK) {

@@ -108,13 +108,15 @@ def _prewarm(proc: JobProcess):
             activation_threshold=config.vad_threshold,
             min_speech_duration=config.vad_min_speech_duration,
             min_silence_duration=config.vad_min_silence_duration,
+            prefix_padding_duration=config.vad_prefix_padding_duration,
         )
         proc.userdata["vad"] = vad
         logger.info(
-            "Silero VAD 预加载完成 (threshold=%s, min_speech=%s, min_silence=%s)",
+            "Silero VAD 预加载完成 (threshold=%s, min_speech=%s, min_silence=%s, prefix=%s)",
             config.vad_threshold,
             config.vad_min_speech_duration,
             config.vad_min_silence_duration,
+            config.vad_prefix_padding_duration,
         )
 
 
@@ -251,6 +253,7 @@ async def entrypoint(ctx: JobContext):
                 activation_threshold=config.vad_threshold,
                 min_speech_duration=config.vad_min_speech_duration,
                 min_silence_duration=config.vad_min_silence_duration,
+                prefix_padding_duration=config.vad_prefix_padding_duration,
             )
             logger.info("Silero VAD 现场加载完成")
         except Exception as e:
@@ -281,10 +284,20 @@ async def entrypoint(ctx: JobContext):
     # 自托管 LiveKit 下 cloud turn detector 会报 401，明确使用本地 VAD 模式
     sess_kw["turn_handling"] = {
         "turn_detection": "vad",
-        "endpointing": {"min_delay": 0.3, "max_delay": 3.0},
-        "interruption": {"enabled": config.allow_interruptions, "mode": "vad"},
+        "endpointing": {"mode": "dynamic", "min_delay": 0.5, "max_delay": 3.0, "alpha": 0.3},
+        "interruption": {
+            "enabled": config.allow_interruptions,
+            "mode": "vad",
+            "min_duration": config.min_interruption_duration,
+            "false_interruption_timeout": config.false_interruption_timeout,
+            "resume_false_interruption": True,
+        },
     }
-    logger.info("TurnHandling: VAD 模式 + VAD 打断")
+    logger.info(
+        "TurnHandling: VAD 模式 + VAD 打断 (min_interrupt=%s, false_interrupt=%s)",
+        config.min_interruption_duration,
+        config.false_interruption_timeout,
+    )
 
     session = AgentSession(**sess_kw)
 
