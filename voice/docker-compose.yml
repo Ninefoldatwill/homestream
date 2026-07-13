@@ -26,7 +26,8 @@ services:
       - ./livekit.yaml:/etc/livekit.yaml:ro
     command: ["--config", "/etc/livekit.yaml", "--bind", "0.0.0.0"]
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:7880/rtc/health || exit 1"]
+      # LiveKit 本版本 HTTP 仅 "/" 返回 200 (信令就绪即视为存活)
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7880/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6

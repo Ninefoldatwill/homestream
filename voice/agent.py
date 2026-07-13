@@ -47,15 +47,13 @@ try:
     from livekit.agents import (
         Agent,
         AgentSession,
-        AutoSubscribe,
         JobContext,
         JobProcess,
-        RoomInputOptions,
         WorkerOptions,
         cli,
     )
     from livekit.plugins import silero
-    from livekit.plugins.turn_detector.multilingual import MultilingualModel
+    from livekit.plugins.openai import LLM as OpenAILLM
 
     _LIVEKIT_AVAILABLE = True
 except ImportError:
@@ -72,13 +70,12 @@ class VoiceBridgeAgent(Agent if _LIVEKIT_AVAILABLE else object):
     """
     HomeStream 语音 Agent
 
-    核心: 覆写 llm_node, 将对话路由到三层 ModelRouter
-    (L1本地Ollama → L2免费GLM → L3付费DeepSeek, 双保障降级)
+    LiveKit 1.6.5: LLM 通过 Agent.__init__ 直接传入
+    由 AgentSession 统一管理对话流程 (不再手动覆写 llm_node)
     """
 
-    def __init__(self, config: VoiceBridgeConfig | None = None):
+    def __init__(self, llm, config: VoiceBridgeConfig | None = None):
         self._config = config or VoiceBridgeConfig.from_env()
-        self._llm = HomeStreamLLM(strategy=self._config.router_strategy)
 
         if _LIVEKIT_AVAILABLE:
             super().__init__(
@@ -88,29 +85,12 @@ class VoiceBridgeAgent(Agent if _LIVEKIT_AVAILABLE else object):
                     "用中文回答, 语气温暖亲切。"
                 ),
                 allow_interruptions=self._config.allow_interruptions,
+                llm=llm,
             )
 
-    async def llm_node(self, chat_ctx, tools, model_settings):
-        """
-        覆写 LLM 节点 - 将对话路由到 HomeStream 三层模型路由器。
-
-        这是 VoiceBridge 与三层路由的核心接入点:
-          LiveKit ChatContext → HomeStream ChatMessage → ModelRouter.chat()
-        """
-        async for chunk in self._llm.llm_node(chat_ctx, tools, model_settings):
-            yield chunk
-
-    def on_enter(self):
-        """Agent 加入房间时触发"""
+    async def on_enter(self) -> None:
+        """Agent 加入房间时触发 (LiveKit 1.6.5: on_enter 为 async)"""
         logger.info("VoiceBridgeAgent 已加入房间")
-        if _LIVEKIT_AVAILABLE and hasattr(self, "session"):
-            import asyncio
-
-            asyncio.create_task(
-                self.session.generate_reply(
-                    instructions="用中文简短地打个招呼, 告诉用户你已准备好。"
-                )
-            )
 
 
 # ========== VAD 预热 ==========
@@ -128,108 +108,47 @@ def _prewarm(proc: JobProcess):
 
 def _build_stt(config: VoiceBridgeConfig) -> Any | None:
     """
-    构建 STT (语音转文字) 插件
-
-    架构: FunASR 2-pass (官方推荐生产方案)
-      Pass 1: paraformer-zh-streaming (实时反馈, ~80ms 延迟)
-      Pass 2: SenseVoiceSmall (句末修正 + 情感 + 事件)
-
-    Docker: registry.cn-hangzhou.aliyuncs.com/funasr_repo/funasr:funasr-runtime-sdk-online-cpu
-    WebSocket: ws://localhost:10096
+    构建 STT (语音转文字) — LiveKit 1.6.5 兼容
+    FunASR 2-pass 为主, 失败则返回 None
     """
-    if not _LIVEKIT_AVAILABLE:
-        return None
-
     try:
         from voice.stt_adapter import create_funasr_stt
 
         stt = create_funasr_stt(uri=config.funasr_ws_uri)
         if stt is not None:
-            logger.info(
-                "STT: FunASR 2-pass uri=%s (Pass1 Paraformer + Pass2 SenseVoice)",
-                config.funasr_ws_uri,
-            )
+            logger.info("STT: FunASR 2-pass uri=%s", config.funasr_ws_uri)
             return stt
-        logger.warning("FunASR STT 创建失败, 尝试降级")
+        logger.warning("FunASR STT 返回 None (livekit/websockets 可能缺失)")
     except Exception as e:
-        logger.warning("FunASR STT 初始化失败: %s, 尝试降级", e)
+        logger.warning("FunASR STT 不可用: %s", e)
 
-    # 降级: 尝试 OpenAI STT (如果配置了 API key)
-    if config.tts_api_key and False:  # 禁用降级, 本地优先
-        try:
-            from livekit.plugins import openai
-
-            logger.info("STT: OpenAI Whisper (api)")
-            return openai.STT(
-                model="whisper-1",
-                api_key=config.tts_api_key,
-            )
-        except Exception as e:
-            logger.warning("OpenAI STT 初始化失败: %s", e)
-
-    logger.warning("STT 未配置, Agent 将无法处理语音输入 (文本模式)")
     return None
 
 
 def _build_tts(config: VoiceBridgeConfig) -> Any | None:
     """
-    构建 TTS (文字转语音) 插件
+    构建 TTS (文字转语音) 插件 — LiveKit 1.6.5 兼容
 
-    模式:
-      - "local": CosyVoice2 本地模型 (Apache 2.0, 中文第一, 18+方言, 流式合成)
-      - "api": 外部 API
-      - "auto": 优先 local, 降级 api
+    引擎分层 (免费托底):
+      1. CosyVoice2 (本地 GPU, 用户设计首选)
+      2. EdgeTTS (微软中文神经语音, 兜底)
     """
     if not _LIVEKIT_AVAILABLE:
         return None
+    try:
+        from voice.tts_adapter import create_tts
 
-    mode = config.tts_mode
-
-    if mode in ("local", "auto"):
-        try:
-            from voice.tts_adapter import create_cosyvoice_tts
-
-            tts = create_cosyvoice_tts(
-                model_path=config.tts_model_path,
-                voice=config.tts_voice,
-                speed=config.tts_speed,
-                sample_rate=config.tts_sample_rate,
-            )
-            if tts is not None:
-                logger.info(
-                    "TTS: CosyVoice2 (local) voice=%s speed=%.1f",
-                    config.tts_voice,
-                    config.tts_speed,
-                )
-                return tts
-            logger.warning("CosyVoice TTS 创建失败, 尝试降级")
-        except Exception as e:
-            logger.warning("CosyVoice TTS 初始化失败: %s, 尝试降级", e)
-
-    # 降级: 尝试 OpenAI TTS
-    if config.tts_api_key:
-        try:
-            from livekit.plugins import openai
-
-            logger.info("TTS: OpenAI tts-1 (api) voice=%s", "alloy")
-            return openai.TTS(
-                model="tts-1",
-                voice="alloy",
-                api_key=config.tts_api_key,
-                base_url=config.tts_api_base or None,
-            )
-        except Exception as e:
-            logger.warning("OpenAI TTS 初始化失败: %s", e)
-
-    logger.warning("TTS 未配置, Agent 将无法输出语音 (文本模式)")
-    return None
+        return create_tts(config)
+    except Exception as e:
+        logger.warning("TTS 创建失败: %s", e)
+        return None
 
 
 # ========== Agent 入口 ==========
 
 
 async def entrypoint(ctx: JobContext):
-    """LiveKit Agent 入口 - 每次用户连接时调用"""
+    """LiveKit Agent 入口 - LiveKit 1.6.5 模式"""
     config = VoiceBridgeConfig.from_env()
 
     logger.info(
@@ -238,47 +157,49 @@ async def entrypoint(ctx: JobContext):
         config.router_strategy,
     )
 
-    # 连接 LiveKit 房间 (仅订阅音频)
-    await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
-    await ctx.wait_for_participant()
-
-    # 构建管线组件
-    stt = _build_stt(config)
-    tts = _build_tts(config)
-    vad = ctx.proc.userdata.get("vad") if _LIVEKIT_AVAILABLE else None
-
     if not _LIVEKIT_AVAILABLE:
         logger.error("LiveKit SDK 不可用, 无法启动 Agent")
         return
 
-    # 创建 AgentSession
-    # 注: llm 不直接传 (由 VoiceBridgeAgent.llm_node 覆写)
-    #     但 AgentSession 可能需要 llm 参数, 传 None 或占位
-    session_kwargs = {
-        "vad": vad,
-        "turn_detection": MultilingualModel(),
-    }
+    # 1. 构建组件
+    stt = _build_stt(config)
+    tts = _build_tts(config)
+
+    # 2. VAD (prewarm 已预加载, 失败则现场加载)
+    vad = ctx.proc.userdata.get("vad")
+    if vad is None:
+        try:
+            vad = silero.VAD.load()
+            logger.info("Silero VAD 现场加载完成")
+        except Exception as e:
+            logger.warning("Silero VAD 加载失败: %s", e)
+
+    # 3. 创建 LLM
+    llm = OpenAILLM(base_url="http://localhost:11434/v1", model="qwen2.5:3b", api_key="not-needed")
+    logger.info("LLM: Ollama qwen2.5:3b (OpenAI compat)")
+
+    # 4. 创建 Agent
+    agent = VoiceBridgeAgent(llm=llm, config=config)
+
+    # 5. 创建 Session (vad 必填, stt/tts 可选)
+    sess_kw: dict = {}
+    if vad is not None:
+        sess_kw["vad"] = vad
+    else:
+        logger.error("VAD 缺失, AgentSession 无法启动!")
     if stt is not None:
-        session_kwargs["stt"] = stt
+        sess_kw["stt"] = stt
+    else:
+        logger.warning("STT 未接入 -> Agent 将听不到语音!")
     if tts is not None:
-        session_kwargs["tts"] = tts
+        sess_kw["tts"] = tts
+    else:
+        logger.warning("TTS 未接入 -> Agent 将无法语音回复!")
+    session = AgentSession(**sess_kw)
 
-    session = AgentSession(**session_kwargs)
-
-    agent = VoiceBridgeAgent(config=config)
-
-    await session.start(
-        room=ctx.room,
-        agent=agent,
-        room_input_options=RoomInputOptions(
-            noise_cancellation=True,  # 降噪
-        ),
-    )
-
-    # 初始问候
-    await session.generate_reply(
-        instructions="用中文简短打招呼, 告诉用户 HomeStream 语音助手已就绪。"
-    )
+    # 6. 启动 (session.start 内部会连接房间, 无需再 ctx.connect())
+    await session.start(room=ctx.room, agent=agent)
+    logger.info("VoiceBridge Agent 已就绪 (room=%s)", ctx.room.name)
 
 
 # ========== CLI 入口 ==========
@@ -303,11 +224,19 @@ def main():
 
     logger.info("启动 VoiceBridge Worker: %s", config.to_dict())
 
+    # ⚠️ v5.2.5: 不再创建 dispatch rule
+    # LiveKit 1.3+ 行为: 设置 agent_name 后必须显式 dispatch
+    # 当前 dev 模式不传 agent_name → 启用默认自动分配
+    # 生产模式再创建显式 dispatch rule
+    # (原代码: 创建 agent_name=homestream-voice, room=voice-test 的 rule
+    #  但因 worker 启动时已错过分发窗口, 后续用户进入房间不会被分配)
+
     cli.run_app(
         WorkerOptions(
             entrypoint_fnc=entrypoint,
             prewarm_fnc=_prewarm,
-            agent_name=config.agent_name,
+            # dev 模式不传 agent_name, 启用 LiveKit 默认自动分配
+            # (LiveKit 1.3+: 设置 agent_name 后必须显式 dispatch)
         ),
     )
 

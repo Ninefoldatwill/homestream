@@ -16,6 +16,8 @@ nul
 # === Voice 模块本地大文件 (模型 1.6GB) ===
 voice/funasr-models/
 voice/funasr-models/**/*
+pretrained_models/
+pretrained_models/**/*
 voice/__pycache__/
 
 # === 调试输出 (CI logs) ===
