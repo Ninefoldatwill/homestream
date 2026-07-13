@@ -45,7 +45,7 @@
 <script>
   const LK = window.LivekitClient;
   const URL = 'ws://localhost:7880';
-  const TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiQnJvd3NlciBVc2VyIiwidmlkZW8iOnsicm9vbUpvaW4iOnRydWUsInJvb20iOiJ2b2ljZS10ZXN0IiwiY2FuUHVibGlzaCI6dHJ1ZSwiY2FuU3Vic2NyaWJlIjp0cnVlLCJjYW5QdWJsaXNoRGF0YSI6dHJ1ZX0sInN1YiI6ImJyb3dzZXItdXNlci0wMDEiLCJpc3MiOiJkZXZrZXkiLCJuYmYiOjE3ODM5NDczODIsImV4cCI6MTc4NjUzOTQ0Mn0.Ka7pzeJR5SlLYQQ6Cy53fh1e7AtRM5hizofLCioFusQ';
+  const TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiQnJvd3NlciBVc2VyIiwidmlkZW8iOnsicm9vbUpvaW4iOnRydWUsInJvb20iOiJ2b2ljZS10ZXN0IiwiY2FuUHVibGlzaCI6dHJ1ZSwiY2FuU3Vic2NyaWJlIjp0cnVlLCJjYW5QdWJsaXNoRGF0YSI6dHJ1ZX0sInN1YiI6ImJyb3dzZXItdXNlci0wMDEiLCJpc3MiOiJkZXZrZXkiLCJuYmYiOjE3ODM5NDk0MTgsImV4cCI6MTc4NjU0MTQxOH0.LI8j7F2CiLT1ob8BdKJE6MeqbnQT5AMeZUHJypyZnp4';
   const ROOM = 'voice-test';
 
   let room = null;
@@ -96,6 +96,14 @@
         document.getElementById('disconnectBtn').disabled = true;
       });
 
+      room.on(LK.RoomEvent.ParticipantConnected, (participant) => {
+        log('🤖 Agent 已加入: ' + participant.identity, 'info');
+      });
+
+      room.on(LK.RoomEvent.ParticipantDisconnected, (participant) => {
+        log('🤖 Agent 已离开: ' + participant.identity, 'info');
+      });
+
       room.on(LK.RoomEvent.TrackSubscribed, (track, publication, participant) => {
         log('🔊 收到远端音轨: ' + participant.identity, 'info');
         if (track.kind === LK.Track.Kind.Audio) {
@@ -111,7 +119,22 @@
       });
 
       await room.connect(URL, TOKEN);
-      log('连接成功，等待 Agent 加入...', 'info');
+      log('连接成功，请求 Agent 加入...', 'info');
+
+      // LiveKit 1.6.5 自托管: 空 agent_name 自动 dispatch 在 reconnect/二次进房等场景不可靠，
+      // 通过同域 /dispatch 端点显式触发 Agent 分发
+      try {
+        const res = await fetch('/dispatch?room=' + encodeURIComponent(ROOM));
+        const data = await res.json();
+        if (data.ok) {
+          log('✅ 已请求 Agent 加入 (' + data.agent + ')', 'info');
+        } else {
+          log('⚠️ Agent 分发请求失败: ' + (data.error || 'unknown'), 'error');
+        }
+      } catch (err) {
+        log('⚠️ 调用 dispatch 端点失败: ' + err.message, 'error');
+      }
+
 
     } catch (err) {
       log('连接失败: ' + err.message, 'error');

@@ -144,6 +144,39 @@ def _build_tts(config: VoiceBridgeConfig) -> Any | None:
         return None
 
 
+# ========== LLM 超时包装 (Ollama 冷启动保护) ==========
+
+
+def _wrap_llm_with_timeout(base_llm, timeout: float = 60.0, max_retry: int = 2):
+    """
+    为 LLM 包装 chat()，使用自定义 APIConnectOptions。
+    Ollama qwen2.5:3b 冷启动加载到显存可能 >10s，LiveKit 默认 timeout=10s 会
+    连续超时失败，导致 Agent 不回话。延长至 60s 以渡过冷启动窗口。
+    """
+    from livekit.agents import APIConnectOptions
+
+    conn_options = APIConnectOptions(
+        timeout=timeout,
+        max_retry=max_retry,
+        retry_interval=2.0,
+    )
+
+    class _LLMTimeoutWrapper:
+        def __init__(self, llm, default_conn_options):
+            self._llm = llm
+            self._conn_options = default_conn_options
+
+        def chat(self, chat_ctx, *, conn_options=None, **kwargs):
+            if conn_options is None:
+                conn_options = self._conn_options
+            return self._llm.chat(chat_ctx, conn_options=conn_options, **kwargs)
+
+        def __getattr__(self, name):
+            return getattr(self._llm, name)
+
+    return _LLMTimeoutWrapper(base_llm, conn_options)
+
+
 # ========== Agent 入口 ==========
 
 
@@ -174,9 +207,10 @@ async def entrypoint(ctx: JobContext):
         except Exception as e:
             logger.warning("Silero VAD 加载失败: %s", e)
 
-    # 3. 创建 LLM
-    llm = OpenAILLM(base_url="http://localhost:11434/v1", model="qwen2.5:3b", api_key="not-needed")
-    logger.info("LLM: Ollama qwen2.5:3b (OpenAI compat)")
+    # 3. 创建 LLM（Ollama 本地 qwen2.5:3b 冷启动可能>10s，默认 timeout=10s 会超时，故延长至 60s）
+    base_llm = OpenAILLM(base_url="http://localhost:11434/v1", model="qwen2.5:3b", api_key="not-needed")
+    llm = _wrap_llm_with_timeout(base_llm, timeout=60.0, max_retry=2)
+    logger.info("LLM: Ollama qwen2.5:3b (OpenAI compat, timeout=60s)")
 
     # 4. 创建 Agent
     agent = VoiceBridgeAgent(llm=llm, config=config)
@@ -224,19 +258,14 @@ def main():
 
     logger.info("启动 VoiceBridge Worker: %s", config.to_dict())
 
-    # ⚠️ v5.2.5: 不再创建 dispatch rule
-    # LiveKit 1.3+ 行为: 设置 agent_name 后必须显式 dispatch
-    # 当前 dev 模式不传 agent_name → 启用默认自动分配
-    # 生产模式再创建显式 dispatch rule
-    # (原代码: 创建 agent_name=homestream-voice, room=voice-test 的 rule
-    #  但因 worker 启动时已错过分发窗口, 后续用户进入房间不会被分配)
-
+    # LiveKit 1.6.5: 自动 dispatch 在 dev/reconnect/二次进房 等场景不可靠，
+    # 官方推荐显式 dispatch。设置 agent_name 后，浏览器 token 通过 RoomAgentDispatch
+    # 在连接时触发 dispatch，或调用 AgentDispatchService API 显式分发。
     cli.run_app(
         WorkerOptions(
             entrypoint_fnc=entrypoint,
             prewarm_fnc=_prewarm,
-            # dev 模式不传 agent_name, 启用 LiveKit 默认自动分配
-            # (LiveKit 1.3+: 设置 agent_name 后必须显式 dispatch)
+            agent_name=config.agent_name,  # "homestream-voice"
         ),
     )
 
