@@ -29,6 +29,8 @@ VoiceBridge Agent - LiveKit Agent 入口
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import os
 from typing import Any
@@ -52,6 +54,8 @@ try:
         WorkerOptions,
         cli,
     )
+    from livekit.agents import llm as lk_llm
+    from livekit.agents.types import APIConnectOptions, NOT_GIVEN
     from livekit.plugins import silero
     from livekit.plugins.openai import LLM as OpenAILLM
 
@@ -99,8 +103,19 @@ class VoiceBridgeAgent(Agent if _LIVEKIT_AVAILABLE else object):
 def _prewarm(proc: JobProcess):
     """Worker 启动时预加载 Silero VAD 模型, 减少首次连接延迟"""
     if _LIVEKIT_AVAILABLE:
-        proc.userdata["vad"] = silero.VAD.load()
-        logger.info("Silero VAD 预加载完成")
+        config = VoiceBridgeConfig.from_env()
+        vad = silero.VAD.load(
+            activation_threshold=config.vad_threshold,
+            min_speech_duration=config.vad_min_speech_duration,
+            min_silence_duration=config.vad_min_silence_duration,
+        )
+        proc.userdata["vad"] = vad
+        logger.info(
+            "Silero VAD 预加载完成 (threshold=%s, min_speech=%s, min_silence=%s)",
+            config.vad_threshold,
+            config.vad_min_speech_duration,
+            config.vad_min_silence_duration,
+        )
 
 
 # ========== STT / TTS 构建 (可插拔) ==========
@@ -147,34 +162,64 @@ def _build_tts(config: VoiceBridgeConfig) -> Any | None:
 # ========== LLM 超时包装 (Ollama 冷启动保护) ==========
 
 
-def _wrap_llm_with_timeout(base_llm, timeout: float = 60.0, max_retry: int = 2):
-    """
-    为 LLM 包装 chat()，使用自定义 APIConnectOptions。
-    Ollama qwen2.5:3b 冷启动加载到显存可能 >10s，LiveKit 默认 timeout=10s 会
-    连续超时失败，导致 Agent 不回话。延长至 60s 以渡过冷启动窗口。
-    """
-    from livekit.agents import APIConnectOptions
+if _LIVEKIT_AVAILABLE:
 
-    conn_options = APIConnectOptions(
-        timeout=timeout,
-        max_retry=max_retry,
-        retry_interval=2.0,
-    )
+    class _TimeoutLLM(lk_llm.LLM):
+        """
+        包装任意 LLM，强制默认使用长 timeout 的 APIConnectOptions。
 
-    class _LLMTimeoutWrapper:
-        def __init__(self, llm, default_conn_options):
-            self._llm = llm
-            self._conn_options = default_conn_options
+        LiveKit 1.6.5 的 AgentSession 调用 llm.chat() 时不传 conn_options，会走 LLM
+        默认的 10s 超时。Ollama qwen2.5:3b 冷启动加载到显存约 24s，10s 会连续超时失败，
+        导致 Agent 不回话。通过子类化并覆写 chat()，在无 conn_options 时注入 60s 超时。
+        """
 
-        def chat(self, chat_ctx, *, conn_options=None, **kwargs):
+        def __init__(self, base_llm: lk_llm.LLM, timeout: float = 60.0, max_retry: int = 2):
+            super().__init__()
+            self._base = base_llm
+            self._conn_options = APIConnectOptions(
+                timeout=timeout,
+                max_retry=max_retry,
+                retry_interval=2.0,
+            )
+
+        def chat(
+            self,
+            *,
+            chat_ctx: lk_llm.ChatContext,
+            tools: list | None = None,
+            conn_options: Any | None = None,
+            parallel_tool_calls: Any = NOT_GIVEN,
+            tool_choice: Any = NOT_GIVEN,
+            extra_kwargs: Any = NOT_GIVEN,
+        ):
             if conn_options is None:
                 conn_options = self._conn_options
-            return self._llm.chat(chat_ctx, conn_options=conn_options, **kwargs)
+            return self._base.chat(
+                chat_ctx=chat_ctx,
+                tools=tools,
+                conn_options=conn_options,
+                parallel_tool_calls=parallel_tool_calls,
+                tool_choice=tool_choice,
+                extra_kwargs=extra_kwargs,
+            )
 
         def __getattr__(self, name):
-            return getattr(self._llm, name)
+            return getattr(self._base, name)
 
-    return _LLMTimeoutWrapper(base_llm, conn_options)
+    def _create_llm(timeout: float = 60.0, max_retry: int = 2) -> lk_llm.LLM:
+        """创建带冷启动保护的 Ollama LLM (OpenAI 兼容端点)"""
+        base_llm = OpenAILLM(
+            base_url="http://localhost:11434/v1",
+            model="qwen2.5:3b",
+            api_key="not-needed",
+        )
+        return _TimeoutLLM(base_llm, timeout=timeout, max_retry=max_retry)
+
+else:
+
+    def _create_llm(timeout: float = 60.0, max_retry: int = 2) -> Any:
+        """LiveKit 不可用时占位"""
+        raise RuntimeError("livekit-agents 未安装，无法创建 LLM")
 
 
 # ========== Agent 入口 ==========
@@ -202,14 +247,17 @@ async def entrypoint(ctx: JobContext):
     vad = ctx.proc.userdata.get("vad")
     if vad is None:
         try:
-            vad = silero.VAD.load()
+            vad = silero.VAD.load(
+                activation_threshold=config.vad_threshold,
+                min_speech_duration=config.vad_min_speech_duration,
+                min_silence_duration=config.vad_min_silence_duration,
+            )
             logger.info("Silero VAD 现场加载完成")
         except Exception as e:
             logger.warning("Silero VAD 加载失败: %s", e)
 
-    # 3. 创建 LLM（Ollama 本地 qwen2.5:3b 冷启动可能>10s，默认 timeout=10s 会超时，故延长至 60s）
-    base_llm = OpenAILLM(base_url="http://localhost:11434/v1", model="qwen2.5:3b", api_key="not-needed")
-    llm = _wrap_llm_with_timeout(base_llm, timeout=60.0, max_retry=2)
+    # 3. 创建 LLM（Ollama 本地 qwen2.5:3b 冷启动约 24s，必须强制 60s 超时）
+    llm = _create_llm(timeout=60.0, max_retry=2)
     logger.info("LLM: Ollama qwen2.5:3b (OpenAI compat, timeout=60s)")
 
     # 4. 创建 Agent
@@ -229,9 +277,57 @@ async def entrypoint(ctx: JobContext):
         sess_kw["tts"] = tts
     else:
         logger.warning("TTS 未接入 -> Agent 将无法语音回复!")
+
+    # 自托管 LiveKit 下 cloud turn detector 会报 401，明确使用本地 VAD 模式
+    sess_kw["turn_handling"] = {
+        "turn_detection": "vad",
+        "endpointing": {"min_delay": 0.3, "max_delay": 3.0},
+        "interruption": {"enabled": config.allow_interruptions, "mode": "vad"},
+    }
+    logger.info("TurnHandling: VAD 模式 + VAD 打断")
+
     session = AgentSession(**sess_kw)
 
-    # 6. 启动 (session.start 内部会连接房间, 无需再 ctx.connect())
+    # 6. 状态同步：通过 DataChannel 把 agent/user 状态推给浏览器，做"正在聆听/思考/说话"视觉反馈
+    async def _publish_state(label: str, detail: str = ""):
+        try:
+            payload = json.dumps({
+                "type": "voice_state",
+                "state": label,
+                "detail": detail,
+            }, ensure_ascii=False).encode("utf-8")
+            await ctx.room.local_participant.publish_data(payload, reliable=True)
+        except Exception as e:
+            logger.debug("状态同步失败: %s", e)
+
+    _STATE_MAP = {
+        "initializing": "初始化中...",
+        "idle": "等待说话",
+        "listening": "正在聆听",
+        "thinking": "正在思考",
+        "speaking": "正在说话",
+    }
+
+    @session.on("agent_state_changed")
+    def _on_agent_state(ev):
+        label = _STATE_MAP.get(ev.new_state, ev.new_state)
+        logger.info("Agent 状态: %s -> %s", ev.old_state, ev.new_state)
+        asyncio.create_task(_publish_state(label))
+
+    @session.on("user_state_changed")
+    def _on_user_state(ev):
+        if ev.new_state == "speaking":
+            asyncio.create_task(_publish_state("用户说话中"))
+        elif ev.new_state == "listening":
+            asyncio.create_task(_publish_state("等待说话"))
+
+    @session.on("user_input_transcribed")
+    def _on_transcribed(ev):
+        if ev.is_final:
+            logger.info("STT 识别结果: %s", ev.transcript)
+            asyncio.create_task(_publish_state("正在思考", detail=ev.transcript))
+
+    # 7. 启动 (session.start 内部会连接房间, 无需再 ctx.connect())
     await session.start(room=ctx.room, agent=agent)
     logger.info("VoiceBridge Agent 已就绪 (room=%s)", ctx.room.name)
 

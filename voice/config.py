@@ -65,7 +65,7 @@ class VoiceBridgeConfig:
         default_factory=lambda: float(os.getenv("VOICE_VAD_MIN_SPEECH", "0.2"))
     )
     vad_min_silence_duration: float = field(
-        default_factory=lambda: float(os.getenv("VOICE_VAD_MIN_SILENCE", "0.12"))
+        default_factory=lambda: float(os.getenv("VOICE_VAD_MIN_SILENCE", "0.55"))
     )
 
     # --- Agent 行为 ---

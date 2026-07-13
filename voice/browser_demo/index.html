@@ -14,8 +14,26 @@
   button { padding: 10px 20px; font-size: 14px; border-radius: 4px;
             border: 1px solid #555; background: #2a2a2a; color: #e6e6e6;
             cursor: pointer; margin: 4px; }
-  button:hover { background: #3a3a3a; }
-  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .voice-state {
+    font-size: 24px;
+    text-align: center;
+    margin: 16px 0 8px;
+    min-height: 36px;
+    color: #88c0d0;
+    transition: color 0.2s;
+  }
+  .voice-state.listening { color: #4caf50; }
+  .voice-state.thinking { color: #ff9800; }
+  .voice-state.speaking { color: #03a9f4; }
+  #waveform {
+    width: 100%;
+    height: 80px;
+    border-radius: 8px;
+    background: #111;
+    border: 1px solid #333;
+    display: block;
+    margin-bottom: 12px;
+  }
   #log { background: #000; color: #88c0d0; padding: 12px;
          border-radius: 4px; height: 300px; overflow-y: auto;
          font-family: 'Consolas', monospace; font-size: 12px;
@@ -31,6 +49,9 @@
   <h1>🔑 HomeStream VoiceBridge 测试</h1>
 
   <div class="status" id="status">⚪ 未连接</div>
+
+  <div class="voice-state" id="voiceState">🤖 等待连接</div>
+  <canvas id="waveform" width="600" height="80"></canvas>
 
   <div>
     <button id="connectBtn" onclick="connect()">🔌 Connect</button>
@@ -50,6 +71,62 @@
 
   let room = null;
   let micEnabled = false;
+  let audioContext = null;
+  let analyser = null;
+  let micStream = null;
+  let animationId = null;
+  let currentState = '等待连接';
+
+  function setVoiceState(text, stateClass = '') {
+    const el = document.getElementById('voiceState');
+    el.textContent = text;
+    el.className = 'voice-state ' + stateClass;
+    currentState = text;
+    log('🎙️ ' + text, 'text');
+  }
+
+  function drawWaveform() {
+    const canvas = document.getElementById('waveform');
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    function render() {
+      animationId = requestAnimationFrame(render);
+      ctx.clearRect(0, 0, width, height);
+
+      let amplitude = 0;
+      if (analyser) {
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(data);
+        const sum = data.reduce((a, b) => a + b, 0);
+        amplitude = sum / data.length / 255.0; // 0~1
+      }
+
+      // 根据状态选择颜色
+      let color = '#4caf50';
+      if (currentState.includes('思考')) color = '#ff9800';
+      else if (currentState.includes('说话') && !currentState.includes('用户')) color = '#03a9f4';
+      else if (currentState.includes('聆听') || currentState.includes('用户说话')) color = '#4caf50';
+      else color = '#666';
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const centerY = height / 2;
+      for (let x = 0; x < width; x++) {
+        // 合成正弦波 + 实时音量
+        const t = Date.now() / 200 + x / 30;
+        const base = Math.sin(t) * (height / 6);
+        const vol = amplitude * (height / 2.5) * (0.5 + 0.5 * Math.sin(x / 20));
+        const y = centerY + base + vol * Math.sin(t * 2 + x / 10);
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    render();
+  }
 
   function log(msg, type = 'info') {
     const el = document.getElementById('log');
@@ -75,6 +152,7 @@
         return;
       }
       log('正在连接 ' + URL + ' ...', 'info');
+      setVoiceState('初始化中...', 'thinking');
       room = new LK.Room({
         adaptiveStream: true,
         dynacast: true,
@@ -86,6 +164,7 @@
         document.getElementById('connectBtn').disabled = true;
         document.getElementById('micBtn').disabled = false;
         document.getElementById('disconnectBtn').disabled = false;
+        setVoiceState('等待说话');
       });
 
       room.on(LK.RoomEvent.Disconnected, (reason) => {
@@ -94,6 +173,7 @@
         document.getElementById('connectBtn').disabled = false;
         document.getElementById('micBtn').disabled = true;
         document.getElementById('disconnectBtn').disabled = true;
+        setVoiceState('未连接');
       });
 
       room.on(LK.RoomEvent.ParticipantConnected, (participant) => {
@@ -115,6 +195,17 @@
 
       room.on(LK.RoomEvent.DataReceived, (payload, participant) => {
         const text = new TextDecoder().decode(payload);
+        try {
+          const data = JSON.parse(text);
+          if (data.type === 'voice_state') {
+            let cls = '';
+            if (data.state.includes('聆听') || data.state.includes('用户说话')) cls = 'listening';
+            else if (data.state.includes('思考')) cls = 'thinking';
+            else if (data.state.includes('说话') && !data.state.includes('用户')) cls = 'speaking';
+            setVoiceState('🤖 ' + data.state, cls);
+            return;
+          }
+        } catch (e) {}
         log('💬 收到 ' + participant.identity + ': ' + text, 'text');
       });
 
@@ -135,10 +226,12 @@
         log('⚠️ 调用 dispatch 端点失败: ' + err.message, 'error');
       }
 
+      drawWaveform();
 
     } catch (err) {
       log('连接失败: ' + err.message, 'error');
       console.error(err);
+      setVoiceState('连接失败', '');
     }
   }
 
@@ -150,12 +243,34 @@
         await room.localParticipant.setMicrophoneEnabled(true);
         micEnabled = true;
         document.getElementById('micBtn').textContent = '🎤 关闭麦克风';
-        log('✅ 麦克风已启用，开始说话吧！', 'info');
+        setVoiceState('麦克风已开启，请说话', 'listening');
+        // 启动本地音量可视化
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          micStream = stream;
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const source = audioContext.createMediaStreamSource(stream);
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+        } catch (e) {
+          log('麦克风音量可视化初始化失败: ' + e.message, 'error');
+        }
       } else {
         log('关闭麦克风...', 'info');
         await room.localParticipant.setMicrophoneEnabled(false);
         micEnabled = false;
         document.getElementById('micBtn').textContent = '🎤 启用麦克风';
+        setVoiceState('等待说话');
+        if (micStream) {
+          micStream.getTracks().forEach(t => t.stop());
+          micStream = null;
+        }
+        if (audioContext) {
+          audioContext.close();
+          audioContext = null;
+        }
+        analyser = null;
       }
     } catch (err) {
       log('麦克风操作失败: ' + err.message, 'error');
@@ -163,6 +278,9 @@
   }
 
   async function disconnect() {
+    if (animationId) cancelAnimationFrame(animationId);
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+    if (audioContext) audioContext.close();
     if (room) {
       await room.disconnect();
       room = null;
