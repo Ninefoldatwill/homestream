@@ -78,3 +78,6 @@ Thumbs.db
 # === 项目专属 ===
 data/
 .pytest_tmp/
+
+# === 临时诊断脚本（不进仓） ===
+voice/diag_components.py
