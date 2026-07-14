@@ -249,15 +249,22 @@ if _LK_AVAILABLE:
                                         await ws.send(pcm)
                                     except Exception:
                                         return
-                        # 输入结束 -> 通知 FunASR 产出最终结果
+                        # 通道关闭 (会话结束) -> 通知 FunASR 结束
                         try:
                             await ws.send(json.dumps({"is_speaking": False}))
                         except Exception:
                             pass
 
-                    final_event = asyncio.Event()
-
                     async def receiver():
+                        # 关键点(v5.2.5 多轮修复): receiver 必须持续运行,
+                        # 每收到一个 2pass-offline 就 emit 一条 FINAL_TRANSCRIPT。
+                        # 绝不能收到第一个 offline 就 return —— 那样 async with
+                        # 会退出并关闭 websocket, 导致第一轮后 STT 流死亡,
+                        # 后续轮再也收不到转写 (多轮断流根因)。
+                        # FunASR 在持续 is_speaking=True 下, 静音后会自动产出
+                        # 2pass-offline 最终稿, 且支持连续多轮。
+                        # 收到 offline 后主动 is_speaking:False + True 重新武装,
+                        # 清空 FunASR 上下文, 避免下一轮转写带 '？' 残留。
                         async for msg in ws:
                             res = _parse_funasr_message(msg)
                             if not res or not res.text:
@@ -271,8 +278,11 @@ if _LK_AVAILABLE:
                                         confidence=res.confidence,
                                     )],
                                 ))
-                                final_event.set()
-                                return
+                                try:
+                                    await ws.send(json.dumps({"is_speaking": False}))
+                                    await ws.send(json.dumps({"is_speaking": True}))
+                                except Exception:
+                                    return
                             else:
                                 self._event_ch.send_nowait(stt.SpeechEvent(
                                     type=stt.SpeechEventType.INTERIM_TRANSCRIPT,
@@ -284,12 +294,7 @@ if _LK_AVAILABLE:
                     send_task = asyncio.create_task(sender())
                     recv_task = asyncio.create_task(receiver())
                     await send_task
-                    try:
-                        await asyncio.wait_for(final_event.wait(), timeout=12.0)
-                    except asyncio.TimeoutError:
-                        logger.warning("FunASR 未在 12s 内返回最终结果")
-                    finally:
-                        recv_task.cancel()
+                    recv_task.cancel()
             except Exception as e:
                 logger.error("FunASR STT 流错误: %s", e)
                 try:

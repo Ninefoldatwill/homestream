@@ -175,7 +175,7 @@ if _LIVEKIT_AVAILABLE:
         导致 Agent 不回话。通过子类化并覆写 chat()，在无 conn_options 时注入 60s 超时。
         """
 
-        def __init__(self, base_llm: lk_llm.LLM, timeout: float = 60.0, max_retry: int = 2):
+        def __init__(self, base_llm: lk_llm.LLM, timeout: float = 180.0, max_retry: int = 2):
             super().__init__()
             self._base = base_llm
             self._conn_options = APIConnectOptions(
@@ -208,7 +208,7 @@ if _LIVEKIT_AVAILABLE:
         def __getattr__(self, name):
             return getattr(self._base, name)
 
-    def _create_llm(timeout: float = 60.0, max_retry: int = 2) -> lk_llm.LLM:
+    def _create_llm(timeout: float = 180.0, max_retry: int = 2) -> lk_llm.LLM:
         """创建带冷启动保护的 Ollama LLM (OpenAI 兼容端点)"""
         base_llm = OpenAILLM(
             base_url="http://localhost:11434/v1",
@@ -259,9 +259,9 @@ async def entrypoint(ctx: JobContext):
         except Exception as e:
             logger.warning("Silero VAD 加载失败: %s", e)
 
-    # 3. 创建 LLM（Ollama 本地 qwen2.5:3b 冷启动约 24s，必须强制 60s 超时）
-    llm = _create_llm(timeout=60.0, max_retry=2)
-    logger.info("LLM: Ollama qwen2.5:3b (OpenAI compat, timeout=60s)")
+    # 3. 创建 LLM（Ollama 本地 qwen2.5:3b 冷启动约 24s，必须强制 180s 超时 + 启动预热）
+    llm = _create_llm(timeout=180.0, max_retry=2)
+    logger.info("LLM: Ollama qwen2.5:3b (OpenAI compat, timeout=180s)")
 
     # 4. 创建 Agent
     agent = VoiceBridgeAgent(llm=llm, config=config)
@@ -282,15 +282,16 @@ async def entrypoint(ctx: JobContext):
         logger.warning("TTS 未接入 -> Agent 将无法语音回复!")
 
     # 自托管 LiveKit 下 cloud turn detector 会报 401，明确使用本地 VAD 模式
+    # 注意: endpointing 必须用 "fixed" 模式。原 "dynamic" 模式依赖会话暂停统计动态估算
+    # end-of-turn 延迟, 在测试/合成音频下会估算失当, 导致第一轮后 turn 永不结束 ->
+    # 后续用户输入被吞进同一轮而不触发新 STT (多轮断流)。fixed 模式用固定 min/max 延迟。
     sess_kw["turn_handling"] = {
         "turn_detection": "vad",
-        "endpointing": {"mode": "dynamic", "min_delay": 0.5, "max_delay": 3.0, "alpha": 0.3},
+        "endpointing": {"mode": "fixed", "min_delay": 0.5, "max_delay": 3.0},
         "interruption": {
             "enabled": config.allow_interruptions,
             "mode": "vad",
             "min_duration": config.min_interruption_duration,
-            "false_interruption_timeout": config.false_interruption_timeout,
-            "resume_false_interruption": True,
         },
     }
     logger.info(
@@ -348,6 +349,22 @@ async def entrypoint(ctx: JobContext):
 # ========== CLI 入口 ==========
 
 
+def _warmup_ollama():
+    """Worker 启动时预热 Ollama 模型，避免用户首次对话冷启动 20s+"""
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(base_url="http://localhost:11434/v1", api_key="not-needed")
+        r = client.chat.completions.create(
+            model="qwen2.5:3b",
+            messages=[{"role": "user", "content": "你好"}],
+            timeout=120,
+        )
+        logger.info("Ollama 预热完成: %s", r.choices[0].message.content[:30])
+    except Exception as e:
+        logger.warning("Ollama 预热失败: %s", e)
+
+
 def main():
     """启动 VoiceBridge Agent Worker"""
     if not _LIVEKIT_AVAILABLE:
@@ -366,6 +383,9 @@ def main():
     os.environ["LIVEKIT_API_SECRET"] = config.livekit_api_secret
 
     logger.info("启动 VoiceBridge Worker: %s", config.to_dict())
+
+    # Worker 启动时先预热 Ollama，避免用户首次对话冷启动 20s+ 导致超时
+    _warmup_ollama()
 
     # LiveKit 1.6.5: 自动 dispatch 在 dev/reconnect/二次进房 等场景不可靠，
     # 官方推荐显式 dispatch。设置 agent_name 后，浏览器 token 通过 RoomAgentDispatch
