@@ -16,7 +16,7 @@ English | [中文](README.md)
 >
 > Every intention bears its consequence. Each forging of this key exists so that the new world of digital intelligence is no longer a private garden for the few, but **a playground for all.**
 >
-> Open Source Edition V5.0.0 · Self-evolving AI Ecosystem Operating System
+> Open Source Edition V5.2.5 · Self-evolving AI Ecosystem Operating System
 >
 > Integrate the best of others, forge something new. Follow the natural way, from within to without.
 
@@ -416,65 +416,74 @@ Full comparison and setup guide: [docs/ai-coding-resources.md](docs/ai-coding-re
 
 > The keysmith's forging journey never stops.
 
-### V5.0.0 (Current · July 2026)
+### Released
 
-**Completed ✅**
+#### V5.0.0 ✅ Released (2026-06-29)
 
-- ✅ Trinity model routing (L1 local / L2 cloud / L3 backup, **always free**)
-- ✅ EventStream causal chain + 850+ tests passing
-- ✅ Thousand Faces Design Market (9 themes, 6 user personas)
-- ✅ Dual open source (GitHub + Gitee mirror)
-- ✅ Built-in security (injection guard + log sanitization + 3-tier permissions + rate limiting)
-- ✅ Elastic modes (Solo → Team → Ecosystem)
-- ✅ Loop Engineering (execute → verify → retry → archive → learn)
-- ✅ Memory evolution engine (forget / merge / restructure — gets smarter over time)
+- Trinity model routing (L1 local / L2 cloud / L3 backup, **always free**)
+- EventStream causal chain + 850+ tests passing
+- Thousand Faces Design Market (9 themes, 6 user personas)
+- Dual open source (GitHub + Gitee mirror)
+- Built-in security (injection guard + log sanitization + 3-tier permissions + rate limiting)
+- Elastic modes (Solo → Team → Ecosystem)
+- Loop Engineering (execute → verify → retry → archive → learn)
+- Memory evolution engine (forget / merge / restructure)
+- Causal memory loop (EventStream ↔ memory recall)
 
-**This release roadmap 🔮**
+#### V5.1.0 ✅ Released
 
-- 🔮 **One Image, One World** (Photo to Theme) — Snap a photo, generate a unique frontend theme
+- HS-UI protocol (Agent-driven declarative UI)
+- Adaptive interface mode (device/role/scene detection)
+- Theme accessibility auditor (WCAG 2.1 AA)
+- A2A collaboration protocol (based on ICP v1.1)
+- Observability frontend (10-panel dashboard)
 
-  Not just color extraction — restores the complete visual soul from **color, texture, and form**:
+#### V5.2.0 ✅ Released
 
-  | Dimension | Algorithm | What it captures |
-  |:----------|:----------|:-----------------|
-  | Color | K-means + 135 traditional Chinese color matching | Palette, dark/light mode, traditional color names |
-  | Texture | LBP + Gabor + GLCM tri-algorithm fusion | Background texture, border style, shadow feel |
-  | Form | HOG edge gradients + contour roundness | Border radius, font choice, clip paths |
+- VoiceBridge module (FunASR 2-pass STT + self-hosted LiveKit)
+- Browser voice interaction demo
+- 47+ voice unit tests
 
-  Use cases: designers, photographers, makers — anyone who wants their work to "live" in an AI interface.
+### Current
 
-  ```bash
-  # Future usage preview
-  openbridge theme from-photo photo.jpg --name my-theme
-  ```
+#### V5.2.5 🔄 In Progress
 
-- 🔮 **Visual workflow orchestrator** — Drag-and-drop Agent workflow design
-- ✅ **Observability frontend** — EventStream data visualization dashboard (Jul 8)
-  - 10-panel dashboard: HTTP success rate / latency percentiles / token usage / event distribution / ICP messages / skill invocations / cost breakdown / provider status / architecture visualization / data quality guardian
-  - Tech stack: ECharts + pure HTML + original SVG engine (no React build chain)
-  - Architecture visualization: Agent topology / event causal chain flow / 3-layer router status
-  - Data quality guardian: causal chain integrity / timestamp continuity / event type legality / agent identity validation
-  - **Full-chain provenance**: Every Agent action from trigger to completion has a complete traceable causal chain — not after-the-fact logs, but natively recorded event lineage. data_guardian's 4-dimensional validation ensures the provenance data itself is trustworthy.
-  - Access at `/observatory` or dashboard quick-link
+- VoiceBridge end-to-end tuning: FunASR STT + Ollama qwen2.5:3b + EdgeTTS, self-hosted LiveKit
+- CosyVoice2 enhancement (standalone TTS microservice, local GPU voice)
+- Multi-turn dialogue stream-break fix
+- Voice-link observability
+- **Pending**: dual-source push + v5.2.5 Release Notes
 
-  > *(Concept reference: OpenScience Provenance — HomeStream's EventStore + data_guardian goes further in Agent event provenance)*
+### Planned
 
-- ✅ **Theme accessibility auditor** — WCAG 2.1 AA color audit (Jul 9)
-  - Contrast checking + colorblind friendliness testing (3 types)
-  - Zero third-party dependencies, pure Python standard library
-  - Based on W3C Royalty-Free (RF) standards, safeguarding the Design Marketplace
+#### V5.3.0 Planned
 
-- ✅ **A2A collaboration protocol** — Agent-to-Agent protocol specification (Jul 9)
-  - Extended from ICP v1.1, defining agent discovery / capability declaration / task delegation / result return
-  - Supports Solo / Team / Ecosystem collaboration modes
-  - See [A2A_PROTOCOL.md](A2A_PROTOCOL.md)
+- Tauri 2.0 desktop/mobile app wrapper (moved from original V5.1.0 plan)
+- Cross-platform local shell
 
-### Future vision
+#### V5.3.5 Planned
 
-- 🧠 **Causal Memory Engine** — From "retrieval-driven" to "causal-driven": memories emerge naturally along causal chains, no explicit retrieval needed
+- Visual workflow orchestrator (drag-and-drop Agent workflows, moved from original V5.2.0 plan)
+- Themed observability panels
+
+#### V5.4.0 Planned
+
+- Browser automation plugin market (moved from original V5.2.0 plan)
+- MCP + A2A dual-protocol ecosystem
+
+#### V5.4.5 Planned
+
+- Photo-to-Theme (one image, one unique UI theme)
+- Creative projects (Shuge / fun scenarios)
+- Theme marketplace community
+
+### Future Vision
+
+- 🧠 **Causal Memory Engine** — from "retrieval-driven" to "causal-driven": memories emerge naturally along causal chains, no explicit retrieval needed
 - 🌐 Multi-language ecosystem (i18n)
 - 📡 MCP + A2A dual-protocol ecosystem interconnection
 - 🎨 Theme marketplace community (sharing / rating / one-click install)
+- 🚀 Interstellar Network (ultimate form)
 
 > We don't build one wall, we forge ten thousand doors. The keysmith gives keys, users choose doors — and in the future, users draw their own doors.
 

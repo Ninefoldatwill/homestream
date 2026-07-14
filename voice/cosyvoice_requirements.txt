@@ -1,0 +1,51 @@
+# CosyVoice2 微服务 — 推理必需依赖
+# 注意: torch==2.3.1 / torchaudio==2.3.1 已由 Conda 环境提供(cu121), 此处不再安装, 避免版本被打回。
+#
+# ⚠️ 安装约束 (踩坑记录):
+#   1. 本机无 MSVC 编译器 → Matcha-TTS 的 Cython 扩展 monotonic_align.core 无法编译。
+#      已在 CosyVoice/third_party/Matcha-TTS/matcha/utils/monotonic_align/core.py 放纯 Python 桩,
+#      且该扩展仅训练用、推理不调用; 服务通过 sys.path 直接引入 Matcha-TTS 目录, 无需 pip 安装。
+#   2. openai-whisper==20231117 是 sdist, 构建时需 pkg_resources; 而 setuptools>=81 已移除 pkg_resources。
+#      故安装前须先把环境 setuptools 降到 <81 (如 80.9.0), 并用 `pip install --no-build-isolation -r` 安装,
+#      否则报 "No module named 'pkg_resources'"。
+Cython==3.0.11
+HyperPyYAML==1.2.3
+modelscope==1.20.0
+transformers==4.51.3
+# diffusers: CosyVoice2 flow/DiT 注意力模块真实依赖(0.29.x 与 torch2.3.1 兼容)
+diffusers==0.29.0
+accelerate
+# lightning: Matcha-TTS pylogger / baselightningmodule 在推理路径会被间接导入
+lightning>=2.0.0
+rich
+# gdown: CosyVoice2 内部模型下载/校验路径依赖
+# wget: modelscope / CosyVoice 内部可能触发
+gdown==5.1.0
+wget==3.2
+# pyarrow: cosyvoice.dataset.processor 在推理路径会导入
+pyarrow
+numpy==1.26.4
+omegaconf==2.3.0
+hydra-core==1.3.2
+conformer==0.3.2
+x-transformers==2.11.24
+librosa==0.10.2
+soundfile==0.12.1
+onnx==1.16.0
+onnxruntime==1.18.0
+pyworld==0.3.4
+inflect==7.3.1
+wetext==0.0.4
+networkx==3.1
+protobuf==4.25
+grpcio==1.57.0
+einops
+Unidecode
+scipy
+tqdm
+# matplotlib / tensorboard: CosyVoice2 推理链路会被间接导入(非仅训练演示)
+matplotlib==3.7.5
+tensorboard==2.14.0
+# zero_shot / cross_lingual / instruct2 模式内部用 whisper.log_mel_spectrogram 提取 speech token
+# (仅需 whisper 包做梅尔频谱计算, 不会下载 ASR 权重; SFT 缺失 spk2info.pt 时我们用 zero_shot 兜底)
+openai-whisper==20231117

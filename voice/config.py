@@ -53,9 +53,18 @@ class VoiceBridgeConfig:
         default_factory=lambda: int(os.getenv("VOICE_TTS_SAMPLE_RATE", "24000"))
     )
     tts_speed: float = field(default_factory=lambda: float(os.getenv("VOICE_TTS_SPEED", "1.0")))
-    # 降级: 外部 API (仅当本地模型不可用时)
+    # 降级: 外部 API (可显式 tts_mode=cloud 启用, 仅用户自持 Key 时)
     tts_api_base: str = field(default_factory=lambda: os.getenv("VOICE_TTS_API_BASE", ""))
     tts_api_key: str = field(default_factory=lambda: os.getenv("VOICE_TTS_API_KEY", ""))
+    # 云端 TTS provider (可选维度升级, 默认不启用; 见 docs/语音云对接说明.md)
+    tts_cloud_provider: str = field(default_factory=lambda: os.getenv("VOICE_TTS_CLOUD_PROVIDER", "openai"))
+    tts_cloud_voice: str = field(default_factory=lambda: os.getenv("VOICE_TTS_CLOUD_VOICE", ""))
+
+    # --- STT 云端 (可选维度升级, 默认 local=FunASR) ---
+    stt_mode: str = field(default_factory=lambda: os.getenv("VOICE_STT_MODE", "local"))
+    stt_api_base: str = field(default_factory=lambda: os.getenv("VOICE_STT_API_BASE", ""))
+    stt_api_key: str = field(default_factory=lambda: os.getenv("VOICE_STT_API_KEY", ""))
+    stt_cloud_provider: str = field(default_factory=lambda: os.getenv("VOICE_STT_CLOUD_PROVIDER", "openai"))
 
     # --- VAD (Silero, 本地) ---
     # 语音助手场景推荐：threshold 0.6-0.7、min_speech 0.3-0.5s、min_silence 0.8-1.2s
@@ -97,8 +106,12 @@ class VoiceBridgeConfig:
             "livekit_url": self.livekit_url,
             "router_strategy": self.router_strategy,
             "funasr_ws_uri": self.funasr_ws_uri,
+            "stt_mode": self.stt_mode,
+            "tts_mode": self.tts_mode,
             "tts_model_path": self.tts_model_path,
             "tts_voice": self.tts_voice,
+            "tts_cloud_provider": self.tts_cloud_provider,
+            "stt_cloud_provider": self.stt_cloud_provider,
             "vad_threshold": self.vad_threshold,
             "agent_name": self.agent_name,
             "allow_interruptions": self.allow_interruptions,

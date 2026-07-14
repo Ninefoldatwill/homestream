@@ -1,7 +1,10 @@
-# HomeStream VoiceBridge v5.2.0
+# HomeStream VoiceBridge v5.2.5
 
 > 自托管 LiveKit + 三层模型路由 + Silero VAD + SenseVoice STT + CosyVoice2 TTS
 > — 零注册、零账号、本地优先、全栈 Apache 2.0
+> 
+> v5.2.5 增强：CosyVoice2 改为独立 TTS 微服务（Conda 3.10）+ Worker HTTP 调用，
+> 解决 Python 3.13 venv 无法加载 CosyVoice2 原生库的问题，缺失 spk2info.pt 时自动降级 zero_shot 兜底。
 
 ## 快速开始 (6 步起手)
 

@@ -126,8 +126,22 @@ def _prewarm(proc: JobProcess):
 def _build_stt(config: VoiceBridgeConfig) -> Any | None:
     """
     构建 STT (语音转文字) — LiveKit 1.6.5 兼容
-    FunASR 2-pass 为主, 失败则返回 None
+
+    默认 FunASR 2-pass (本地免费托底); 若显式配置 stt_mode=cloud 且提供
+    api_base/key, 则走云端 STT (可选维度升级, 用户自持 key, 默认关闭)。
     """
+    # 云端 STT (可选, 默认关闭)
+    if getattr(config, "stt_mode", "local") == "cloud" and getattr(config, "stt_api_base", ""):
+        try:
+            from voice.cloud_stt_adapter import create_cloud_stt
+
+            stt = create_cloud_stt(config)
+            if stt is not None:
+                logger.info("STT: 云端 (%s) uri=%s", getattr(config, "stt_cloud_provider", "openai"), config.stt_api_base)
+                return stt
+            logger.warning("云端 STT 创建失败, 回退 FunASR")
+        except Exception as e:
+            logger.warning("云端 STT 不可用, 回退 FunASR: %s", e)
     try:
         from voice.stt_adapter import create_funasr_stt
 
@@ -146,12 +160,26 @@ def _build_tts(config: VoiceBridgeConfig) -> Any | None:
     """
     构建 TTS (文字转语音) 插件 — LiveKit 1.6.5 兼容
 
-    引擎分层 (免费托底):
-      1. CosyVoice2 (本地 GPU, 用户设计首选)
+    引擎分层 (免费托底 / 可选维度升级):
+      1. CosyVoice2 (本地 GPU, 用户设计首选) — 经独立微服务调用
       2. EdgeTTS (微软中文神经语音, 兜底)
+      3. [可选] 云端 TTS: 仅当 tts_mode=cloud 且配置 api_base/key 时启用
+         (用户自持 Key, 不默认启用, 见 docs/语音云对接说明.md)
     """
     if not _LIVEKIT_AVAILABLE:
         return None
+    # 云端 TTS (可选, 默认关闭)
+    if getattr(config, "tts_mode", "local") == "cloud" and getattr(config, "tts_api_base", ""):
+        try:
+            from voice.cloud_tts_adapter import create_cloud_tts
+
+            tts = create_cloud_tts(config)
+            if tts is not None:
+                logger.info("TTS: 云端 (%s)", getattr(config, "tts_cloud_provider", "openai"))
+                return tts
+            logger.warning("云端 TTS 创建失败, 回退本地")
+        except Exception as e:
+            logger.warning("云端 TTS 不可用, 回退本地: %s", e)
     try:
         from voice.tts_adapter import create_tts
 

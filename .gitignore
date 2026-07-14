@@ -20,6 +20,17 @@ pretrained_models/
 pretrained_models/**/*
 voice/__pycache__/
 
+# === CosyVoice 外部依赖仓库 (Apache-2.0, 作为运行期依赖, 不入库) ===
+CosyVoice/
+CosyVoice/**/*
+
+# === 语音端到端测试音频产物 (本地生成, 不入库) ===
+voice/*.pcm
+voice/*.mp3
+voice/*.wav
+voice/e2e_test_input.*
+voice/mt_input.*
+
 # === 调试输出 (CI logs) ===
 outputs/
 

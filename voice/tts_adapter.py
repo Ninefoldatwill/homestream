@@ -9,8 +9,14 @@ v5.2.5 修复要点:
   - pcm 用 mime_type="audio/pcm", mp3 用 mime_type="audio/mp3"
 
 引擎策略 (免费托底 / 维度分层):
-  1. CosyVoice2 (本地 GPU, 中文第一, 用户设计首选) — 需 cosyvoice 包 + 模型权重
+  1. CosyVoice2 (本地 GPU, 中文第一, 用户设计首选) — 通过独立微服务调用
+     (CosyVoice2 依赖 pynini/Matcha-TTS/kaldifst, 必须 Python 3.10 Conda,
+      无法塞进本 Worker 的 3.13 venv, 故拆为 voice/cosyvoice_service.py 微服务)
   2. EdgeTTS (微软中文神经语音, 免费, 无需 GPU) — 开发/兜底默认, 保证今天能出声
+
+调用关系:
+  Worker (3.13 venv) --HTTP--> CosyVoice2 微服务 (Conda 3.10, :50000)
+  CosyVoiceClient 负责探活与健康检查; 不可达时自动降级 EdgeTTS。
 """
 
 from __future__ import annotations
@@ -55,14 +61,14 @@ except ImportError:
 
     DEFAULT_API_CONNECT_OPTIONS = None  # type: ignore
 
-# --- CosyVoice2 (可选导入) ---
+# --- HTTP 客户端 (调用 CosyVoice2 微服务, 需 httpx) ---
 try:
-    from cosyvoice.cli.cosyvoice import CosyVoice2 as _CosyVoice2Model
+    import httpx
 
-    _COSYVOICE_AVAILABLE = True
+    _HTTPX_AVAILABLE = True
 except ImportError:
-    _COSYVOICE_AVAILABLE = False
-    _CosyVoice2Model = None  # type: ignore
+    _HTTPX_AVAILABLE = False
+    httpx = None  # type: ignore
 
 # --- EdgeTTS (可选导入, 兜底) ---
 try:
@@ -99,87 +105,63 @@ EDGE_TTS_VOICES = [
     {"name": "zh-CN-XiaoyiNeural", "description": "晓伊 (女声, 活泼)"},
 ]
 
-
-# ========== CosyVoice2 推理引擎 ==========
-
-
-@dataclass
-class CosyVoiceChunk:
-    """CosyVoice2 合成块"""
-
-    audio: np.ndarray  # float32, -1.0~1.0
-    sample_rate: int = 24000
-    is_final: bool = False
+COSYVOICE_SERVICE_URL = os.getenv("COSYVOICE_SERVICE_URL", "http://127.0.0.1:50000")
+COSYVOICE_SR = 24000
 
 
-class CosyVoiceEngine:
-    """CosyVoice2 推理引擎 (独立于 LiveKit, 可单独测试)"""
+# ========== CosyVoice2 HTTP 客户端 ==========
 
-    def __init__(self, model_path: str = "pretrained_models/CosyVoice2-0.5B", sample_rate: int = 24000):
-        self._model_path = model_path
-        self._sample_rate = sample_rate
-        self._model: Any = None
-        self._loaded = False
 
-    def _ensure_model(self):
-        if self._loaded:
-            return
-        if not _COSYVOICE_AVAILABLE:
-            raise RuntimeError("CosyVoice2 未安装。请先安装 cosyvoice 包与模型权重。")
-        logger.info("加载 CosyVoice2 模型: %s use_flow_cache=True ...", self._model_path)
-        self._model = _CosyVoice2Model(self._model_path, use_flow_cache=True)
-        self._loaded = True
-        logger.info("CosyVoice2 模型加载完成 (use_flow_cache=True)")
+class CosyVoiceClient:
+    """调用 CosyVoice2 微服务的 HTTP 客户端 (运行于 Worker 3.13 venv, 不依赖 cosyvoice)"""
 
-    async def synthesize_stream(self, text: str, voice: str = "longxiaochun", speed: float = 1.0) -> AsyncIterator[CosyVoiceChunk]:
-        if not text.strip():
-            return
-        queue: asyncio.Queue[CosyVoiceChunk | None] = asyncio.Queue()
+    def __init__(self, base_url: str = COSYVOICE_SERVICE_URL, timeout: float = 90.0):
+        self._base = base_url.rstrip("/")
+        self._timeout = timeout
 
-        async def _producer():
-            try:
-                await asyncio.to_thread(self._infer_stream, text, voice, speed, queue)
-            except Exception as e:
-                logger.error("CosyVoice2 流式合成失败: %s", e)
-            finally:
-                await queue.put(None)
-
-        producer_task = asyncio.create_task(_producer())
-        while True:
-            chunk = await queue.get()
-            if chunk is None:
-                break
-            yield chunk
-        await producer_task
-
-    def _infer_stream(self, text, voice, speed, queue):
-        self._ensure_model()
+    def health(self) -> bool:
+        if not _HTTPX_AVAILABLE:
+            return False
         try:
-            chunks = self._model.inference_sft(text, voice, stream=True, speed=speed)
-            for chunk in chunks:
-                audio = chunk.get("tts_speech", chunk) if isinstance(chunk, dict) else chunk
-                if isinstance(audio, np.ndarray):
-                    if audio.ndim > 1:
-                        audio = audio.squeeze()
-                    audio = audio.astype(np.float32)
-                    asyncio.run_coroutine_threadsafe(
-                        queue.put(CosyVoiceChunk(audio=audio, sample_rate=self._sample_rate, is_final=False)),
-                        asyncio.get_event_loop(),
-                    )
-            asyncio.run_coroutine_threadsafe(
-                queue.put(CosyVoiceChunk(audio=np.array([], dtype=np.float32), sample_rate=self._sample_rate, is_final=True)),
-                asyncio.get_event_loop(),
-            )
-        except Exception as e:
-            logger.error("CosyVoice2 推理异常: %s", e)
-            raise
+            r = httpx.get(f"{self._base}/health", timeout=5.0)
+            if r.status_code == 200:
+                data = r.json()
+                return data.get("status") == "ok"
+        except Exception:  # noqa: BLE001
+            return False
+        return False
 
-    async def synthesize(self, text, voice="longxiaochun", speed=1.0) -> np.ndarray:
-        chunks = []
-        async for chunk in self.synthesize_stream(text, voice, speed):
-            if not chunk.is_final and len(chunk.audio) > 0:
-                chunks.append(chunk.audio)
-        return np.concatenate(chunks) if chunks else np.array([], dtype=np.float32)
+    def synthesize(self, text: str, voice: str = "longxiaochun", speed: float = 1.0) -> bytes:
+        """返回 WAV bytes (24000Hz, 16bit, mono)"""
+        if not _HTTPX_AVAILABLE:
+            raise RuntimeError("httpx 未安装, 无法调用 CosyVoice2 微服务")
+        r = httpx.post(
+            f"{self._base}/synthesize",
+            json={"text": text, "voice": voice, "speed": speed},
+            timeout=self._timeout,
+        )
+        r.raise_for_status()
+        return r.content
+
+    def voices(self) -> list[dict]:
+        try:
+            r = httpx.get(f"{self._base}/voices", timeout=5.0)
+            if r.status_code == 200:
+                return r.json().get("voices", [])
+        except Exception:  # noqa: BLE001
+            pass
+        return COSYVOICE_VOICES
+
+
+def _wav_bytes_to_pcm_float32(wav_bytes: bytes) -> np.ndarray:
+    """WAV bytes -> float32 [-1,1] 单声道"""
+    import io
+
+    with wave.open(io.BytesIO(wav_bytes), "rb") as w:
+        n_frames = w.getnframes()
+        raw = w.readframes(n_frames)
+    pcm_int16 = np.frombuffer(raw, dtype=np.int16)
+    return pcm_int16.astype(np.float32) / 32768.0
 
 
 # ========== LiveKit 1.6.5 TTS 实现 ==========
@@ -187,28 +169,33 @@ class CosyVoiceEngine:
 if _LIVEKIT_AVAILABLE:
 
     class CosyVoiceChunkedStream(lk_tts.ChunkedStream):
-        """CosyVoice2 流式合成 Stream (LiveKit 1.6.5)"""
+        """CosyVoice2 合成 Stream (经微服务 HTTP 调用, LiveKit 1.6.5)"""
 
         def __init__(self, *, tts, input_text, conn_options):
             super().__init__(tts=tts, input_text=input_text, conn_options=conn_options)
-            self._tts = tts
-            self._engine = tts._engine
+            self._client = tts._client
             self._voice = tts._voice
             self._speed = tts._speed
 
         async def _run(self, output_emitter) -> None:
             request_id = f"cv_{int(time.monotonic() * 1000)}"
             output_emitter.initialize(
-                request_id=request_id, sample_rate=24000, num_channels=1, mime_type="audio/pcm"
+                request_id=request_id, sample_rate=COSYVOICE_SR, num_channels=1, mime_type="audio/pcm"
             )
             try:
-                async for chunk in self._engine.synthesize_stream(self.input_text, self._voice, self._speed):
-                    if chunk.is_final or len(chunk.audio) == 0:
-                        continue
-                    audio_int16 = np.clip(chunk.audio * 32768.0, -32768, 32767).astype(np.int16)
+                wav = await asyncio.to_thread(self._client.synthesize, self.input_text, self._voice, self._speed)
+                pcm = _wav_bytes_to_pcm_float32(wav)
+                if pcm.size == 0:
+                    output_emitter.flush()
+                    return
+                # 按 ~100ms 分片推送, 由 AgentSession 的 StreamAdapter 桥接为流式
+                chunk_samples = COSYVOICE_SR // 10
+                for i in range(0, pcm.size, chunk_samples):
+                    seg = pcm[i : i + chunk_samples]
+                    audio_int16 = np.clip(seg * 32768.0, -32768, 32767).astype(np.int16)
                     output_emitter.push(audio_int16.tobytes())
                 output_emitter.flush()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error("CosyVoice2 合成失败: %s", e)
                 output_emitter.flush()
 
@@ -217,16 +204,17 @@ if _LIVEKIT_AVAILABLE:
 
         streaming=False: CosyVoice2 为整句合成, 由 LiveKit StreamAdapter
         按句桥接为流式接口 (AgentSession 自动包装, 详见 agent.py tts_node)。
+        音频来自独立微服务 (Conda 3.10), 本类仅做 HTTP 客户端适配。
         """
 
-        def __init__(self, model_path="pretrained_models/CosyVoice2-0.5B", voice="longxiaochun",
-                     speed=1.0, sample_rate=24000, *, capabilities=None):
+        def __init__(self, client: CosyVoiceClient | None = None, voice: str = "longxiaochun",
+                     speed: float = 1.0, *, capabilities=None):
             super().__init__(
                 capabilities=capabilities or TTSCapabilities(streaming=False),
-                sample_rate=sample_rate,
+                sample_rate=COSYVOICE_SR,
                 num_channels=1,
             )
-            self._engine = CosyVoiceEngine(model_path=model_path, sample_rate=sample_rate)
+            self._client = client or CosyVoiceClient()
             self._voice = voice
             self._speed = speed
 
@@ -234,7 +222,7 @@ if _LIVEKIT_AVAILABLE:
             return CosyVoiceChunkedStream(tts=self, input_text=text, conn_options=conn_options)
 
         async def list_voices(self):
-            return COSYVOICE_VOICES
+            return self._client.voices()
 
     # ---- EdgeTTS 兜底引擎 (免费, 无需 GPU, 今天即可出声) ----
 
@@ -260,7 +248,7 @@ if _LIVEKIT_AVAILABLE:
                             if isinstance(data, (bytes, bytearray)) and data:
                                 output_emitter.push(bytes(data))
                     output_emitter.flush()
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.error("EdgeTTS 合成失败: %s", e)
                     output_emitter.flush()
 
@@ -286,35 +274,35 @@ if _LIVEKIT_AVAILABLE:
             return EDGE_TTS_VOICES
 
 
-# ========== 工厂函数 (引擎选择: CosyVoice2 优先, EdgeTTS 兜底) ==========
+# ========== 工厂函数 (引擎选择: CosyVoice2 微服务优先, EdgeTTS 兜底) ==========
 
 
 def create_tts(config=None) -> Any:
     """
     创建 TTS 实例, 按维度分层选择引擎:
-      1. CosyVoice2 (本地 GPU, 用户设计首选) — 需 cosyvoice 包 + 模型权重
+      1. CosyVoice2 (本地 GPU, 用户设计首选) — 经独立微服务调用
       2. EdgeTTS (免费中文神经语音) — 兜底, 保证可出声
-      返回 None 表示全部不可用。
+    返回 None 表示全部不可用。
     """
     if not _LIVEKIT_AVAILABLE:
         logger.warning("LiveKit SDK 不可用, 无法创建 TTS")
         return None
 
-    # 1. CosyVoice2 (首选)
-    model_path = getattr(config, "tts_model_path", "pretrained_models/CosyVoice2-0.5B") if config else "pretrained_models/CosyVoice2-0.5B"
     voice = getattr(config, "tts_voice", "longxiaochun") if config else "longxiaochun"
     speed = getattr(config, "tts_speed", 1.0) if config else 1.0
-    sample_rate = getattr(config, "tts_sample_rate", 24000) if config else 24000
 
-    if _COSYVOICE_AVAILABLE and os.path.exists(model_path):
-        try:
-            tts = CosyVoiceTTS(model_path=model_path, voice=voice, speed=speed, sample_rate=sample_rate)
-            logger.info("TTS: CosyVoice2 (本地 GPU) voice=%s", voice)
-            return tts
-        except Exception as e:
-            logger.warning("CosyVoice2 创建失败, 降级 EdgeTTS: %s", e)
-    elif _COSYVOICE_AVAILABLE:
-        logger.info("CosyVoice2 模型权重缺失 (%s), 降级 EdgeTTS", model_path)
+    # 1. CosyVoice2 微服务 (首选): 探活, 可达则使用
+    if _HTTPX_AVAILABLE:
+        client = CosyVoiceClient()
+        if client.health():
+            try:
+                tts = CosyVoiceTTS(client=client, voice=voice, speed=speed)
+                logger.info("TTS: CosyVoice2 微服务 (本地 GPU) voice=%s url=%s", voice, client._base)
+                return tts
+            except Exception as e:  # noqa: BLE001
+                logger.warning("CosyVoice2 微服务创建失败, 降级 EdgeTTS: %s", e)
+        else:
+            logger.info("CosyVoice2 微服务不可达 (%s), 降级 EdgeTTS", client._base)
 
     # 2. EdgeTTS 兜底
     if _EDGE_TTS_AVAILABLE:
@@ -322,7 +310,7 @@ def create_tts(config=None) -> Any:
         logger.info("TTS: EdgeTTS (兜底) voice=%s", edge_voice)
         return EdgeTTS(voice=edge_voice)
 
-    logger.warning("TTS 不可用: CosyVoice2 未装/模型缺失 且 EdgeTTS 未装")
+    logger.warning("TTS 不可用: CosyVoice2 微服务不可达 且 EdgeTTS 未装")
     return None
 
 
@@ -330,6 +318,6 @@ def is_available() -> dict[str, bool]:
     """检查依赖可用性"""
     return {
         "livekit": _LIVEKIT_AVAILABLE,
-        "cosyvoice": _COSYVOICE_AVAILABLE,
+        "httpx": _HTTPX_AVAILABLE,
         "edge_tts": _EDGE_TTS_AVAILABLE,
     }
