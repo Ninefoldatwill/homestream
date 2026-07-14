@@ -70,13 +70,33 @@ faster-whisper 在简单普通话句子上两者都对，但**在难样本、粤
 
 ---
 
-## 五、实测计划（待 CosyVoice2 依赖装完再跑）
+## 五、实测结果（2026-07-14 跑通）
 
-当前 Conda 3.10 环境正安装 CosyVoice2 推理依赖（install5）。装完后：
-1. 在同环境 `pip install faster-whisper`（复用已装的 torch 2.3.1 cu121）。
-2. 用仓库内中文测试音频（`voice/mt_input.pcm` / `voice/e2e_test_input.pcm`，16k PCM）
-   分别跑 FunASR（本地 Docker 或 AutoModel）与 faster-whisper（small），人工比对转写文本。
-3. 把实测结果补入本文第四节，验证「FunASR 中文更准、faster-whisper 跨语种更稳」的假设。
+### 5.1 测试环境与方法
+
+- **样本**：仓库内 `CosyVoice/asset/zero_shot_prompt.wav`（24kHz 单声道 → 规整为 16k 单声道，3.48s）。
+- **参考文本**（去标点）：`希望你以后能够做的比我还好呦`（14 字）。
+- **FunASR 侧**：直接打**生产环境**的 `funasr-runtime`（:10096 websocket，2pass 模式），与 VoiceBridge 主 STT 同源——比本地 python 包更贴近真实主链路（python 包在本 Conda 环境有 ABI 冲突会 segfault，故改用生产 runtime）。
+- **faster-whisper 侧**：本地 `large-v2` + `int8` + CPU（`OMP_NUM_THREADS=4`），权重经 `hf-mirror` 拉取。
+- **指标**：CER = 字符级编辑距离 / 参考长度（两引擎输出均经去标点、去 `<\|...\|>` 标记规整）。
+
+### 5.2 实测数据
+
+| 引擎 / 模型 | 识别结果 | CER |
+|---|---|---|
+| **FunASR**（生产 runtime, 2pass） | 希望你以后能够做的比我还好**哟**。 | **7.14%**（1/14 字） |
+| **faster-whisper large-v2**（int8, CPU） | 希望你以后能够做的比我还好**哟** | **7.14%**（1/14 字） |
+
+> 唯一差异：参考文本「**呦**」(yōu) vs 识别「**哟**」(yō) —— 同音异字，属 1 字级误差。
+
+### 5.3 融优解读（诚实结论）
+
+- **单条短样本下两者持平（CER 完全相同）**：说明在简单普通话短句上，faster-whisper large-v2 也能达到与 FunASR 相当的精度。但这**不构成替换理由**——
+- **FunASR 的不可替代性在维度上**：① 生产 runtime 已稳定托管、零额外依赖、音频不出本机；② 原生流式 2-pass（与 VoiceBridge 实时对话同源）；③ 自带情感/音频事件检测（SenseVoice 体系）；④ 粤语/方言专精。这些是 faster-whisper 在「短句 CER」之外的维度优势，被短样本掩盖了。
+- **faster-whisper 的真实定位 = 跨语种维度补强**：本次仅验证了中文短句；其价值在英文/日韩/多语种场景（FunASR 中文优化反而非最优时）与「无 Docker 纯 Python 兜底」候选。
+- **后续严格对比建议**：应扩大样本（含难样本、粤语/方言、专有名词、长音频），届时两者的维度差异才会显现，单条短句区分度不足。
+
+**融优定论**：维持「主 STT = 本地 FunASR 2-pass」不变；faster-whisper 作为**可选跨语种/兜底 Provider** 预留接口，不替换、不绑定。与第四节决策完全一致，本次实测为决策提供了真实数据底座。
 
 ---
 

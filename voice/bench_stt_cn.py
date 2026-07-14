@@ -19,8 +19,9 @@ STT 中文对比小测 —— 融优处理验证脚本
   E:\\conda_envs\\cosyvoice\\python.exe voice/bench_stt_cn.py
 
 注意:
-  - FunASR 走本地 funasr python 包(若当前环境未装则跳过该项, 仅测 faster-whisper)
-  - faster-whisper 需单独安装: pip install faster-whisper
+  - FunASR 走**生产 funasr-runtime websocket**(:10096, 与 VoiceBridge 主 STT 同源),
+    不依赖 python funasr 包(该 conda 环境加载会 segfault)。:10096 须已启动。
+  - faster-whisper 需单独安装: pip install faster-whisper; 权重走 HF_ENDPOINT 镜像。
   - 本脚本仅做离线评估, 不复制任何外部源码(融优=借鉴范式, 不复制实现)
 """
 import os
@@ -62,27 +63,80 @@ def norm(text: str) -> str:
     return text.strip()
 
 
+def prep_audio_16k_mono(wav: str) -> str:
+    """规整为 16k 单声道 wav, 保证两个引擎喂的是完全一致的信号。"""
+    import numpy as np
+    import soundfile as sf
+    import librosa
+
+    data, sr = sf.read(wav)
+    if data.ndim > 1:
+        data = data.mean(axis=1)
+    data = data.astype(np.float32)
+    if sr != 16000:
+        data = librosa.resample(data, orig_sr=sr, target_sr=16000)
+    tmp = os.path.join(_PROJECT_ROOT, "voice", "_bench_16k.wav")
+    sf.write(tmp, data, 16000)
+    return tmp
+
+
 def run_funasr(wav: str) -> str | None:
+    """走生产 funasr-runtime (:10096 websocket), 与 VoiceBridge 主 STT 同源。
+    不用 python funasr 包(该 conda 环境加载会 segfault), 直接打已在跑的 runtime。"""
     try:
-        from funasr import AutoModel
+        import asyncio
+        import json
+        import re as _re
+        import websockets as _ws
+        import numpy as np
+        import soundfile as sf
     except Exception as e:
-        print(f"[FunASR] 当前环境未安装 funasr 包, 跳过 ({e})")
+        print(f"[FunASR] websockets/soundfile 不可用, 跳过 ({e})")
         return None
     try:
-        model = AutoModel(
-            model="paraformer-zh",
-            model_revision="v2.0.4",
-            vad_model="fsmn-vad",
-            punc_model="ct-punc",
-            disable_update=True,
-        )
-        res = model.generate(input=wav, batch_size=1)
-        if res and "text" in res[0]:
-            return res[0]["text"]
+        data, sr = sf.read(wav)
+        if data.ndim > 1:
+            data = data.mean(axis=1)
+        pcm = (np.clip(data.astype(np.float32), -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
     except Exception as e:
-        print(f"[FunASR] 推理失败: {e}")
+        print(f"[FunASR] 读音频失败: {e}")
         return None
-    return None
+
+    uri = os.getenv("FUNASR_WS_URI", "ws://127.0.0.1:10096")
+
+    async def _run():
+        text = ""
+        async with _ws.connect(uri, open_timeout=15, close_timeout=15) as ws:
+            await ws.send(json.dumps({
+                "mode": "2pass", "chunk_size": [5, 10, 5],
+                "wav_name": "bench", "is_speaking": True, "itn": True,
+            }))
+            step = 3200  # ~0.2s / 块
+            for i in range(0, len(pcm), step):
+                await ws.send(pcm[i:i + step])
+            await ws.send(json.dumps({"is_speaking": False}))
+            async for msg in ws:
+                if isinstance(msg, bytes):
+                    continue
+                try:
+                    d = json.loads(msg)
+                except Exception:
+                    continue
+                if d.get("mode") != "2pass-offline":
+                    continue
+                t = d.get("text", "")
+                if not t:
+                    continue
+                text = _re.sub(r"<\|[^|]+\|>", "", t).strip()
+                break  # 拿到最终稿即止
+        return text
+
+    try:
+        text = asyncio.run(_run())
+        return text if text else None
+    except Exception as e:
+        print(f"[FunASR] websocket 识别失败: {e}")
+        return None
 
 
 def run_faster_whisper(wav: str, model_size: str = "large-v2") -> str | None:
@@ -92,8 +146,12 @@ def run_faster_whisper(wav: str, model_size: str = "large-v2") -> str | None:
         print(f"[faster-whisper] 未安装(需 pip install faster-whisper), 跳过 ({e})")
         return None
     try:
-        # 本地 CPU 推理(无 GPU 也可跑, 仅慢一点); 有 CUDA 会自动用
-        model = WhisperModel(model_size, device="auto", compute_type="default")
+        # 强制 CPU + int8: 与生产 CosyVoice2 GPU 服务隔离, 避免抢显存 OOM;
+        # 同时让两个引擎在同一硬件下比「纯模型能力」, 对比更纯净。
+        # cpu_threads=4 + 外部 OMP_NUM_THREADS=4: 压低 MKL 每线程缓冲峰值,
+        # 规避本机空闲内存(约 3.5GB)不足导致的 mkl_malloc 失败。
+        model = WhisperModel(model_size, device="cpu", compute_type="int8",
+                             cpu_threads=4, num_workers=1)
         segments, _ = model.transcribe(wav, language="zh", beam_size=5)
         return "".join(seg.text for seg in segments)
     except Exception as e:
@@ -112,37 +170,49 @@ def main():
     print(f"参考文本: {REFERENCE_TEXT}")
     ref_norm = norm(REFERENCE_TEXT)
 
+    # 规整为 16k 单声道, 两个引擎喂同一信号
+    wav16 = prep_audio_16k_mono(SAMPLE_WAV)
+    print(f"规整音频(16k单声道): {wav16}")
+
     results = {}
 
     # 1) FunASR
-    fa = run_funasr(SAMPLE_WAV)
+    fa = run_funasr(wav16)
     if fa is not None:
         cer_fa = compute_cer(ref_norm, norm(fa))
         results["funasr_paraformer_zh"] = {"raw": fa, "cer": round(cer_fa, 4)}
         print(f"\n[FunASR] 识别: {fa}")
         print(f"[FunASR] CER = {cer_fa:.4f}")
 
-    # 2) faster-whisper
-    fw = run_faster_whisper(SAMPLE_WAV, "large-v2")
+    # 2) faster-whisper (优先 large-v2 最佳态; 本机空闲内存不足时自动降级 small)
+    fw = run_faster_whisper(wav16, "large-v2")
+    fw_model = "large-v2"
+    if fw is None:
+        print("\n[提示] large-v2 因内存不足失败, 自动降级 faster-whisper small 作为代表")
+        fw = run_faster_whisper(wav16, "small")
+        fw_model = "small"
     if fw is not None:
         cer_fw = compute_cer(ref_norm, norm(fw))
-        results["faster_whisper_large_v2"] = {"raw": fw, "cer": round(cer_fw, 4)}
-        print(f"\n[faster-whisper] 识别: {fw}")
-        print(f"[faster-whisper] CER = {cer_fw:.4f}")
+        results[f"faster_whisper_{fw_model}"] = {"raw": fw, "cer": round(cer_fw, 4)}
+        print(f"\n[faster-whisper/{fw_model}] 识别: {fw}")
+        print(f"[faster-whisper/{fw_model}] CER = {cer_fw:.4f}")
 
     # 结论
     print("\n" + "=" * 60)
     print("结论")
     print("=" * 60)
-    if "funasr_paraformer_zh" in results and "faster_whisper_large_v2" in results:
-        if results["funasr_paraformer_zh"]["cer"] <= results["faster_whisper_large_v2"]["cer"]:
-            print("实测: FunASR CER 更低 -> 主 STT 维持 FunASR(本地, 中文专精)")
-            print("        faster-whisper 定位: 英文/跨语种维度补强 + 无 Docker 本地兜底候选")
+    fa_key = "funasr_paraformer_zh"
+    fw_key = f"faster_whisper_{fw_model}"
+    if fa_key in results and fw_key in results:
+        if results[fa_key]["cer"] <= results[fw_key]["cer"]:
+            print(f"实测: FunASR CER({results[fa_key]['cer']:.4f}) <= faster-whisper/{fw_model} CER({results[fw_key]['cer']:.4f})")
+            print("        -> 主 STT 维持 FunASR(本地, 中文专精)")
+            print("        -> faster-whisper 定位: 英文/跨语种维度补强 + 无 Docker 本地兜底候选")
         else:
-            print("实测: faster-whisper CER 更低 -> 需重新评估 STT 选型(异常, 复查样本)")
-    elif "funasr_paraformer_zh" in results:
+            print(f"实测: faster-whisper/{fw_model} CER 更低 -> 需重新评估(异常, 复查样本)")
+    elif fa_key in results:
         print("仅 FunASR 可用(本环境): 主 STT 维持 FunASR")
-    elif "faster_whisper_large_v2" in results:
+    elif fw_key in results:
         print("仅 faster-whisper 可用: 可作无 Docker 本地兜底候选")
     else:
         print("两项均不可用, 请检查依赖安装")

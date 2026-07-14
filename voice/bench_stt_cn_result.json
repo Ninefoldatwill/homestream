@@ -1,0 +1,13 @@
+{
+  "reference": "希望你以后能够做的比我还好呦。",
+  "results": {
+    "funasr_paraformer_zh": {
+      "raw": "希望你以后能够做的比我还好哟。",
+      "cer": 0.0714
+    },
+    "faster_whisper_large-v2": {
+      "raw": "希望你以后能够做的比我还好哟",
+      "cer": 0.0714
+    }
+  }
+}
